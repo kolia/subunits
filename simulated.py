@@ -1,52 +1,95 @@
-from numpy import dot,exp,sum,log1p,std,eye
-from numpy import arange,array,transpose,fromfunction
+from numpy  import dot,sin,exp,std,eye,sum,add,all,newaxis
+from numpy  import arange,transpose,fromfunction
+from theano import function
+import numpy
+import theano.tensor  as Th
 import numpy.random   as R
 import scipy.linalg   as L
-#import scipy.optimize as Opt
-import theano.tensor  as Th
-from theano import function
+import scipy.optimize as Opt
 
+def adaptive_Linear(W,X):
+    """Return W*X normalized to have standard deviation 0.5."""
+    WX = dot(W,X)
+    return WX * 0.5 / std(WX)
 
 def simulate_LNLNP(
     N             = 10               ,  # number of cones, subunits & RGCs
     Sigma         = 1.               ,  # subunit & RGC connection width
-    NL            = lambda x: exp(x) ,  # subunit & RGC static nonlinearity
-    dyn_range     = 1.               ,  # range of arg to nonlinearity
     firing_rate   = 0.1              ,  # RGC firing rate
     T             = 100000           ): # number of time samples
-
-    spatial  = fromfunction( lambda x: exp(-0.5 * ((x-N/2)/Sigma)**2) , N )
-    spatial  = spatial / sum(spatial)
+    """Simulate spiking data for an LNLNP model.
+    Then use this data to calculate the STAs and STCs.
+    """
+	
+    spatial  = fromfunction( lambda x: exp(-0.5 * ((x-N/2)/Sigma)**2) , (N,) )
     U        = L.circulant( spatial )   # connections btw cones & subunits
     V        = U                        # connections btw subunits & RGCs
 
-    X        = R.randn(N,T)             # cone activations
-
-    UX       = dot(U,X)
-    UX       = UX * log1p(dyn_range) * 0.5 / std(UX)
-    b        = NL(UX)                   # subunit activations
-
-    Vb       = dot(V,b)
-    Vb       = Vb * log1p(dyn_range) * 0.5 / std(Vb)
-    Y        = NL(Vb)                   # RGC activations
+    X        = R.randn(N,T)                 # cone activations
+    b        = sin(adaptive_Linear(U,X))    # subunit activations
+    Y        = exp(adaptive_Linear(V,b))    # RGC activations
     Y        = Y * N * T * firing_rate / sum(Y)
 
     spikes   = R.poisson(Y)
+    N_spikes = sum(spikes,1)
+	
+    STA = [ sum(X*spikes[i,:],1) / N_spikes[i] for i in arange(N) ]
 
-    N_spikes = sum(spikes,1)            # total number of spikes
-    STA      = [ sum(X*spikes[i,:],1) for i in arange(N) ]
-    STA      = transpose( array(STA) ) / N_spikes
-
-    STC      = [ dot( X-STA[:,[i]] , transpose( (X-STA[:,[i]]) * Y[i,:])) \
+    STC = [ dot( X-STA[i][:,newaxis] , transpose((X-STA[i][:,newaxis])*Y[i,:])) \
                  / N_spikes[i] - eye(N)                for i in arange(N) ]
 
-    return (N_spikes,STA,STC)
-    
-    
-def posterior_exp():
-    priorG   = Th.dscalar()
-    N_spikes = Th.dscalar()
-    STA      = Th.dvector()
-    STC      = Th.dmatrix()
-    
-    ll       = N_spikes / (N_spikes+priorG) * (STAB - meanb)
+    return ((N_spikes,STA,STC),U)
+
+
+def sin_model(U, STA, STC):
+    """b(s)  =  sin( U s )"""
+    STAB = Th.exp(-0.5*Th.sum(Th.dot(U,STC)*U,axis=1)) * Th.sin(Th.dot(U,STA))
+    bbar = Th.zeros_like(STAB)	
+    eU   = Th.exp( -0.5 * Th.sum( U * U , axis=1 ) )
+    Cb   = 0.5 * ( eU*(Th.sinh(0.5*Th.dot(U,U.T))*eU).T ).T
+    return (STAB,bbar,Cb)
+
+
+class posterior:
+    def __init__(self,model,prior=1):
+        self.memo_U    = None
+        self.memo_Cbm1 = None
+        self.prior     = prior
+        
+        U   = Th.dmatrix()                   # SYMBOLIC variables       #
+        STA = Th.dvector()                                              #
+        STC = Th.dmatrix()                                              #
+        STAB,bbar,Cb = model(U, STA, STC)                               #
+        Cbm1       = Th.dmatrix()                                       #
+        STABC      = Th.dot(Cbm1,STAB)                                  #
+        posterior  = Th.sum(STABC*STAB)                                 #
+        dposterior = 2*posterior - Th.sum( Th.outer(STABC,STABC) * Cb ) #
+        dposterior = Th.grad( cost              = dposterior,           #
+                              wrt               = U         ,           #
+                              consider_constant = STABC     )           #
+
+        self.Cb         = function( [U]             ,  Cb       )
+        # log-posterior term  (STAB - bbar).T inv(Cb) (STAB - bbar)
+        self.posterior  = function( [U,STA,STC,Cbm1],  posterior)
+        # gradient of log-posterior term
+        self.dposterior = function( [U,STA,STC,Cbm1], dposterior)
+
+    def Cbm1(self,U):
+        """Memoize Cbm1 = inv(Cb) for efficiency."""
+        if not all(self.memo_U == U):
+            self.memo_U = U
+            self.memo_Cbm1 = numpy.inv(self.Cb(U))
+        return self.memo_Cbm1
+
+    def sum_RGCs(self, f, U, (N_spikes,STA,STC)):
+        Cbm1 = self.Cbm1(U)
+        return reduce( add ,  [ n**2/(n+self.prior) * f(U,sta,stc,Cbm1) \
+                               for n,sta,stc in zip(N_spikes,STA,STC)])
+
+    def  f(self, U, (N_spikes,STA,STC)): return -self.sum_RGCs( self.posterior  )
+    def df(self, U, (N_spikes,STA,STC)): return -self.sum_RGCs( self.dposterior )
+    def MAP(self,data,x0):     return Opt.fmin_bfgs(self.f,x0,self.df,data)
+
+data, U = simulate_LNLNP()
+baye    = posterior(sin_model)
+nU      = baye.MAP(data,U)
