@@ -133,21 +133,3 @@ x0  = U
 
 x  = baye.MAP(data,x0.flatten())
 x  = reshape( x , (-1,10) )
-
-
-#K  = [10,8,6]
-#x  = [R.randn(5,10) for i in K+[1]]
-#
-#x  = eye(10)
-#x  = x[1:10:2,:] * 0.005
-#
-#x  = baye.MAP(data,x.flatten())
-#x  = reshape( x , (-1,10) )
-
-#for i,k in enumerate(K):
-#    x[i]  = exp( k*x[max(0,i-1)] )
-#    x[i]  = reshape( x[i] , (-1,10) )
-#    x[i]  = x[i] * 0.01 / sqrt(sum(x[i]*x[i],axis=1))[:,newaxis]
-#    print sum(x[i]*x[i],axis=1)
-#    x[i]  = baye.MAP(data,x[i].flatten())
-#    x[i]  = reshape( x[i] , (-1,10) )
