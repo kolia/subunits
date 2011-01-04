@@ -7,10 +7,6 @@ import numpy.random   as R
 import scipy.linalg   as L
 import scipy.optimize as Opt
 
-def adaptive_Linear(W,X):
-    """Return W*X normalized to have standard deviation 1."""
-    WX = dot(W,X)
-    return WX / std(WX)
 
 def simulate_LNLNP(
     N             = 10               ,  # number of cones, subunits & RGCs
@@ -29,10 +25,17 @@ def simulate_LNLNP(
     V = V[0:10:2,0:10:2]
     NRGC = V.shape[0]
 
+    U = U / sqrt(sum(U*U,axis=1))[:,newaxis]
+    V = V / sqrt(sum(V*V,axis=1))[:,newaxis]
+
     X        = R.randn(N,T)                 # cone activations
-    b        = sin(adaptive_Linear(U,X))    # subunit activations
-    Y        = exp(adaptive_Linear(V,b))    # RGC activations
+    b        = sin(dot(U,X))                # subunit activations
+    Y        = exp(dot(V,b))                # RGC activations
     Y        = Y * NRGC * T * firing_rate / sum(Y)
+
+    print 'std( X ) = ', std(X)
+    print 'std( U X ) = ', std(dot(U,X))
+    print 'std( V b ) = ', std(dot(V,b))
 
     spikes   = R.poisson(Y)
     N_spikes = sum(spikes,1)
@@ -60,7 +63,7 @@ def exp_model(U, STA, STC):
     bbar = Th.exp(0.5* Th.sum( U * U , axis=1 ))
     STAB = Th.exp(0.5* Th.sum(Th.dot(U,STC)*U,axis=1) + Th.dot(U,STA))
     Cb   = (Th.exp(0.5* Th.dot(U,U.T))*bbar).T*bbar
-    regular  = 0.01*Th.sum( Th.cosh(Th.sum(U*U,axis=1)) )
+    regular  = 0.000001*Th.sum( Th.cosh(Th.sum(U*U,axis=1)) )
     return (STAB,bbar,Cb,regular)
 
 
