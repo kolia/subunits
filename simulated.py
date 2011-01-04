@@ -1,5 +1,5 @@
-from numpy  import dot,sin,exp,std,eye,sum,add,all,newaxis
-from numpy  import arange,transpose,fromfunction,reshape    ,amax
+from numpy  import dot,sin,exp,std,eye,sum,add,all,newaxis,  array,sqrt
+from numpy  import arange,transpose,fromfunction,reshape
 from numpy.linalg import inv
 from theano import function
 import theano.tensor  as Th
@@ -8,9 +8,9 @@ import scipy.linalg   as L
 import scipy.optimize as Opt
 
 def adaptive_Linear(W,X):
-    """Return W*X normalized to have standard deviation 0.5."""
+    """Return W*X normalized to have standard deviation 1."""
     WX = dot(W,X)
-    return WX * 0.5 / std(WX)
+    return WX / std(WX)
 
 def simulate_LNLNP(
     N             = 10               ,  # number of cones, subunits & RGCs
@@ -25,18 +25,22 @@ def simulate_LNLNP(
     U        = L.circulant( spatial )   # connections btw cones & subunits
     V        = U                        # connections btw subunits & RGCs
 
+    U = U[0:10:2,:]
+    V = V[0:10:2,0:10:2]
+    NRGC = V.shape[0]
+
     X        = R.randn(N,T)                 # cone activations
     b        = sin(adaptive_Linear(U,X))    # subunit activations
     Y        = exp(adaptive_Linear(V,b))    # RGC activations
-    Y        = Y * N * T * firing_rate / sum(Y)
+    Y        = Y * NRGC * T * firing_rate / sum(Y)
 
     spikes   = R.poisson(Y)
     N_spikes = sum(spikes,1)
 	
-    STA = [ sum(X*spikes[i,:],1) / N_spikes[i] for i in arange(N) ]
+    STA = [ sum(X*spikes[i,:],1) / N_spikes[i] for i in arange(NRGC) ]
 
     STC = [ dot( X-STA[i][:,newaxis] , transpose((X-STA[i][:,newaxis])*Y[i,:])) \
-                 / N_spikes[i] - eye(N)                for i in arange(N) ]
+                 / N_spikes[i] - eye(N)                for i in arange(NRGC) ]
 
     return ((N_spikes,STA,STC),U)
 
@@ -46,8 +50,10 @@ def sin_model(U, STA, STC):
     STAB = Th.exp(-0.5*Th.sum(Th.dot(U,STC)*U,axis=1)) * Th.sin(Th.dot(U,STA))
     bbar = Th.zeros_like(STAB)	
     eU   = Th.exp( -0.5 * Th.sum( U * U , axis=1 ) )
-    Cb   = 0.5 * (Th.sinh(0.5*Th.dot(U,U.T))*eU).T*eU
-    return (STAB,bbar,Cb)
+    Cb   = 0.5 * (Th.sinh(Th.dot(U,U.T))*eU).T*eU
+    regular  = 0.1*Th.sum( Th.cosh(Th.sum(U*U,axis=1)) )
+    return (STAB,bbar,Cb,regular)
+
 
 
 class posterior:
@@ -59,12 +65,12 @@ class posterior:
         U   = Th.dmatrix()                   # SYMBOLIC variables       #
         STA = Th.dvector()                                              #
         STC = Th.dmatrix()                                              #
-        (STAB,bbar,Cb) = model(U, STA, STC)                             #
+        (STAB,bbar,Cb,regular) = model(U, STA, STC)                     #
         Cbm1       = Th.dmatrix()                                       #
-        Cbm1       = 0.5*(Cbm1+Cbm1.T)                                  #
+#        Cbm1       = 0.5*(Cbm1+Cbm1.T)                                  #
         STABC      = Th.dot(Cbm1,(STAB-bbar))                           #
-        posterior  = Th.sum(STABC*(STAB-bbar))                          #
-        dposterior = 2*posterior - Th.sum( Th.outer(STABC,STABC) * Cb ) #
+        posterior  = Th.sum(STABC*(STAB-bbar)) - regular                #
+        dposterior = 2*posterior - Th.sum( Th.outer(STABC,STABC) * Cb ) - regular #
         dposterior = Th.grad( cost              = dposterior,           #
                               wrt               = U         ,           #
                               consider_constant = [STABC]   )           #
@@ -91,18 +97,48 @@ class posterior:
         return reduce( add ,  [ n**2/(n+self.prior) * f(U,sta,stc,Cbm1).flatten() \
                                for n,sta,stc in zip(N_spikes,STA,STC)])
 
+    def callback(self,U):
+        U = reshape(U,(-1,len(STA[0])))
+        print sum( U*U, axis=1)
+
     def  f(self, U, N_spikes,STA,STC): return -self.sum_RGCs( self.posterior , U, (N_spikes,STA,STC))
-    def df(self, U, N_spikes,STA,STC): return self.sum_RGCs( self.dposterior, U, (N_spikes,STA,STC))
-    def MAP(self,data,x0):     return Opt.fmin_bfgs(self.f,x0.flatten(),self.df,data,full_output=True,disp=True)
+    def df(self, U, N_spikes,STA,STC): return -self.sum_RGCs( self.dposterior, U, (N_spikes,STA,STC))
+    def MAP(self,data,x0): return Opt.fmin_ncg(self.f,x0.flatten(),fprime=self.df,avextol=1.1e-3,args=data,callback=self.callback)
 
 data, U = simulate_LNLNP()
-baye    = posterior(sin_model,prior=0)
+baye    = posterior(sin_model,prior=1.)
 
-Cbm1    = baye.Cbm1(U)
 N_spikes,STA,STC=data
-aaa = baye.posterior(U,STA[0],STC[0],Cbm1)
-print aaa
-bbb = baye.dposterior(U,STA[0],STC[0],Cbm1)
-print bbb
+print baye.f(U,N_spikes,STA,STC)
 
-nU      = baye.MAP(data,U)
+## Check derivative
+#df = baye.df(U,N_spikes,STA,STC)
+#UU = U.flatten()
+#dh = 0.00000001
+#ee = eye(100)*dh
+#for i in arange(100):
+#    print (baye.f(UU+ee[:,i],N_spikes,STA,STC)-baye.f(UU,N_spikes,STA,STC))/dh , df[i]
+
+#x0  = U
+x0  = array( STA ).T
+
+x  = baye.MAP(data,x0.flatten())
+x  = reshape( x , (-1,10) )
+
+
+#K  = [10,8,6]
+#x  = [R.randn(5,10) for i in K+[1]]
+#
+#x  = eye(10)
+#x  = x[1:10:2,:] * 0.005
+#
+#x  = baye.MAP(data,x.flatten())
+#x  = reshape( x , (-1,10) )
+
+#for i,k in enumerate(K):
+#    x[i]  = exp( k*x[max(0,i-1)] )
+#    x[i]  = reshape( x[i] , (-1,10) )
+#    x[i]  = x[i] * 0.01 / sqrt(sum(x[i]*x[i],axis=1))[:,newaxis]
+#    print sum(x[i]*x[i],axis=1)
+#    x[i]  = baye.MAP(data,x[i].flatten())
+#    x[i]  = reshape( x[i] , (-1,10) )
