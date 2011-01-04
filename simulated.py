@@ -21,11 +21,9 @@ def simulate_LNLNP(
     U        = L.circulant( spatial )   # connections btw cones & subunits
     V        = U                        # connections btw subunits & RGCs
 
-    U = U[0:10:2,:]
-    V = V[0:10:2,0:10:2]
     NRGC = V.shape[0]
 
-    U = U / sqrt(sum(U*U,axis=1))[:,newaxis]
+    U = 0.01 * U / sqrt(sum(U*U,axis=1))[:,newaxis]
     V = V / sqrt(sum(V*V,axis=1))[:,newaxis]
 
     X        = R.randn(N,T)                 # cone activations
