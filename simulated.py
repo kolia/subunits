@@ -1,4 +1,4 @@
-from numpy  import dot,sin,exp,std,eye,sum,add,all,newaxis,  array,sqrt
+from numpy  import dot,sin,exp,std,eye,sum,add,all,newaxis,sqrt , array
 from numpy  import arange,transpose,fromfunction,reshape
 from numpy.linalg import inv
 from theano import function
@@ -52,7 +52,7 @@ def sin_model(U, STA, STC):
     bbar = Th.zeros_like(STAB)	
     eU   = Th.exp( -0.5 * Th.sum( U * U , axis=1 ) )
     Cb   = 0.5 * (Th.sinh(Th.dot(U,U.T))*eU).T*eU
-    regular  = 0.1*Th.sum( Th.cosh(Th.sum(U*U,axis=1)) )
+    regular  = 0.0000000001*Th.sum( Th.cosh(Th.sum(U*U,axis=1)) )
     return (STAB,bbar,Cb,regular)
 
 
@@ -61,7 +61,7 @@ def exp_model(U, STA, STC):
     bbar = Th.exp(0.5* Th.sum( U * U , axis=1 ))
     STAB = Th.exp(0.5* Th.sum(Th.dot(U,STC)*U,axis=1) + Th.dot(U,STA))
     Cb   = (Th.exp(0.5* Th.dot(U,U.T))*bbar).T*bbar
-    regular  = 0.000001*Th.sum( Th.cosh(Th.sum(U*U,axis=1)) )
+    regular  = 0.0000000001*Th.sum( Th.cosh(Th.sum(U*U,axis=1)) )
     return (STAB,bbar,Cb,regular)
 
 
@@ -76,7 +76,6 @@ class posterior:
         STC = Th.dmatrix()                                              #
         (STAB,bbar,Cb,regular) = model(U, STA, STC)                     #
         Cbm1       = Th.dmatrix()                                       #
-#        Cbm1       = 0.5*(Cbm1+Cbm1.T)                                  #
         STABC      = Th.dot(Cbm1,(STAB-bbar))                           #
         posterior  = Th.sum(STABC*(STAB-bbar)) - regular                #
         dposterior = 2*posterior - Th.sum( Th.outer(STABC,STABC) * Cb ) - regular #
@@ -115,8 +114,8 @@ class posterior:
     def MAP(self,data,x0): return Opt.fmin_ncg(self.f,x0.flatten(),fprime=self.df,avextol=1.1e-3,args=data,callback=self.callback)
 
 data, U = simulate_LNLNP()
-#baye    = posterior(sin_model,prior=1.)
-baye    = posterior(exp_model,prior=1.)
+baye    = posterior(sin_model,prior=1.)
+#baye    = posterior(exp_model,prior=1.)
 
 N_spikes,STA,STC=data
 print baye.f(U,N_spikes,STA,STC)
