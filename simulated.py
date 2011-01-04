@@ -55,6 +55,14 @@ def sin_model(U, STA, STC):
     return (STAB,bbar,Cb,regular)
 
 
+def exp_model(U, STA, STC):
+    """b(s)  =  exp( U s )"""
+    bbar = Th.exp(0.5* Th.sum( U * U , axis=1 ))
+    STAB = Th.exp(0.5* Th.sum(Th.dot(U,STC)*U,axis=1) + Th.dot(U,STA))
+    Cb   = (Th.exp(0.5* Th.dot(U,U.T))*bbar).T*bbar
+    regular  = 0.01*Th.sum( Th.cosh(Th.sum(U*U,axis=1)) )
+    return (STAB,bbar,Cb,regular)
+
 
 class posterior:
     def __init__(self,model,prior=1):
@@ -106,7 +114,8 @@ class posterior:
     def MAP(self,data,x0): return Opt.fmin_ncg(self.f,x0.flatten(),fprime=self.df,avextol=1.1e-3,args=data,callback=self.callback)
 
 data, U = simulate_LNLNP()
-baye    = posterior(sin_model,prior=1.)
+#baye    = posterior(sin_model,prior=1.)
+baye    = posterior(exp_model,prior=1.)
 
 N_spikes,STA,STC=data
 print baye.f(U,N_spikes,STA,STC)
@@ -119,8 +128,8 @@ print baye.f(U,N_spikes,STA,STC)
 #for i in arange(100):
 #    print (baye.f(UU+ee[:,i],N_spikes,STA,STC)-baye.f(UU,N_spikes,STA,STC))/dh , df[i]
 
-#x0  = U
-x0  = array( STA ).T
+x0  = U
+#x0  = array( STA ).T
 
 x  = baye.MAP(data,x0.flatten())
 x  = reshape( x , (-1,10) )
