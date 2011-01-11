@@ -23,7 +23,7 @@ def LNLNP(
     V        = U                        # connections btw subunits & RGCs
 
     U = U[0:10:2,:]
-    V = V[0:10:2,0:10:2]
+    V = V[0:10:3,0:10:2]
     NRGC = V.shape[0]
 
     U = U / sqrt(sum(U*U,axis=1))[:,newaxis]
