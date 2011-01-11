@@ -20,11 +20,11 @@ class posterior:
         STC = Th.dmatrix()                                              #
         theta = Th.dot( U.T , V1 )                                      #
         UV1U  = Th.dot( U , theta )                                     #
-        posterior  = -0.5 * Th.sum( V2 * U.T*U.T ) \
-                     -0.5 * Th.sum( UV1U * UV1U *V2 ) \
+        posterior  = -0.5 * Th.sum( V1 * V2 * U.T*U.T ) \
+                     -0.5 * Th.sum( UV1U * UV1U *V2 * V1 ) \
                      -0.5 * Th.sum( theta * theta ) \
                      + Th.dot( theta.T , STA ) \
-                     + Th.sum( Th.dot( V2*U.T , U ) \
+                     + Th.sum( Th.dot( V1* V2*U.T , U ) \
                      * (STC + STA.T*STA) )
         dpost_dU  = Th.grad( cost           = posterior ,               #
                              wrt            = U         )               #
