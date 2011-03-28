@@ -26,28 +26,13 @@ class posterior:
         invMtheta = Th.as_tensor_variable(Th.dot(invM,theta),ndim=2)
         
         post = (  Th.log(detM) \
-#                - 0.01 / (detM-0.2) \
+                - 0.01 / (detM-0.2) \
                 - Th.sum(invMtheta*theta) \
                 + 2. * Th.sum( theta * STA ) \
                 + Th.sum( M * (STC + Th.outer(STA,STA)) )) / 2.
         dpost_dM  = ( invM + invMtheta * invMtheta.T \
-#                    + 0.01 * detM * invM / ((detM-0.2)**2) \
+                    + 0.01 * detM * invM / ((detM-0.2)**2) \
                     ) / 2.
-
-#        post      = Th.log(detM)
-#        dpost_dM  = invM
-
-#        post      =  Th.sum( theta * M * theta ) - Th.dot( theta , Th.dot(M,theta) )
-#        dpost_dM  = 0
-
-#        post      = - Th.sum(invMtheta*theta)
-#        dpost_dM  = invMtheta * invMtheta.T
-
-#        post      = - 0.01 / (detM-0.3)
-#        dpost_dM  =   0.01 * detM * invM / ((detM-0.3)**2)
-
-#        post      = 2*Th.dot(theta.T,STA) + Th.sum(M.T*(STC + STA.T*STA))
-#        dpost_dM  = 0
 
         def dpost1(dX):
             return Th.grad( cost = post                   , wrt = dX , \
@@ -63,71 +48,16 @@ class posterior:
                  - Th.grad( cost = Th.sum( dpost_dM * M ) , wrt = dX , 
                             consider_constant=[dpost_dM,STA,STC,invM,invMtheta])
 
-#        self.U          = function( [U,V2,V1,invM,detM,STA,STC],  U       ) #
-#        self.V2         = function( [U,V2,V1,invM,detM,STA,STC],  V2      ) #
-#        self.V1         = function( [U,V2,V1,invM,detM,STA,STC],  V1      ) #
         self.M          = function( [U,V2,V1]                  ,  M       ) #
         self.posterior  = function( [U,V2,V1,invM,detM,STA,STC],  post    ) #
         self.dpost_dU   = function( [U,V2,V1,invM,detM,STA,STC], dpost(U) ) #
         self.dpost_dV1  = function( [U,V2,V1,invM,detM,STA,STC], dpost(V1)) #
         self.dpost_dV2  = function( [U,V2,V1,invM,detM,STA,STC], dpost(V2)) #
 
-#        self.ldetM      = function( [U,V2,V1,invM,detM,STA,STC], Th.log(detM)) #
-#        self.quad_IM    = function( [U,V2,V1,invM,detM,STA,STC], - Th.dot(invMtheta,theta)) #
-#        self.theta_STA  = function( [U,V2,V1,invM,detM,STA,STC], 2*Th.dot( theta.T , STA )) #
-#        self.B          = function( [U,V2,V1,invM,detM,STA,STC], Th.sum( Th.dot( V1 * U.T , U ) * (STC + STA.T*STA) )) #
-#        self.STA        = function( [U,V2,V1,invM,detM,STA,STC], STA ) #
-#        self.STC        = function( [U,V2,V1,invM,detM,STA,STC], STC ) #
-#        self.tr_M_STA   = function( [U,V2,V1,invM,detM,STA,STC], Th.sum( M.T * (STC + STA.T*STA) )) #
-#        self.STA_STA    = function( [U,V2,V1,invM,detM,STA,STC],  Th.outer(STA,STA)) #
-#        self.thetatheta = function( [U,V2,V1,invM,detM,STA,STC], Th.dot( theta , theta )) #
-#
-#        self.dpost1_dU  = function( [U,V2,V1,invM,detM,STA,STC], dpost1(U) ) #
-#        self.dpost1_dV1 = function( [U,V2,V1,invM,detM,STA,STC], dpost1(V1)) #
-#        self.dpost1_dV2 = function( [U,V2,V1,invM,detM,STA,STC], dpost1(V2)) #
-#
-#        self.dpost2_dU  = function( [U,V2,V1,invM,detM,STA,STC], dpost2(U) ) #
-#        self.dpost2_dV1 = function( [U,V2,V1,invM,detM,STA,STC], dpost2(V1)) #
-#        self.dpost2_dV2 = function( [U,V2,V1,invM,detM,STA,STC], dpost2(V2)) #
-#
-#        self.invMtheta  = function( [U,V2,V1,invM,detM,STA,STC], invMtheta) #
-#        self.invMthetatheta = function( [U,V2,V1,invM,detM,STA,STC], invMtheta*theta) #        
-
         self.dpost_dM   = function( [U,V2,V1,invM,detM,STA,STC], dpost_dM) #        
 
 
     def callback(self,params,data):
-#        (U,V2,V1) = self.params(params,data[0])
-        p = self.params(params,data[0])
-        d = self.data(params,data[0]) 
-#        print 'posterior:' , self.f(params,data[0]) , \
-#              ' det IMk:'  , [ det(eye(self.N)-baye.M(U,V2,V1[i,:])) \
-#                                        for i in range(self.NRGC)]
-##        print 'dpost_dM:'  , self.sum_RGC( add, self.dpost_dM,p,d)
-#        print 'eigvals IMk:'  , [ eigvals(eye(self.N)-baye.M(U,V2,V1[i,:])) \
-#                                        for i in range(self.NRGC)]
-#        print 'STA :'  , self.first_RGC( add, self.STA,p,d)
-#        print 'STC :'  , self.first_RGC( add, self.STC,p,d)
-#        print 'maxL B :'  , 1./4*((1-2./(self.first_RGC( add, self.V2,p,d) -1))**2-1)
-#        print 'v1 B :'  , self.first_RGC( add, self.B,p,d)
-#        print 'v1 :'  , self.first_RGC( add, self.V1,p,d)
-#        print 'v2 :'  , self.first_RGC( add, self.V2,p,d)        
-#        print 'u  :'  , self.first_RGC( add, self.U,p,d)
-#        print 'ldetM:'      , self.sum_RGC( add, self.ldetM    ,p,d), \
-#              'quad_IM:'    , self.sum_RGC( add, self.quad_IM  ,p,d), \
-#              'theta_theta:', self.sum_RGC( add, self.thetatheta,p,d), \
-#              'theta_STA:'  , self.sum_RGC( add, self.theta_STA,p,d), \
-#              'tr_M_STA:'   , self.sum_RGC( add, self.tr_M_STA ,p,d)
-#        print 'invMtheta:' , self.sum_RGC( add, self.invMtheta,p,d)
-#        print 'invMthetatheta:' , self.sum_RGC( add, self.invMthetatheta,p,d)
-#
-##        print 'dpost1_dU:' , self.sum_RGC( add, self.dpost1_dU,p,d)
-##        print 'dpost2_dU:' , self.sum_RGC( add, self.dpost2_dU,p,d)
-##        print 'dpost1_dV2:' , self.sum_RGC( add, self.dpost1_dV2,p,d)
-##        print 'dpost2_dV2:' , self.sum_RGC( add, self.dpost2_dV2,p,d)
-##        print 'dpost1_dV1:' , self.sum_RGC( add, self.dpost1_dV1,p,d)
-##        print 'dpost2_dV1:' , self.sum_RGC( add, self.dpost2_dV1,p,d)
-        print
         return
         
     def U(self,params):
@@ -143,41 +73,19 @@ class posterior:
 
     def data(self,params,data): return data
 
-#    def sum_RGC(self,op,g,(U,V2,V1),(N_spikes,STA,STC)):
-#        return reduce( op ,  [ n * g(U,V2,V1[i,:], \
-#                                     inv(eye(self.N)-self.M(U,V2,V1[i,:])), \
-#                                     det(eye(self.N)-self.M(U,V2,V1[i,:])),sta,stc) \
-#                                for i,(n,sta,stc) in \
-#                                enumerate(zip(N_spikes,STA,STC))])
-
-#    def first_RGC(self,op,g,(U,V2,V1),(N_spikes,STA,STC)):
-#        for i,(n,sta,stc) in enumerate(zip(N_spikes,STA,STC)):
-#            IM = eye(self.N)-self.M(U,V2,V1[i,:])
-#            term = g(U,V2,V1[i,:], inv(IM), det(IM), sta, stc)
-##            if any(isnan(term.flatten())):
-##                print 'oups'
-##                term = None
-###                raise ArithmeticError('nan')
-#            if i == 0:
-#                result = term
-#            else:                
-#                result = op( result , term )
-#        return result
-
     def sum_RGC(self,op,g,(U,V2,V1),(N_spikes,STA,STC)):
         for i,(n,sta,stc) in enumerate(zip(N_spikes,STA,STC)):
             IM = eye(self.N)-self.M(U,V2,V1[i,:])
             term = n * g(U,V2,V1[i,:], inv(IM), det(IM), sta, stc)
-#            if any(isnan(term.flatten())):
-#                print 'oups'
-#                term = None
-##                raise ArithmeticError('nan')
+            if any(isnan(term.flatten())):
+                print 'oups'
+                term = None
+#                raise ArithmeticError('nan')
             if i == 0:
                 result = term
             else:                
                 result = op( result , term )
         return result
-
 
 
     def     f (self, params, data):
@@ -287,7 +195,7 @@ from numpy import dot, ones , arange, sum
 import numpy.random   as R
 import numpy.linalg   as L
 
-V2 = -0.1
+V2 = -0.3
 def NL(x): return x + 0.5 * V2 * ( x ** 2 )
 (N_spikes,STA,STC), U, V1 = simulate_data.LNLNP(NL=NL,N=6)
 Nsub, N    =  U.shape
@@ -310,20 +218,20 @@ V2 = V2 * ones((Nsub,))
 #index  = 2
 #true_params = V1.flatten()
 
-baye   = posterior(N,Nsub,NRGC)
-data   = [ (N_spikes , STA , STC) ]
-index  = slice(3)
-true_params = concatenate(( U.flatten() , V2 , V1.flatten() ))
+#baye   = posterior(N,Nsub,NRGC)
+#data   = [ (N_spikes , STA , STC) ]
+#index  = slice(3)
+#true_params = concatenate(( U.flatten() , V2 , V1.flatten() ))
 
 #baye   = posterior_dUV1(N,Nsub,NRGC)
 #data   = [ (V2, N_spikes , STA , STC) ]
 #index  = slice(3)
 #true_params = concatenate(( U.flatten() , V1.flatten() ))
 
-#baye   = posterior_dV2V1(N,Nsub,NRGC)
-#data   = [ (U, N_spikes , STA , STC) ]
-#index  = slice(3)
-#true_params = concatenate(( V2 , V1.flatten() ))
+baye   = posterior_dV2V1(N,Nsub,NRGC)
+data   = [ (U, N_spikes , STA , STC) ]
+index  = slice(3)
+true_params = concatenate(( V2 , V1.flatten() ))
 
 
 # Check derivative
@@ -377,15 +285,5 @@ print 'opt  params:'
 print  baye.params(opt_params ,data[0])[index]
 print
 print
-#print 'true U*V1:' , dot(baye.params(true_params,data[0])[0].T,baye.params(true_params,data[0])[2].T)
-#print 'opt U*V1:' , dot(baye.params(opt_params,data[0])[0].T,baye.params(opt_params,data[0])[2].T)
-print
-print
-print
-print
-print
-
-#other_params = params + 200000.
-#print
-#print 'other params'
-#print baye.callback(other_params,data)
+print 'true U*V1:' , dot(baye.params(true_params,data[0])[0].T,baye.params(true_params,data[0])[2].T)
+print 'opt U*V1:' , dot(baye.params(opt_params,data[0])[0].T,baye.params(opt_params,data[0])[2].T)

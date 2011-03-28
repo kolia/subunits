@@ -26,18 +26,10 @@ def LNLNP(
     V = V[0:10:3,0:10:2]
     NRGC = V.shape[0]
 
-#    U = U[[0],:]
-#    V = array([[1]])
-#    NRGC = 1
-
     U = U / sqrt(sum(U*U,axis=1))[:,newaxis]
     V = V / sqrt(sum(V*V,axis=1))[:,newaxis]
 
     X        = R.randn(N,T)                 # cone activations
-#    b        = sin(dot(U,X))                # subunit activations
-#    b        = exp(dot(U,X))                # subunit activations
-#    b        = dot(U,X)                     # subunit activations
-#    b        = dot(U,X) + dot(U,X) ** 2     # subunit activations
     b        = NL(dot(U,X))                 # subunit activations
     Y        = exp(dot(V,b))                # RGC activations
     Y        = Y * NRGC * T * firing_rate / sum(Y)
