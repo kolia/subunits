@@ -3,7 +3,7 @@ Generate simulated data.
 @author: kolia
 """
 
-from numpy  import dot,sin,exp,std,eye,sum,newaxis,sqrt
+from numpy  import dot,sin,exp,std,eye,sum,newaxis,sqrt,array
 from numpy  import arange,transpose,fromfunction
 import numpy.random   as R
 import scipy.linalg   as L
@@ -13,7 +13,7 @@ def LNLNP(
     N             = 10               ,  # number of cones, subunits & RGCs
     Sigma         = 1.               ,  # subunit & RGC connection width
     firing_rate   = 0.1              ,  # RGC firing rate
-    T             = 100000           ): # number of time samples
+    T             = 1000000          ): # number of time samples
     """Simulate spiking data for a Linear-Nonlinear-Linear-Nonlinear-Poisson model.
     Then use this data to calculate the STAs and STCs.
     """
@@ -25,6 +25,10 @@ def LNLNP(
     U = U[0:10:2,:]
     V = V[0:10:3,0:10:2]
     NRGC = V.shape[0]
+
+#    U = U[[0],:]
+#    V = array([[1]])
+#    NRGC = 1
 
     U = U / sqrt(sum(U*U,axis=1))[:,newaxis]
     V = V / sqrt(sum(V*V,axis=1))[:,newaxis]
@@ -48,6 +52,6 @@ def LNLNP(
     STA = [ sum(X*spikes[i,:],1) / N_spikes[i] for i in arange(NRGC) ]
 
     STC = [ dot( X-STA[i][:,newaxis] , transpose((X-STA[i][:,newaxis])*Y[i,:])) \
-                 / N_spikes[i] - eye(N)                for i in arange(NRGC) ]
+                 / N_spikes[i]               for i in arange(NRGC) ]
 
     return ((N_spikes,STA,STC),U,V)
