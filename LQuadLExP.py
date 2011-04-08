@@ -2,18 +2,21 @@
 Linear-Quadratic-Linear-Exponential-Poisson model fitter.
 @author: kolia
 """
-from numpy  import add,reshape,concatenate,log,eye,isnan,ones_like
+from numpy  import add,reshape,concatenate,log,eye,isnan,ones_like,Inf,max,min
 from numpy.linalg import inv, det, norm, eigvals
 from theano import function
 import theano.tensor  as Th
 import scipy.optimize as Opt
+from optimize import fmin_barrier_bfgs
 
+import pylab as p
 
 class posterior:
     def __init__(self,N,Nsub,NRGC,prior=1):
         self.N     = N
         self.Nsub  = Nsub
         self.NRGC  = NRGC
+        self.mindet= 0.2
         U    = Th.dmatrix()                   # SYMBOLIC variables     #
         V1   = Th.dvector()                                            #
         V2   = Th.dvector()                                            #
@@ -26,12 +29,13 @@ class posterior:
         invMtheta = Th.as_tensor_variable(Th.dot(invM,theta),ndim=2)
         
         post = (  Th.log(detM) \
-                - 0.01 / (detM-0.2) \
+#                - 0.01 / (detM-self.mindet) \
                 - Th.sum(invMtheta*theta) \
                 + 2. * Th.sum( theta * STA ) \
-                + Th.sum( M * (STC + Th.outer(STA,STA)) )) / 2.
+                + Th.sum( M * (STC + Th.outer(STA,STA)) )) / 2. \
+                - 1. * Th.sum( (Th.sum( U*U , axis=1 ) - ones_like(V1)) ** 2. )
         dpost_dM  = ( invM + invMtheta * invMtheta.T \
-                    + 0.01 * detM * invM / ((detM-0.2)**2) \
+#                    + 0.01 * detM * invM / ((detM-self.mindet)**2) \
                     ) / 2.
 
         def dpost1(dX):
@@ -57,6 +61,11 @@ class posterior:
         self.dpost_dM   = function( [U,V2,V1,invM,detM,STA,STC], dpost_dM) #        
 
 
+    def barrier(self,params,data):
+        IM = eye(self.N)-self.M(U,V2,V1[i,:])
+        return det(IM) < self.mindet
+        
+
     def callback(self,params,data):
         return
         
@@ -74,6 +83,7 @@ class posterior:
     def data(self,params,data): return data
 
     def sum_RGC(self,op,g,(U,V2,V1),(N_spikes,STA,STC)):
+        result = None
         for i,(n,sta,stc) in enumerate(zip(N_spikes,STA,STC)):
             IM = eye(self.N)-self.M(U,V2,V1[i,:])
             term = n * g(U,V2,V1[i,:], inv(IM), det(IM), sta, stc)
@@ -81,31 +91,35 @@ class posterior:
                 print 'oups'
                 term = None
 #                raise ArithmeticError('nan')
-            if i == 0:
-                result = term
-            else:                
+            if result is not None and term is not None:
                 result = op( result , term )
-        return result
+            else:
+                if term is not None:
+                    result = term
+        if result is None:
+            return Inf
+        else:
+            return -result
 
 
     def     f (self, params, data):
-        return -self.sum_RGC( add, self.posterior, 
+        return self.sum_RGC( add, self.posterior, 
                               self.params(params,data),
                               self.data  (params,data))
 
     def df_dU (self, params, data):
-        return -self.sum_RGC( add, self.dpost_dU ,
+        return self.sum_RGC( add, self.dpost_dU ,
                               self.params(params,data),
                               self.data  (params,data))
 
     def df_dV1(self, params, data):
         def concat(a,b): return concatenate((a,b))
-        return -self.sum_RGC( concat, self.dpost_dV1,
+        return self.sum_RGC( concat, self.dpost_dV1,
                               self.params(params,data),
                               self.data  (params,data))
 
     def df_dV2(self, params, data):
-        return -self.sum_RGC( add, self.dpost_dV2,
+        return self.sum_RGC( add, self.dpost_dV2,
                               self.params(params,data),
                               self.data  (params,data))
 
@@ -116,12 +130,31 @@ class posterior:
 
     def MAP(self,params,data):
         def cb(para): return self.callback(para,data)
-        return Opt.fmin_ncg(self.f,params,fprime=self.df,avextol=1.1e-5,
-                            maxiter=10000,args=data,
-                            callback=cb)
-#        return Opt.fmin_bfgs(self.f,params,fprime=self.df,gtol=1.1e-2,
+#        return Opt.fmin_ncg(self.f,params,fprime=self.df,avextol=1.1e-5,
 #                            maxiter=10000,args=data,
 #                            callback=cb)
+        return fmin_barrier_bfgs(self.f,params,fprime=self.df,
+                                 gtol=1.1e-2,maxiter=10000,args=data,
+                                 callback=cb,barrier=self.barrier)
+
+
+    def plot(self,params,true_params,data):
+        (cU,cV2,cV1) = self.params(params,data)
+        (tU,tV2,tV1) = self.params(true_params,data)
+        (N,n) = cU.shape
+        p.figure(1)
+        for i in arange(N):
+            p.subplot(N*100+10+i)
+            cUi = cU[i,]
+            m = min(cUi)
+            M = max(cUi)
+            if -m>M:
+                cUi = cUi * max(tU[i,]) / m
+            else:
+                cUi = cUi * max(tU[i,]) / M
+            p.plot(arange(n),cUi,'b',arange(n),tU[i,],'rs')
+            p.show()
+        
 
 #    def Cbm1(self,U):
 #        """Memoize Cbm1 = inv(Cb) for efficiency."""
@@ -195,7 +228,7 @@ from numpy import dot, ones , arange, sum
 import numpy.random   as R
 import numpy.linalg   as L
 
-V2 = -0.3
+V2 = 0.5
 def NL(x): return x + 0.5 * V2 * ( x ** 2 )
 (N_spikes,STA,STC), U, V1 = simulate_data.LNLNP(NL=NL,N=6)
 Nsub, N    =  U.shape
@@ -223,15 +256,15 @@ V2 = V2 * ones((Nsub,))
 #index  = slice(3)
 #true_params = concatenate(( U.flatten() , V2 , V1.flatten() ))
 
-#baye   = posterior_dUV1(N,Nsub,NRGC)
-#data   = [ (V2, N_spikes , STA , STC) ]
-#index  = slice(3)
-#true_params = concatenate(( U.flatten() , V1.flatten() ))
-
-baye   = posterior_dV2V1(N,Nsub,NRGC)
-data   = [ (U, N_spikes , STA , STC) ]
+baye   = posterior_dUV1(N,Nsub,NRGC)
+data   = [ (V2, N_spikes , STA , STC) ]
 index  = slice(3)
-true_params = concatenate(( V2 , V1.flatten() ))
+true_params = concatenate(( U.flatten() , V1.flatten() ))
+
+#baye   = posterior_dV2V1(N,Nsub,NRGC)
+#data   = [ (U, N_spikes , STA , STC) ]
+#index  = slice(3)
+#true_params = concatenate(( V2 , V1.flatten() ))
 
 
 # Check derivative
@@ -287,3 +320,5 @@ print
 print
 print 'true U*V1:' , dot(baye.params(true_params,data[0])[0].T,baye.params(true_params,data[0])[2].T)
 print 'opt U*V1:' , dot(baye.params(opt_params,data[0])[0].T,baye.params(opt_params,data[0])[2].T)
+
+baye.plot(params,true_params,data[0])
