@@ -61,6 +61,11 @@ class posterior:
         self.dpost_dM   = function( [U,V2,V1,invM,detM,STA,STC], dpost_dM) #        
 
 
+#    def barrier(self,params,data):
+#        (U,V2,V1) = self.params(params,data)
+#        IM = eye(self.N)-self.M(U,V2,V1[i,:])
+#        return det(IM) < self.mindet
+
     def barrier(self,params,data):
         (U,V2,V1) = self.params(params,data)
         for i in arange(V1.shape[0]):
