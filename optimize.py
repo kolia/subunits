@@ -11,6 +11,8 @@ import numpy
 from numpy import asarray, sqrt, Inf, isinf, arange
 import scipy.optimize.linesearch
 
+from IPython.Debugger import Tracer; debug_here = Tracer()
+
 _epsilon = sqrt(numpy.finfo(float).eps)
 
 
@@ -33,20 +35,22 @@ def backtrack(f,xk,pk,barrier):
     # initial phase: find a point on other side of barrier by *2.
     a  = 1.
     while True:
-        if a>50.:
-            return 50.
+        if a>500.:
+            return 500.
         if barrier(xk + a*pk): break
         a = a * 2.
 
     # refinement phase: 8 rounds of dichotomy
     left  = 0
     right = a
-    for i in arange(8):
+    while True:
         if barrier(xk + (right+left)/2.*pk):
             right = (right+left)/2.
         else:
             left  = (right+left)/2.
+        if left>0 : break
     
+#    print 'amax : ', left
     return left
 
 
@@ -162,9 +166,12 @@ def fmin_barrier_bfgs(f, x0, fprime=None, args=(), gtol=1e-5, norm=Inf,
     while (gnorm > gtol) and (k < maxiter):
         pk = -numpy.dot(Hk,gfk)
 
+#        debug_here()
+
         amax = backtrack(f,xk,pk,barr)          # scipy.optimize.fmin_bfgs 
                                                 # modified here 
                                                 # and line_searches below!
+#        amax = 50.
         
         alpha_k, fc, gc, old_fval, old_old_fval, gfkp1 = \
            scipy.optimize.linesearch.line_search(f,myfprime,xk,pk,gfk,

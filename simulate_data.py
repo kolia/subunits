@@ -22,8 +22,8 @@ def LNLNP(
     U        = L.circulant( spatial )   # connections btw cones & subunits
     V        = U                        # connections btw subunits & RGCs
 
-    U = U[0:10:2,:]
-    V = V[0:10:3,0:10:2]
+    U = U[0:N:2,:]
+    V = V[0:N:3,0:N:2]
     NRGC = V.shape[0]
 
     U = U / sqrt(sum(U*U,axis=1))[:,newaxis]
