@@ -19,7 +19,7 @@ import numpy.linalg   as L
 
 # [ norm(U)-1  ,   smooth(U)  ,  L2(U)  ,  L2(V)  ]
 #lam = array([0.1,10.,0.01,0.000001])
-lam = array([0.00001,0.001,0.01,0.000001])
+lam = array([0.0000001,0.00001,0.001,0.000001])
 #lam = array([1.,0.,0.00001])
 
 
@@ -102,9 +102,12 @@ baye.callback(init_params,data)
 print
 
 params = init_params
-for i in arange(20):
-#    (V2, lam, N_spikes , STA , STC) = data[0]
-#    data   = [ (V2, lam*(0.1*i+0.1), N_spikes , STA , STC) ]
+for i in arange(100):
+    (lam, N_spikes , STA , STC) = data[0]
+    lam[1] = lam[1]*1.2
+    lam[2] = lam[2]*1.2
+    print 'lam : ' , lam
+    data   = [ (lam, N_spikes , STA , STC) ]
     params = baye.MAP(params,data)
 
 #params = baye.MAP(init_params,data)
@@ -114,15 +117,15 @@ print 'log-likelihood of init params = ', baye.f(init_params,data[0])
 print 'log-likelihood of opt  params = ', baye.f(params,data[0])
 print 'log-likelihood of true params = ', baye.f(true_params,data[0])
 
-print 'init params:'
-print  baye.params(init_params,data[0])[index]
-print 'true params:'
-print  baye.params(true_params,data[0])[index]
-print 'opt  params:'
-print  baye.params(params ,data[0])[index]
-print
-print
-print 'true U*V1:' , dot(baye.params(true_params,data[0])[0].T,baye.params(true_params,data[0])[2].T)
-print 'opt U*V1:' , dot(baye.params(params,data[0])[0].T,baye.params(params,data[0])[2].T)
+#print 'init params:'
+#print  baye.params(init_params,data[0])[index]
+#print 'true params:'
+#print  baye.params(true_params,data[0])[index]
+#print 'opt  params:'
+#print  baye.params(params ,data[0])[index]
+#print
+#print
+#print 'true U*V1:' , dot(baye.params(true_params,data[0])[0].T,baye.params(true_params,data[0])[2].T)
+#print 'opt U*V1:' , dot(baye.params(params,data[0])[0].T,baye.params(params,data[0])[2].T)
 
 baye.plot(params,true_params,data[0])

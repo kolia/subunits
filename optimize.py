@@ -33,7 +33,7 @@ def backtrack(f,xk,pk,barrier):
         
     """
     # initial phase: find a point on other side of barrier by *2.
-    a  = 1.
+    a  = 0.00001
     while True:
         if a>500.:
             return 500.

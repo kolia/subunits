@@ -150,7 +150,7 @@ class posterior:
 #                            maxiter=10000,args=data,
 #                            callback=cb)
         return fmin_barrier_bfgs(self.f,params,fprime=self.df,
-                                 gtol=1.1e-4,maxiter=200,args=data,
+                                 gtol=1.1e-6,maxiter=200,args=data,
                                  callback=cb,barrier=self.barrier)
 #        return Opt.fmin_bfgs(self.f,params,fprime=self.df,
 #                         gtol=1.1e-6,maxiter=10000,args=data,callback=cb)
