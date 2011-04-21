@@ -48,8 +48,7 @@ def backtrack(f,xk,pk,barrier):
             right = (right+left)/2.
         else:
             left  = (right+left)/2.
-        if left>0 : break
-    
+        if left>0 or right<1e-12: break    
 #    print 'amax : ', left
     return left
 

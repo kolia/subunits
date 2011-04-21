@@ -1,3 +1,4 @@
+
 """
 Linear-Quadratic-Linear-Exponential-Poisson model fitter.
 @author: kolia
@@ -13,10 +14,13 @@ from optimize import fmin_barrier_bfgs
 import pylab as p
 
 def regularize_norm_smooth(lam,U,V1):
+    overlaps = Th.dot(U,U.T)
+    normU    = Th.sum( U*U , axis=1 )
     return lam[0]*Th.sum( (Th.sum( U*U , axis=1 ) - ones_like(V1)) ** 2. ) \
          + lam[1]*Th.sum( (U - Th.concatenate([U[:,1:],U[:,0:1]],axis=1)) ** 2. ) \
          + lam[2]*Th.sum( U * U ) \
-         + lam[3]*Th.sum( V1*V1 )
+         + lam[3]*Th.sum( V1*V1 ) \
+         + lam[4]*( Th.sum( overlaps**2.) - Th.sum(normU ** 2.) )
 
 
 class posterior:
@@ -150,7 +154,7 @@ class posterior:
 #                            maxiter=10000,args=data,
 #                            callback=cb)
         return fmin_barrier_bfgs(self.f,params,fprime=self.df,
-                                 gtol=1.1e-6,maxiter=200,args=data,
+                                 gtol=1.1e-6,maxiter=1000,args=data,
                                  callback=cb,barrier=self.barrier)
 #        return Opt.fmin_bfgs(self.f,params,fprime=self.df,
 #                         gtol=1.1e-6,maxiter=10000,args=data,callback=cb)
@@ -160,7 +164,6 @@ class posterior:
         (cU,cV2,cV1) = self.params(params,data)
         (tU,tV2,tV1) = self.params(true_params,data)
         (N,n) = cU.shape
-        p.figure(2)
         for i in arange(minimum(N,9)):
             p.subplot(minimum(N,9)*100+10+i)
             cUi = cU[i,]

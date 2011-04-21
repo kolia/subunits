@@ -7,6 +7,8 @@ from LQuadLExP import posterior, posterior_dUV1, posterior_dU, \
 from numpy  import add,reshape,concatenate,log,eye,isnan,ones_like,Inf,max,min
 from numpy.linalg import inv, det, norm, eigvals
 
+import pylab as p
+
 import simulate_data
 reload(simulate_data)
 
@@ -19,7 +21,7 @@ import numpy.linalg   as L
 
 # [ norm(U)-1  ,   smooth(U)  ,  L2(U)  ,  L2(V)  ]
 #lam = array([0.1,10.,0.01,0.000001])
-lam = array([0.0000001,0.00001,0.001,0.000001])
+lam = array([0.0000001,0.000001,0.0001,0.0001,0.0001])
 #lam = array([1.,0.,0.00001])
 
 
@@ -106,6 +108,7 @@ for i in arange(100):
     (lam, N_spikes , STA , STC) = data[0]
     lam[1] = lam[1]*1.2
     lam[2] = lam[2]*1.2
+    lam[4] = lam[4]*1.2
     print 'lam : ' , lam
     data   = [ (lam, N_spikes , STA , STC) ]
     params = baye.MAP(params,data)
@@ -128,4 +131,5 @@ print 'log-likelihood of true params = ', baye.f(true_params,data[0])
 #print 'true U*V1:' , dot(baye.params(true_params,data[0])[0].T,baye.params(true_params,data[0])[2].T)
 #print 'opt U*V1:' , dot(baye.params(params,data[0])[0].T,baye.params(params,data[0])[2].T)
 
+p.figure(2)
 baye.plot(params,true_params,data[0])
