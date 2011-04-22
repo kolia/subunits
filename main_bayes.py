@@ -19,8 +19,12 @@ import pylab as p
 from numpy import arange, sum
 import numpy.random   as R
 
-
+baye   = posterior(sin_model)
 def NL(x): return sin(x)
+
+#baye   = posterior(exp_model)
+#def NL(x): return exp(x)
+
 data, U, V1 =  simulate_data.LNLNP(NL=NL,N=24)
 Nsub, N     =  U.shape
 NRGC, Nsub  =  V1.shape
@@ -28,7 +32,6 @@ NRGC, Nsub  =  V1.shape
 UU = U.flatten()
 data = [data]
 
-baye   = posterior(sin_model)
 
 ## Check derivative
 #print
@@ -56,7 +59,7 @@ print
 print 'true params :'
 baye.callback(U,data[0])
 #init_params = 0.0001 * R.randn(len(UU))
-init_params = 0.1*( ones(len(UU)) + R.randn(len(UU)) )
+init_params = 0.1*( ones(len(UU)) + 2.*R.randn(len(UU)) )
 #init_params = UU
 print
 print 'initial params :'
