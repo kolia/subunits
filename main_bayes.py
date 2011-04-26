@@ -19,13 +19,13 @@ import pylab as p
 from numpy import arange, sum
 import numpy.random   as R
 
-baye   = posterior(sin_model)
-def NL(x): return sin(x)
+sigma  = 1.1
+model  = sin_model(sigma)
+#model  = exp_model(sigma)
+#model  = lin_model(sigma)
+baye   = posterior(model)
 
-#baye   = posterior(exp_model)
-#def NL(x): return exp(x)
-
-data, U, V1 =  simulate_data.LNLNP(NL=NL,N=24)
+data, U, V1 =  simulate_data.LNLNP(sigma=model.sigma,NL=model.NL,N=12)
 Nsub, N     =  U.shape
 NRGC, Nsub  =  V1.shape
 
@@ -45,7 +45,6 @@ data = [data]
 
 print
 print 'U  : ', U
-print '||U||^2  : ', sum(U*U)
 print
 print 'V1 : ' , V1
 print
@@ -70,25 +69,28 @@ print ' slogdet=', s, exp(ld)
 print
 
 params = init_params
-for i in arange(2):
+for i in arange(3):
     params = baye.MAP(params,data)
+
+optU = reshape(params,(Nsub,N))
+print
+print 'stimulus sigma  :  ',sigma
+print 'true    ||subunit RF||^2  : ', sum(U*U,axis=1)
+print 'optimal ||subunit RF||^2  : ', sum(optU*optU,axis=1)
+print
 
 
 print 'log-likelihood of init params = ', baye.f(init_params,data[0])
 print 'log-likelihood of opt  params = ', baye.f(params,data[0])
 print 'log-likelihood of true params = ', baye.f(UU,data[0])
 
+#print
 #print 'init params:'
 #print  baye.params(init_params,data[0])[index]
 #print 'true params:'
 #print  baye.params(true_params,data[0])[index]
 #print 'opt  params:'
 #print  baye.params(params ,data[0])[index]
-#print
-#print
-#print 'true U*V1:' , dot(baye.params(true_params,data[0])[0].T, \
-#                         baye.params(true_params,data[0])[2].T)
-#print 'opt U*V1:' , dot(baye.params(params,data[0])[0].T,baye.params(params,data[0])[2].T)
 
 p.figure(2)
 baye.plot(params,U)

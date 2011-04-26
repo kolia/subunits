@@ -2,7 +2,7 @@
 Bayesian Linear-Nonlinear-Linear-Exponential-Poisson model fitter.
 @author: kolia
 """
-from numpy import sum,add,all,reshape,iscomplex,log,exp,arange,minimum
+from numpy import sum,add,all,reshape,iscomplex,log,exp,arange,minimum,sin
 from numpy.linalg import inv,slogdet
 from theano import function
 import theano.tensor  as Th
@@ -10,33 +10,41 @@ import theano.tensor  as Th
 from optimize import fmin_barrier_bfgs
 import pylab as p
 
+class sin_model:
+    """b(s)  =  sin( U s )  for s with variance sigma**2."""
+    def __init__(self,sigma): self.sigma = sigma
+    def NL(self,x): return sin(x)
+    def theano(self, U, STA, STC):
+        STAB = Th.exp(-0.5*Th.sum(Th.dot(U,STC)*U,axis=1)) * Th.sin(Th.dot(U,STA))
+        bbar = Th.zeros_like(STAB)
+        eU   = Th.exp( -0.5 * self.sigma**2* Th.sum( U * U , axis=1 ) )
+        Cb   = 0.5 * (Th.sinh(0.5* self.sigma**2* Th.dot(U,U.T))*eU).T*eU
+        #    regular  = 0.0000000001*Th.sum( Th.cosh(Th.sum(U*U,axis=1)) )
+        regular  = 0.0000001* Th.sum(U*U)
+        return (STAB,bbar,Cb,regular)
+        
+class exp_model:
+    """b(s)  =  exp( U s )  for s with variance sigma**2."""
+    def __init__(self,sigma): self.sigma = sigma
+    def NL(self,x): return exp(x)
+    def theano(self, U, STA, STC):
+        bbar = Th.exp(0.5* self.sigma**2* Th.sum( U * U , axis=1 ))
+        STAB = Th.exp(0.5* Th.sum(Th.dot(U,STC)*U,axis=1) + Th.dot(U,STA))
+        Cb   = (Th.exp(0.5* self.sigma**2* Th.dot(U,U.T))*bbar).T*bbar
+#        regular  = 0.0000000001*Th.sum( Th.cosh(Th.sum(U*U,axis=1)) )
+        regular  = 0.01* Th.sum(U*U)
+        return (STAB,bbar,Cb,regular)
 
-def sin_model(U, STA, STC):
-    """b(s)  =  sin( U s )"""
-    STAB = Th.exp(-0.5*Th.sum(Th.dot(U,STC)*U,axis=1)) * Th.sin(Th.dot(U,STA))
-    bbar = Th.zeros_like(STAB)
-    eU   = Th.exp( -0.5 * Th.sum( U * U , axis=1 ) )
-    Cb   = 0.5 * (Th.sinh(0.5*Th.dot(U,U.T))*eU).T*eU
-#    regular  = 0.0000000001*Th.sum( Th.cosh(Th.sum(U*U,axis=1)) )
-    regular  = 0.00001* Th.sum(U*U)
-    return (STAB,bbar,Cb,regular)
-
-def exp_model(U, STA, STC):
-    """b(s)  =  exp( U s )"""
-    bbar = Th.exp(0.5* Th.sum( U * U , axis=1 ))
-    STAB = Th.exp(0.5* Th.sum(Th.dot(U,STC)*U,axis=1) + Th.dot(U,STA))
-    Cb   = (Th.exp(0.5* Th.dot(U,U.T))*bbar).T*bbar
-#    regular  = 0.0000000001*Th.sum( Th.cosh(Th.sum(U*U,axis=1)) )
-    regular  = 0.00001* Th.sum(U*U)
-    return (STAB,bbar,Cb,regular)
-
-def lin_model(U, STA, STC):
-    """b(s)  =  U s"""
-    STAB = Th.dot( U , STA )
-    bbar = Th.zeros_like(STAB)
-    Cb   = Th.dot(U,U.T)
-    regular  = 0 #0.0000000001*Th.sum(U*U)
-    return (STAB,bbar,Cb,regular)
+class lin_model:
+    """b(s)  =  U s  for s with variance sigma**2."""
+    def __init__(self,sigma): self.sigma = sigma
+    def NL(self,x): return x
+    def theano(self, U, STA, STC):
+        STAB = Th.dot( U , STA )
+        bbar = Th.zeros_like(STAB)
+        Cb   = self.sigma**2* Th.dot(U,U.T)
+        regular  = 0 #0.0000000001*Th.sum(U*U)
+        return (STAB,bbar,Cb,regular)
 
 
 class posterior:
@@ -44,12 +52,12 @@ class posterior:
         self.memo_U    = None
         self.memo_Cbm1 = None
         self.prior     = prior
-        self.mindet    = 1.e-30
+        self.mindet    = 1.e-60
         
         U   = Th.dmatrix()                   # SYMBOLIC variables       #
         STA = Th.dvector()                                              #
         STC = Th.dmatrix()                                              #
-        (STAB,bbar,Cb,regular) = model(U, STA, STC)                     #
+        (STAB,bbar,Cb,regular) = model.theano(U, STA, STC)              #
         Cbm1       = Th.dmatrix()                                       #
         STABC      = Th.dot(Cbm1,(STAB-bbar))                           #
         posterior  = Th.sum(STABC*(STAB-bbar)) - regular                #

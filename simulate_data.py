@@ -9,6 +9,7 @@ import numpy.random   as R
 import scipy.linalg   as L
 
 def LNLNP(
+    sigma         = 1.               ,  # stimulus standard deviation
     NL            = sin              ,  # subunit nonlinearity
     N             = 10               ,  # number of cones, subunits & RGCs
     Sigma         = 1.               ,  # subunit & RGC connection width
@@ -29,7 +30,7 @@ def LNLNP(
     U = U / sqrt(sum(U*U,axis=1))[:,newaxis]
     V = V / sqrt(sum(V*V,axis=1))[:,newaxis]
 
-    X        = R.randn(N,T)                 # cone activations
+    X        = sigma*R.randn(N,T)           # cone activations
     b        = NL(dot(U,X))                 # subunit activations
     Y        = exp(dot(V,b))                # RGC activations
     Y        = Y * NRGC * T * firing_rate / sum(Y)
