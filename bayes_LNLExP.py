@@ -10,6 +10,20 @@ import theano.tensor  as Th
 from optimize import fmin_barrier_bfgs
 import pylab as p
 
+class quad_model:
+    """b(s)  =  ( U s + c ) **2  for s with variance sigma**2."""
+    def __init__(self,sigma,c):
+        self.c     = c
+        self.sigma = sigma
+    def NL(self,x): return (x+self.c)**2
+    def theano(self, U, STA, STC):
+        STAB = Th.sum(Th.dot(U,STC)*U,axis=1) + Th.dot(U,STA) **2
+        bbar = self.sigma**2* Th.sum( U*U , axis=1 ) + self.c**2
+        UU   = self.sigma**2* Th.dot(U,U.T)
+        Cb   = 2.* UU**2 +  4.*self.c**2 * UU
+        regular  = 0.0000001* Th.sum(U*U)
+        return (STAB,bbar,Cb,regular)
+
 class sin_model:
     """b(s)  =  sin( U s )  for s with variance sigma**2."""
     def __init__(self,sigma): self.sigma = sigma
@@ -19,7 +33,6 @@ class sin_model:
         bbar = Th.zeros_like(STAB)
         eU   = Th.exp( -0.5 * self.sigma**2* Th.sum( U * U , axis=1 ) )
         Cb   = 0.5 * (Th.sinh(0.5* self.sigma**2* Th.dot(U,U.T))*eU).T*eU
-        #    regular  = 0.0000000001*Th.sum( Th.cosh(Th.sum(U*U,axis=1)) )
         regular  = 0.0000001* Th.sum(U*U)
         return (STAB,bbar,Cb,regular)
         
@@ -31,7 +44,6 @@ class exp_model:
         bbar = Th.exp(0.5* self.sigma**2* Th.sum( U * U , axis=1 ))
         STAB = Th.exp(0.5* Th.sum(Th.dot(U,STC)*U,axis=1) + Th.dot(U,STA))
         Cb   = (Th.exp(0.5* self.sigma**2* Th.dot(U,U.T))*bbar).T*bbar
-#        regular  = 0.0000000001*Th.sum( Th.cosh(Th.sum(U*U,axis=1)) )
         regular  = 0.01* Th.sum(U*U)
         return (STAB,bbar,Cb,regular)
 
