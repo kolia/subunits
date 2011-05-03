@@ -11,17 +11,18 @@ from optimize import fmin_barrier_bfgs
 import pylab as p
 
 class quad_model:
-    """b(s)  =  ( U s + c ) **2  for s with variance sigma**2."""
-    def __init__(self,sigma,c):
+    """b(s)  =  a * ( U s + c ) **2  for s with variance sigma**2."""
+    def __init__(self,sigma,a,c):
+        self.a     = a
         self.c     = c
         self.sigma = sigma
-    def NL(self,x): return (x+self.c)**2
+    def NL(self,x): return self.a*(x+self.c)**2
     def theano(self, U, STA, STC):
-        STAB = Th.sum(Th.dot(U,STC)*U,axis=1) + Th.dot(U,STA) **2
-        bbar = self.sigma**2* Th.sum( U*U , axis=1 ) + self.c**2
+        STAB = self.a*(Th.sum(Th.dot(U,STC)*U,axis=1) + Th.dot(U,STA) **2 + self.c**2)
+        bbar = self.a*(self.sigma**2* Th.sum( U*U , axis=1 ) + self.c**2)
         UU   = self.sigma**2* Th.dot(U,U.T)
-        Cb   = 2.* UU**2 +  4.*self.c**2 * UU
-        regular  = 0.0000001* Th.sum(U*U)
+        Cb   = self.a**2* (2.* UU**2 +  4.*self.c**2 * UU)
+        regular  = 0.01* Th.sum(U*U)
         return (STAB,bbar,Cb,regular)
 
 class sin_model:
@@ -124,10 +125,10 @@ class posterior:
             M = max(UUi)
             if -m>M:
                 UUi = -UUi
-#            if -m>M:
-#                UUi = UUi * max(U[i,]) / m
-#            else:
-#                UUi = UUi * max(U[i,]) / M
+            if -m>M:
+                UUi = UUi * max(U[i,]) / m
+            else:
+                UUi = UUi * max(U[i,]) / M
             p.plot(arange(n),UUi,'b',arange(n),U[i,],'rs')
             p.show()
 

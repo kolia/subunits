@@ -21,19 +21,19 @@ import numpy.random   as R
 
 sigma  = 1.
 #model  = sin_model(sigma)
-model  = quad_model(sigma,0.5)
+model  = quad_model(sigma,-1.,2.)
 #model  = exp_model(sigma)
 #model  = lin_model(sigma)
 baye   = posterior(model)
 
-data, U, V1 =  simulate_data.LNLNP(sigma=model.sigma,NL=model.NL,N=6)
+data, U, V1 =  simulate_data.LNLNP(sigma=model.sigma,NL=model.NL,N=24)
 Nsub, N     =  U.shape
 NRGC, Nsub  =  V1.shape
 
 UU = U.flatten()
 
 #init_params = 0.0001 * R.randn(len(UU))
-init_params = 0.1*( ones(len(UU)) + 3.*R.randn(len(UU)) )
+init_params = 0.14*( ones(len(UU)) + 3.*R.randn(len(UU)) )
 #init_params = UU
 
 ## Check derivative
