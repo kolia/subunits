@@ -18,12 +18,12 @@ class quad_model:
         self.sigma = sigma
     def NL(self,x): return self.a*(x+self.c)**2
     def theano(self, U, STA, STC):
-        STAB = self.a*(Th.sum(Th.dot(U,STC)*U,axis=1) + Th.dot(U,STA) **2 + self.c**2)
+        STAB = self.a*(Th.sum(Th.dot(U,STC)*U,axis=1) + \
+                 2.*self.c*Th.dot(U,STA) + Th.dot(U,STA) **2 + self.c**2)
         bbar = self.a*(self.sigma**2* Th.sum( U*U , axis=1 ) + self.c**2)
         UU   = self.sigma**2* Th.dot(U,U.T)
         Cb   = self.a**2* (2.* UU**2 +  4.*self.c**2 * UU)
-        regular  = 0.01* Th.sum(U*U)
-        return (STAB,bbar,Cb,regular)
+        return (STAB,bbar,Cb)
 
 class sin_model:
     """b(s)  =  sin( U s )  for s with variance sigma**2."""
@@ -31,11 +31,10 @@ class sin_model:
     def NL(self,x): return sin(x)
     def theano(self, U, STA, STC):
         STAB = Th.exp(-0.5*Th.sum(Th.dot(U,STC)*U,axis=1)) * Th.sin(Th.dot(U,STA))
-        bbar = Th.zeros_like(STAB)
+        bbar = Th.zeros_like(Th.sum(U,axis=1))
         eU   = Th.exp( -0.5 * self.sigma**2* Th.sum( U * U , axis=1 ) )
         Cb   = 0.5 * (Th.sinh(0.5* self.sigma**2* Th.dot(U,U.T))*eU).T*eU
-        regular  = 0.0000001* Th.sum(U*U)
-        return (STAB,bbar,Cb,regular)
+        return (STAB,bbar,Cb)
         
 class exp_model:
     """b(s)  =  exp( U s )  for s with variance sigma**2."""
@@ -45,8 +44,7 @@ class exp_model:
         bbar = Th.exp(0.5* self.sigma**2* Th.sum( U * U , axis=1 ))
         STAB = Th.exp(0.5* Th.sum(Th.dot(U,STC)*U,axis=1) + Th.dot(U,STA))
         Cb   = (Th.exp(0.5* self.sigma**2* Th.dot(U,U.T))*bbar).T*bbar
-        regular  = 0.01* Th.sum(U*U)
-        return (STAB,bbar,Cb,regular)
+        return (STAB,bbar,Cb)
 
 class lin_model:
     """b(s)  =  U s  for s with variance sigma**2."""
@@ -54,31 +52,39 @@ class lin_model:
     def NL(self,x): return x
     def theano(self, U, STA, STC):
         STAB = Th.dot( U , STA )
-        bbar = Th.zeros_like(STAB)
+        bbar = Th.zeros_like(Th.sum(U,axis=1))
         Cb   = self.sigma**2* Th.dot(U,U.T)
-        regular  = 0 #0.0000000001*Th.sum(U*U)
-        return (STAB,bbar,Cb,regular)
+        return (STAB,bbar,Cb)
+
+S1m = lambda U,x : Th.sum(U,axis=1) - x*Th.ones_like(Th.sum(U,axis=1))
+L2m = lambda U,x : Th.sum(U*U,axis=1) - x*Th.ones_like(Th.sum(U*U,axis=1))
+L2   = lambda U : Th.sum(U*U)
+S1   = lambda U : Th.sum( U )
 
 
 class posterior:
-    def __init__(self,model,prior=1):
+    def __init__(self,model, prior=lambda U:0, prior_g=1):
         self.memo_U    = None
         self.memo_Cbm1 = None
         self.prior     = prior
-        self.mindet    = 1.e-60
+        self.prior_g   = prior_g
+        self.mindet    = 1.e-90
         
         U   = Th.dmatrix()                   # SYMBOLIC variables       #
         STA = Th.dvector()                                              #
         STC = Th.dmatrix()                                              #
-        (STAB,bbar,Cb,regular) = model.theano(U, STA, STC)              #
+        (STAB,bbar,Cb) = model.theano(U, STA, STC)                      #
+        prior      = self.prior(U)                                      #
         Cbm1       = Th.dmatrix()                                       #
         STABC      = Th.dot(Cbm1,(STAB-bbar))                           #
-        posterior  = Th.sum(STABC*(STAB-bbar)) - regular                #
-        dposterior = 2*posterior - Th.sum( Th.outer(STABC,STABC) * Cb ) - regular #
+        posterior  = Th.sum((STAB-bbar)*STABC) + prior                  #
+        dposterior = 2*posterior - Th.sum( Th.outer(STABC,STABC) * Cb ) #
         dposterior = Th.grad( cost              = dposterior,           #
                               wrt               = U         ,           #
                               consider_constant = [STABC]   )           #
 
+        self.STAB       = function( [U,STA,STC]     ,  STAB     )
+        self.bbar       = function( [U]             ,  bbar     )
         self.Cb         = function( [U]             ,  Cb       )
         # log-posterior term  (STAB - bbar).T inv(Cb) (STAB - bbar)
         self.posterior  = function( [U,STA,STC,Cbm1],  posterior)
@@ -107,7 +113,7 @@ class posterior:
     def sum_RGCs(self, f, U, (N_spikes,STA,STC)):
         U = reshape(U,(-1,len(STA[0])))
         Cbm1 = self.Cbm1(U)
-        return reduce( add ,  [ n**2/(n+self.prior) * f(U,sta,stc,Cbm1).flatten() \
+        return reduce( add ,  [ n**2/(n+self.prior_g) * f(U,sta,stc,Cbm1).flatten() \
                                for n,sta,stc in zip(N_spikes,STA,STC)])
 
     def callback(self,U, (N_spikes,STA,STC)):

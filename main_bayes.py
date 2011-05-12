@@ -8,10 +8,11 @@ Created on Wed Apr 20 16:07:10 2011
 
 import bayes_LNLExP  ; reload(bayes_LNLExP)
 import simulate_data ; reload(simulate_data)
+from   simulate_data import LNLNP
 import optimize      ; reload(optimize)
 
 from bayes_LNLExP import *
-from numpy  import reshape,concatenate,eye,sin,exp,ones
+from numpy  import reshape,concatenate,eye,sin,exp,ones,argmax,zeros_like
 from numpy.linalg import norm, slogdet
 import pylab as p
 
@@ -19,22 +20,40 @@ import pylab as p
 from numpy import arange, sum
 import numpy.random   as R
 
-sigma  = 1.
-#model  = sin_model(sigma)
-model  = quad_model(sigma,-1.,2.)
+prior = lambda U : - 1. * ( Th.sum( L2m(U,1.5)**2 ) + 1. * L2(U) )
+
+sigma  = 0.6
+model  = sin_model(sigma)
+#model  = quad_model(sigma,0.2,2.)
 #model  = exp_model(sigma)
 #model  = lin_model(sigma)
-baye   = posterior(model)
+baye   = posterior(model,prior)
 
-data, U, V1 =  simulate_data.LNLNP(sigma=model.sigma,NL=model.NL,N=24)
+data, U, V1, bbar, Cb , STAB = LNLNP(sigma=model.sigma,NL=model.NL,N=24)
 Nsub, N     =  U.shape
 NRGC, Nsub  =  V1.shape
+
+# Check analytical equations if small problem
+if STAB[0].shape[0]<5:
+    print 'Theano.STAB', baye.STAB(U,data[1][0],data[2][0])
+    print 'Empiri.STAB', STAB[0]
+    print
+    print 'Theano.bbar', baye.bbar(U)
+    print 'Empiri.bbar', bbar
+    print
+    print 'Theano.Cb  ', baye.Cb(U)
+    print 'Empiri.Cb  ', Cb
 
 UU = U.flatten()
 
 #init_params = 0.0001 * R.randn(len(UU))
-init_params = 0.14*( ones(len(UU)) + 3.*R.randn(len(UU)) )
-#init_params = UU
+
+#init_params = zeros_like(U)
+#for i,j in enumerate( argmax(U,axis=1) ):
+#    init_params[i][j] = 1.
+    
+#init_params = 0.1*( ones(len(UU)) + 2.*R.randn(len(UU)) )
+init_params = UU
 
 ## Check derivative
 #print
