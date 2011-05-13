@@ -56,8 +56,9 @@ class lin_model:
         Cb   = self.sigma**2* Th.dot(U,U.T)
         return (STAB,bbar,Cb)
 
-S1m = lambda U,x : Th.sum(U,axis=1) - x*Th.ones_like(Th.sum(U,axis=1))
-L2m = lambda U,x : Th.sum(U*U,axis=1) - x*Th.ones_like(Th.sum(U*U,axis=1))
+sL1  = lambda U,x : Th.sum( Th.sqrt(U*U+x) )
+S1m  = lambda U,x : Th.sum(U,axis=1) - x*Th.ones_like(Th.sum(U,axis=1))
+L2m  = lambda U,x : Th.sum(U*U,axis=1) - x*Th.ones_like(Th.sum(U*U,axis=1))
 L2   = lambda U : Th.sum(U*U)
 S1   = lambda U : Th.sum( U )
 
@@ -127,14 +128,14 @@ class posterior:
         for i in arange(minimum(N,9)):
             p.subplot(minimum(N,9)*100+10+i)
             UUi = UU[i,]
-            m = min(UUi)
-            M = max(UUi)
-            if -m>M:
-                UUi = -UUi
-            if -m>M:
-                UUi = UUi * max(U[i,]) / m
-            else:
-                UUi = UUi * max(U[i,]) / M
+#            m = min(UUi)
+#            M = max(UUi)
+#            if -m>M:
+#                UUi = -UUi
+#            if -m>M:
+#                UUi = UUi * max(U[i,]) / m
+#            else:
+#                UUi = UUi * max(U[i,]) / M
             p.plot(arange(n),UUi,'b',arange(n),U[i,],'rs')
             p.show()
 
