@@ -62,11 +62,11 @@ init_params = zeros_like(U)
 #for i,j in enumerate( argmax(U,axis=1) ):
 #    init_params[i][permute[j]] = 1.
  
-for i in arange( init_params.shape[0] ):
-    init_params[i][2*i] = 1.
+#for i in arange( init_params.shape[0] ):
+#    init_params[i][2*i] = 1.
 
 #init_params = 0.1*( ones(len(UU)) + 2.*R.randn(len(UU)) )
-#init_params = UU
+init_params = UU
 
 ## Check derivative
 #print
