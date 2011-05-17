@@ -56,11 +56,15 @@ class lin_model:
         Cb   = self.sigma**2* Th.dot(U,U.T)
         return (STAB,bbar,Cb)
 
-sL1  = lambda U,x : Th.sum( Th.sqrt(U*U+x) )
-S1m  = lambda U,x : Th.sum(U,axis=1) - x*Th.ones_like(Th.sum(U,axis=1))
-L2m  = lambda U,x : Th.sum(U*U,axis=1) - x*Th.ones_like(Th.sum(U*U,axis=1))
-L2   = lambda U : Th.sum(U*U)
-S1   = lambda U : Th.sum( U )
+rL1     = lambda U,x : Th.sum( Th.log(Th.exp(U) + x) )
+sL1      = lambda U,x : Th.sum( Th.sqrt(U*U+x) )
+S1m      = lambda U,x : Th.sum(U,axis=1) - x*Th.ones_like(Th.sum(U,axis=1))
+L2mr     = lambda U,x : Th.sum(U*U,axis=1) - x*Th.ones_like(Th.sum(U,axis=1))
+L2c      = lambda U   : Th.sum( Th.sum(U  ,axis=0) ** 2 )
+L2       = lambda U   : Th.sum(U*U)
+S1       = lambda U   : Th.sum( U )
+overlap1 = lambda U   : Th.sum(Th.dot(U,U.T)**2) - Th.sum(U*U,axis=1)**2
+overlap  = lambda U,x : sL1(Th.dot(U,U.T),x) - sL1(Th.sum(U*U,axis=1),x)
 
 
 class posterior:

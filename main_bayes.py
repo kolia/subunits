@@ -22,20 +22,21 @@ import numpy.random   as R
 
 alpha = 10.
 #prior = lambda U : -0.001*Th.sum( (U - Th.concatenate([U[:,1:],U[:,0:1]],axis=1)) ** 2. ) \
-#                   - 0.05 * ( Th.sum( L2m(U,alpha/2+1)**2 ) + alpha * L2(U) )
+#                   - 0.05 * ( Th.sum( L2mr(U,alpha/2+1)**2 ) + alpha * L2(U) )
 
-#prior = lambda U : - 0.001 * ( Th.sum( L2m(U,alpha/2+1)**2 ) + alpha * L2(U) )
-prior = lambda U : - 0.02 * ( Th.sum( L2m(U,2.)**2 ) + 1.5*sL1(U,0.1) ) \
-       -0.001*Th.sum( (U - Th.concatenate([U[:,1:],U[:,0:1]],axis=1)) ** 2. )
+#prior = lambda U : - 0.001 * ( Th.sum( L2mr(U,alpha/2+1)**2 ) + alpha * L2(U) )
+prior = lambda U : - 0.01  * ( Th.sum( L2mr(U,2.2)**2 ) + 2.*sL1(U,0.01) ) \
+                   - 0.01 * L2c(U) - 0.01 * rL1(-5*U,0.1)
+#       -0.001*Th.sum( (U - Th.concatenate([U[:,1:],U[:,0:1]],axis=1)) ** 2. )
 
-sigma  = 0.3
+sigma  = 0.4
 model  = sin_model(sigma)
 #model  = quad_model(sigma,0.2,2.)
 #model  = exp_model(sigma)
 #model  = lin_model(sigma)
 baye   = posterior(model,prior)
 
-data, U, V1, bbar, Cb , STAB = LNLNP(T=10000,sigma=model.sigma,NL=model.NL,N=24)
+data, U, V1, bbar, Cb , STAB = LNLNP(T=10000,sigma=model.sigma,NL=model.NL,N=27)
 Nsub, N     =  U.shape
 NRGC, Nsub  =  V1.shape
 
@@ -55,9 +56,15 @@ UU = U.flatten()
 #init_params = 0.0001 * R.randn(len(UU))
 
 init_params = zeros_like(U)
-for i,j in enumerate( argmax(U,axis=1) ):
-    init_params[i][j] = 1.
-    
+
+#permute = R.permutation( init_params.shape[1] )
+##permute = arange(init_params.shape[1])
+#for i,j in enumerate( argmax(U,axis=1) ):
+#    init_params[i][permute[j]] = 1.
+ 
+for i in arange( init_params.shape[0] ):
+    init_params[i][2*i] = 1.
+
 #init_params = 0.1*( ones(len(UU)) + 2.*R.randn(len(UU)) )
 #init_params = UU
 
@@ -93,7 +100,7 @@ s,ld = slogdet(baye.Cb(U))
 print ' slogdet=', s, exp(ld)
 print
 
-params = init_params
+params = init_params.flatten()
 for i in arange(5):
     params = baye.MAP(params,[data])
 
