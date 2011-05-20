@@ -25,14 +25,14 @@ alpha = 10.
 #                   - 0.05 * ( Th.sum( L2mr(U,alpha/2+1)**2 ) + alpha * L2(U) )
 
 #prior = lambda U : - 0.001 * ( Th.sum( L2mr(U,alpha/2+1)**2 ) + alpha * L2(U) )
-prior = lambda U : - 0.01 * ( 2.*Th.sum( L2mr(U,2.2)**2 ) + 2.*sL1(U,0.01)  \
+prior = lambda U : - 0.02 * ( 2.*Th.sum( L2mr(U,2.2)**2 ) + 2.*sL1(U,0.01)  \
                             + 0.5*L2c(U)               +  rL1(-5*U,0.1) \
   + 0.2 * sL1 (U - Th.concatenate([U[:,1:],U[:,0:1]],axis=1),0.01) )
 #  + 0.1 * Th.sum( (U - Th.concatenate([U[:,1:],U[:,0:1]],axis=1)) ** 2. ) \
   
 #prior = lambda U : 0
 
-sigma  = 1.
+sigma  = 0.6
 model  = sin_model(sigma)
 #model  = quad_model(sigma,0.2,2.)
 #model  = exp_model(sigma)
