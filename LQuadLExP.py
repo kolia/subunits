@@ -13,23 +13,22 @@ from optimize import fmin_barrier_bfgs
 
 import pylab as p
 
-def regularize_norm_smooth(lam,U,V1):
-    overlaps = Th.dot(U,U.T)
-    normU    = Th.sum( U*U , axis=1 )
-    return lam[0]*Th.sum( (Th.sum( U*U , axis=1 ) - ones_like(V1)) ** 2. ) \
-         + lam[1]*Th.sum( (U - Th.concatenate([U[:,1:],U[:,0:1]],axis=1)) ** 2. ) \
-         + lam[2]*Th.sum( U * U ) \
-         + lam[3]*Th.sum( V1*V1 ) \
-         + lam[4]*( Th.sum( overlaps**2.) - Th.sum(normU ** 2.) )
-
+#def regularize_norm_smooth(lam,U,V1):
+#    overlaps = Th.dot(U,U.T)
+#    normU    = Th.sum( U*U , axis=1 )
+#    return lam[0]*Th.sum( (Th.sum( U*U , axis=1 ) - ones_like(V1)) ** 2. ) \
+#         + lam[1]*Th.sum( (U - Th.concatenate([U[:,1:],U[:,0:1]],axis=1)) ** 2. ) \
+#         + lam[2]*Th.sum( U * U ) \
+#         + lam[3]*Th.sum( V1*V1 ) \
+#         + lam[4]*( Th.sum( overlaps**2.) - Th.sum(normU ** 2.) )
 
 class posterior:
-    def __init__(self,N,Nsub,NRGC,regularizer,prior=1):
+    def __init__(self,N,Nsub,NRGC,prior=lambda U:0):
         self.N     = N
         self.Nsub  = Nsub
         self.NRGC  = NRGC
+        self.prior = prior
         self.mindet= 0.2
-        lam  = Th.dvector()                                            #
         U    = Th.dmatrix()                   # SYMBOLIC variables     #
         V1   = Th.dvector()                                            #
         V2   = Th.dvector()                                            #
@@ -40,13 +39,14 @@ class posterior:
         detM = Th.dscalar()
         invM = Th.dmatrix()
         invMtheta = Th.as_tensor_variable(Th.dot(invM,theta),ndim=2)
+        prior     = self.prior(U)                                      #
 
         post = (  Th.log(detM) \
 #                - 1. / (detM-self.mindet) \
                 - Th.sum(invMtheta*theta) \
                 + 2. * Th.sum( theta * STA ) \
                 + Th.sum( M * (STC + Th.outer(STA,STA)) )) / 2. \
-                - regularizer(lam,U,V1)
+                + prior
         dpost_dM  = ( invM + invMtheta * invMtheta.T \
 #                    + 1. * detM * invM / ((detM-self.mindet)**2) \
                     ) / 2.
@@ -66,12 +66,12 @@ class posterior:
                             consider_constant=[dpost_dM,STA,STC,invM,invMtheta])
 
         self.M          = function( [    U,V2,V1]                  ,  M       ) #
-        self.posterior  = function( [lam,U,V2,V1,invM,detM,STA,STC],  post    ) #
-        self.dpost_dU   = function( [lam,U,V2,V1,invM,detM,STA,STC], dpost(U) ) #
-        self.dpost_dV1  = function( [lam,U,V2,V1,invM,detM,STA,STC], dpost(V1)) #
-        self.dpost_dV2  = function( [lam,U,V2,V1,invM,detM,STA,STC], dpost(V2)) #
+        self.posterior  = function( [    U,V2,V1,invM,detM,STA,STC],  post    ) #
+        self.dpost_dU   = function( [    U,V2,V1,invM,detM,STA,STC], dpost(U) ) #
+        self.dpost_dV1  = function( [    U,V2,V1,invM,detM,STA,STC], dpost(V1)) #
+        self.dpost_dV2  = function( [    U,V2,V1,invM,detM,STA,STC], dpost(V2)) #
 
-        self.dpost_dM   = function( [lam,U,V2,V1,invM,detM,STA,STC], dpost_dM) #
+        self.dpost_dM   = function( [    U,V2,V1,invM,detM,STA,STC], dpost_dM) #
 
 
     def barrier(self,params,data):
@@ -100,13 +100,13 @@ class posterior:
 
     def data(self,params,data): return data
 
-    def sum_RGC(self,op,g,(U,V2,V1),(lam,N_spikes,STA,STC)):
+    def sum_RGC(self,op,g,(U,V2,V1),(N_spikes,STA,STC)):
         result = None
         for i,(n,sta,stc) in enumerate(zip(N_spikes,STA,STC)):
             IM = eye(self.N)-self.M(U,V2,V1[i,:])
             detIM = det(IM)
 #            print 'det(IM) : ', detIM
-            term = n * g(lam,U,V2,V1[i,:], inv(IM), det(IM), sta, stc)
+            term = n * g(U,V2,V1[i,:], inv(IM), det(IM), sta, stc)
             if any(isnan(term.flatten())):
                 print 'oups'
                 term = None
@@ -195,7 +195,7 @@ class posterior_single(posterior):
 
 class posterior_dU(posterior_single):
     '''Optimization wrt U only'''
-    def params(self,params,(V2,V1,lam,N_spikes,STA,STC)):
+    def params(self,params,(V2,V1,N_spikes,STA,STC)):
         return ( self.U(params), V2, V1)
         
     def df(self,params,data):
@@ -204,7 +204,7 @@ class posterior_dU(posterior_single):
                     
 class posterior_dV2(posterior_single):
     '''Optimization wrt V2 only'''
-    def params(self,params,(U,V1,lam,N_spikes,STA,STC)):
+    def params(self,params,(U,V1,N_spikes,STA,STC)):
         return ( U, params, V1)
 
     def df(self,params,data):
@@ -213,7 +213,7 @@ class posterior_dV2(posterior_single):
 
 class posterior_dV1(posterior_single):
     '''Optimization wrt V1 only'''
-    def params(self,params,(U,V2,lam,N_spikes,STA,STC)):
+    def params(self,params,(U,V2,N_spikes,STA,STC)):
         return ( U, V2, self.V1(params))
 
     def df(self,params,data):
@@ -222,7 +222,7 @@ class posterior_dV1(posterior_single):
 
 class posterior_dUV1(posterior_single):
     '''Optimization wrt U and V1 only'''
-    def params(self,params,(V2,lam,N_spikes,STA,STC)):
+    def params(self,params,(V2,N_spikes,STA,STC)):
         return (self.U(params[0:self.N*self.Nsub]),V2,
                 self.V1(params[self.N*self.Nsub:]))
 
@@ -233,7 +233,7 @@ class posterior_dUV1(posterior_single):
 
 class posterior_dV2V1(posterior_single):
     '''Optimization wrt U and V1 only'''
-    def params(self,params,(U,lam,N_spikes,STA,STC)):
+    def params(self,params,(U,N_spikes,STA,STC)):
         return (U,params[0:self.Nsub],
                 self.V1(params[self.Nsub:]))
 

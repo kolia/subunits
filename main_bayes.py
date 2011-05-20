@@ -25,14 +25,14 @@ alpha = 10.
 #                   - 0.05 * ( Th.sum( L2mr(U,alpha/2+1)**2 ) + alpha * L2(U) )
 
 #prior = lambda U : - 0.001 * ( Th.sum( L2mr(U,alpha/2+1)**2 ) + alpha * L2(U) )
-prior = lambda U : - 0.02 * ( 2.*Th.sum( L2mr(U,2.2)**2 ) + 2.*sL1(U,0.01)  \
+prior = lambda U : - 0.006 * ( 3.*Th.sum( L2mr(U,2.0)**2 ) + 2.*sL1(U,0.01)  \
                             + 0.5*L2c(U)               +  rL1(-5*U,0.1) \
   + 0.2 * sL1 (U - Th.concatenate([U[:,1:],U[:,0:1]],axis=1),0.01) )
 #  + 0.1 * Th.sum( (U - Th.concatenate([U[:,1:],U[:,0:1]],axis=1)) ** 2. ) \
-  
+
 #prior = lambda U : 0
 
-sigma  = 0.6
+sigma  = 0.3
 model  = sin_model(sigma)
 #model  = quad_model(sigma,0.2,2.)
 #model  = exp_model(sigma)
@@ -70,15 +70,6 @@ for i in arange( init_params.shape[0] ):
 
 #init_params = 0.1*( ones(len(UU)) + 2.*R.randn(len(UU)) )
 #init_params = UU
-
-## Check derivative
-#print
-#print 'Checking derivatives:'
-#df = baye.df(init_params,data)
-#dh = 0.00000001
-#ee = eye(len(init_params))*dh
-#for i in arange(len(init_params)):
-#    print (baye.f(init_params+ee[:,i],data)-baye.f(init_params,data))/dh,df[i]
 
 
 print
@@ -126,7 +117,6 @@ print 'true    ||subunit RF||^2  : ', sum(U*U,axis=1)
 print 'optimal ||subunit RF||^2  : ', sum(optU*optU,axis=1)
 print
 
-
 print 'log-likelihood of init params = ', baye.f(init_params,data)
 print 'log-likelihood of true params = ', baye.f(UU,data)
 print 'log-likelihood of opt  params = ', baye.f(params,data)
@@ -134,15 +124,6 @@ print 'log-likelihood of opt of true = ', baye.f(trupar,data)
 print 'log-likelihood of shift  true = ', baye.f(shipar,data)
 print 'disadvantage of shift true    = ', baye.f(shipar,data) - baye.f(trupar,data)
 print 'improvement of opt of true    = ', baye.f(params,data) - baye.f(trupar,data)
-
-
-#print
-#print 'init params:'
-#print  baye.params(init_params,data[0])[index]
-#print 'true params:'
-#print  baye.params(true_params,data[0])[index]
-#print 'opt  params:'
-#print  baye.params(params ,data[0])[index]
 
 p.figure(2)
 baye.plot(params,U)
