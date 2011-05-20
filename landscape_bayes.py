@@ -14,42 +14,66 @@ import numpy.random   as R
 
 
 #prior = lambda U : - 0.001 * ( Th.sum( L2mr(U,alpha/2+1)**2 ) + alpha * L2(U) )
-prior = lambda U : - 0.03  * ( Th.sum( L2mr(U,1.5)**2 ) + 1.*sL1(U,0.01) )
+prior = lambda U : - 0.05 * ( Th.sum( L2mr(U,1.3)**2 ) + 1.*sL1(U,0.01) )
 #       -0.001*Th.sum( (U - Th.concatenate([U[:,1:],U[:,0:1]],axis=1)) ** 2. )
+#prior= lambda U : 0
 
-sigma  = 0.5
+stim_sigma = 1.5
+
+sigma  = stim_sigma
 model  = sin_model(sigma)
 #model  = quad_model(sigma,0.2,2.)
 #model  = exp_model(sigma)
 #model  = lin_model(sigma)
 baye   = posterior(model,prior)
 
-data, U, V1, bbar, Cb , STAB = LNLNP(T=10000,sigma=model.sigma,NL=model.NL,N=27)
+data, U, V1, bbar, Cb , STAB = LNLNP(T=10000,sigma=stim_sigma,NL=model.NL,N=27)
 Nsub, N     =  U.shape
 NRGC, Nsub  =  V1.shape
 
 UU = U.flatten()
 
-M = 4*N
-filters = zeros((M,N))
-lls     = zeros(M)
-for i in arange(M):
-    params      = zeros(N)
-    params[mod(i-1,N)] = 0.2*R.rand()
+#M = 10*N
+#filters = zeros((M,N))
+#lls     = zeros(M)
+#for i in arange(M):
+#    params      = zeros(N)
+#    params[mod(i-1,N)] = 0.3*R.rand()
+#    params[mod(i  ,N)] = 0.3
+#    params[mod(i+1,N)] = 0.3*R.rand()
+#    for j in arange(3):
+#        params    = baye.MAP(params,[data])
+#    filters[i][:] = params
+#    lls[i] = baye.f(params,data)
+
+
+filters = zeros((N,N))
+lls     = zeros(N)
+for i in arange(N):
+    params             = zeros(N)
+    params[mod(i-2,N)] = 0.2
+    params[mod(i-1,N)] = 0.3
     params[mod(i  ,N)] = 0.8
-    params[mod(i+1,N)] = 0.2*R.rand()
+    params[mod(i+1,N)] = 0.3
+    params[mod(i+2,N)] = 0.2
+#    params      = concatenate( (U[0][-i-1:],U[0][:N-i-1]) , 0)
+    print 'params:'
+    print params
     for j in arange(3):
         params    = baye.MAP(params,[data])
     filters[i][:] = params
-    lls[i] = baye.f(params,data)
+    lls[i] = -baye.f(params,data)
+
 
 p.figure(2)
 for i in arange(minimum(N,9)):
     p.subplot(minimum(N,9)*100+10+i)
-    if i>0:
+    if i>1:
         p.plot(arange(N),filters[i],'b')
-    else:
+    elif i>0:
         p.plot(arange(N),sum(abs(filters),axis=0),'r')
+    else:
+        p.plot(arange(N),lls,'g')
 p.show()
 
 print

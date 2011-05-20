@@ -12,24 +12,25 @@ from   simulate_data import LNLNP
 import optimize      ; reload(optimize)
 
 from bayes_LNLExP import *
-from numpy  import reshape,concatenate,eye,sin,exp,ones,argmax,zeros_like
+from numpy  import reshape,eye,sin,exp,ones,argmax,zeros_like,mod
 from numpy.linalg import norm, slogdet
 import pylab as p
 
 
 from numpy import arange, sum
-import numpy.random   as R
+import numpy.random as R
 
 alpha = 10.
 #prior = lambda U : -0.001*Th.sum( (U - Th.concatenate([U[:,1:],U[:,0:1]],axis=1)) ** 2. ) \
 #                   - 0.05 * ( Th.sum( L2mr(U,alpha/2+1)**2 ) + alpha * L2(U) )
 
 #prior = lambda U : - 0.001 * ( Th.sum( L2mr(U,alpha/2+1)**2 ) + alpha * L2(U) )
-prior = lambda U : - 0.01  * ( Th.sum( L2mr(U,2.2)**2 ) + 2.*sL1(U,0.01) ) \
-                   - 0.01 * L2c(U) - 0.01 * rL1(-5*U,0.1)
-#       -0.001*Th.sum( (U - Th.concatenate([U[:,1:],U[:,0:1]],axis=1)) ** 2. )
+prior = lambda U : - 0.01 * ( 2.*Th.sum( L2mr(U,1.5)**2 ) + 2.*sL1(U,0.01)  \
+                            + 0.5*L2c(U)               +  rL1(-5*U,0.1) \
+  + 0.1 * Th.sum( (U - Th.concatenate([U[:,1:],U[:,0:1]],axis=1)) ** 2. ) )
+#prior = lambda U : 0
 
-sigma  = 0.4
+sigma  = 1.5
 model  = sin_model(sigma)
 #model  = quad_model(sigma,0.2,2.)
 #model  = exp_model(sigma)
@@ -62,11 +63,11 @@ init_params = zeros_like(U)
 #for i,j in enumerate( argmax(U,axis=1) ):
 #    init_params[i][permute[j]] = 1.
  
-#for i in arange( init_params.shape[0] ):
-#    init_params[i][2*i] = 1.
+for i in arange( init_params.shape[0] ):
+    init_params[i][mod(i+20,N)] = 1.
 
 #init_params = 0.1*( ones(len(UU)) + 2.*R.randn(len(UU)) )
-init_params = UU
+#init_params = UU
 
 ## Check derivative
 #print
@@ -100,13 +101,20 @@ s,ld = slogdet(baye.Cb(U))
 print ' slogdet=', s, exp(ld)
 print
 
+
+trupar = UU
+for i in arange(5):
+    trupar = baye.MAP(trupar,[data])
+
+
 params = init_params.flatten()
 for i in arange(5):
     params = baye.MAP(params,[data])
 
+
 optU = reshape(params,(Nsub,N))
 print
-print 'stimulus sigma  :  ',sigma
+print 'stimulus sigma  :  ', sigma
 print 'true    ||subunit RF||^2  : ', sum(U*U,axis=1)
 print 'optimal ||subunit RF||^2  : ', sum(optU*optU,axis=1)
 print
@@ -114,6 +122,7 @@ print
 
 print 'log-likelihood of init params = ', baye.f(init_params,data)
 print 'log-likelihood of opt  params = ', baye.f(params,data)
+print 'log-likelihood of opt of true = ', baye.f(trupar,data)
 print 'log-likelihood of true params = ', baye.f(UU,data)
 
 #print
