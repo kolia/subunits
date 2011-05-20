@@ -12,7 +12,7 @@ from   simulate_data import LNLNP
 import optimize      ; reload(optimize)
 
 from bayes_LNLExP import *
-from numpy  import reshape,eye,sin,exp,ones,argmax,zeros_like,mod
+from numpy  import reshape,eye,sin,exp,ones,argmax,zeros_like,mod,concatenate
 from numpy.linalg import norm, slogdet
 import pylab as p
 
@@ -25,12 +25,14 @@ alpha = 10.
 #                   - 0.05 * ( Th.sum( L2mr(U,alpha/2+1)**2 ) + alpha * L2(U) )
 
 #prior = lambda U : - 0.001 * ( Th.sum( L2mr(U,alpha/2+1)**2 ) + alpha * L2(U) )
-prior = lambda U : - 0.01 * ( 2.*Th.sum( L2mr(U,1.5)**2 ) + 2.*sL1(U,0.01)  \
+prior = lambda U : - 0.01 * ( 2.*Th.sum( L2mr(U,2.2)**2 ) + 2.*sL1(U,0.01)  \
                             + 0.5*L2c(U)               +  rL1(-5*U,0.1) \
-  + 0.1 * Th.sum( (U - Th.concatenate([U[:,1:],U[:,0:1]],axis=1)) ** 2. ) )
+  + 0.2 * sL1 (U - Th.concatenate([U[:,1:],U[:,0:1]],axis=1),0.01) )
+#  + 0.1 * Th.sum( (U - Th.concatenate([U[:,1:],U[:,0:1]],axis=1)) ** 2. ) \
+  
 #prior = lambda U : 0
 
-sigma  = 1.5
+sigma  = 1.
 model  = sin_model(sigma)
 #model  = quad_model(sigma,0.2,2.)
 #model  = exp_model(sigma)
@@ -106,6 +108,11 @@ trupar = UU
 for i in arange(5):
     trupar = baye.MAP(trupar,[data])
 
+UUUUUU = concatenate( (U[:,-1:],U[:,:-1]) , 1)
+shipar = UUUUUU.flatten()
+for i in arange(5):
+    shipar = baye.MAP(shipar,[data])
+
 
 params = init_params.flatten()
 for i in arange(5):
@@ -121,9 +128,13 @@ print
 
 
 print 'log-likelihood of init params = ', baye.f(init_params,data)
+print 'log-likelihood of true params = ', baye.f(UU,data)
 print 'log-likelihood of opt  params = ', baye.f(params,data)
 print 'log-likelihood of opt of true = ', baye.f(trupar,data)
-print 'log-likelihood of true params = ', baye.f(UU,data)
+print 'log-likelihood of shift  true = ', baye.f(shipar,data)
+print 'disadvantage of shift true    = ', baye.f(shipar,data) - baye.f(trupar,data)
+print 'improvement of opt of true    = ', baye.f(params,data) - baye.f(trupar,data)
+
 
 #print
 #print 'init params:'
