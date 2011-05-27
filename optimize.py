@@ -29,15 +29,13 @@ def optimizer( objective ):
                  barrier=barrier, callback=callback, gtol=1.1e-6,
                  maxiter=1000 ):
         if callback is None:
-            cb = None    
+            cb = None
         else:
-            debug_here()
             def cb(para): callback(para,args)
         return fmin_barrier_bfgs(f,init,fprime=df,
                                  gtol=1.1e-6,maxiter=1000,args=args,
                                  callback=cb,barrier=barrier)
-    objective.optimize = optimize
-    return objective
+    return optimize
 #        return Opt.fmin_ncg(self.f,params,fprime=self.df,avextol=1.1e-5,
 #                            maxiter=10000,args=data,
 #                            callback=cb)
@@ -91,11 +89,11 @@ def vecnorm(x, ord=2):
         return numpy.sum(abs(x)**ord,axis=0)**(1.0/ord)
 
 
-def wrap_function(function, args):
+def wrap_function(function, arg):
     ncalls = [0]
     def function_wrapper(x):
         ncalls[0] += 1
-        return function(x, *args)
+        return function(x, arg)
     return ncalls, function_wrapper
 
 

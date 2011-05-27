@@ -38,7 +38,7 @@ model  = sin_model(sigma)
 #model  = exp_model(sigma)
 #model  = lin_model(sigma)
 baye   = posterior(model,prior)
-baye   = optimizer(baye)
+baye.optimize = optimizer(baye)
 
 
 data, U, V1, bbar, Cb , STAB = LNLNP(T=10000,sigma=model.sigma,NL=model.NL,N=27)
@@ -98,18 +98,17 @@ print
 
 trupar = UU
 for i in arange(5):
-    trupar = baye.optimize(init=trupar,args=[data])
-#    trupar = baye.MAP(trupar,[data])
+    trupar = baye.optimize(init=trupar,args=data)
 
 UUUUUU = concatenate( (U[:,-1:],U[:,:-1]) , 1)
 shipar = UUUUUU.flatten()
 for i in arange(5):
-    shipar = baye.MAP(shipar,[data])
+    shipar = baye.optimize(init=shipar,args=data)
 
 
 params = init_params.flatten()
 for i in arange(5):
-    params = baye.MAP(params,[data])
+    params = baye.optimize(init=params,args=data)
 
 
 optU = reshape(params,(Nsub,N))

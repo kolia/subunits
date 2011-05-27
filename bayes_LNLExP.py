@@ -122,7 +122,7 @@ class posterior:
                                for n,sta,stc in zip(N_spikes,STA,STC)])
 
     def callback(self,U, data):
-        (N_spikes,STA,STC) = data[0]
+        (N_spikes,STA,STC) = data
         U = reshape(U,(-1,len(STA[0])))
         s,ld = slogdet(self.Cb(U))
         print '||U||^2 : ', sum( U*U ), 'slogdet : ', s, exp(ld)
