@@ -1,19 +1,48 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Apr  5 16:21:09 2011
-
 @author: Slight modification of scipy.optimize.fmin_bfgs by kolia.
 """
 
 from scipy.optimize import approx_fprime, line_search
 
 import numpy
-from numpy import asarray, sqrt, Inf, isinf, arange
+from numpy import asarray, sqrt, Inf, isinf
 import scipy.optimize.linesearch
+import copy
 
 from IPython.Debugger import Tracer; debug_here = Tracer()
 
 _epsilon = sqrt(numpy.finfo(float).eps)
+
+def get_attribute(o,attribute):
+    try:
+        return getattr(o,attribute)
+    except AttributeError:
+        return None
+
+def optimizer( objective ):
+    barrier  = get_attribute( objective, 'barrier'  )
+    callback = get_attribute( objective, 'callback' )
+    args     = get_attribute( objective, 'args'     )
+    init     = get_attribute( objective, 'init'     )
+    def optimize(init=init, args=args, f=objective.f, df=objective.df, 
+                 barrier=barrier, callback=callback, gtol=1.1e-6,
+                 maxiter=1000 ):
+        if callback is None:
+            cb = None    
+        else:
+            debug_here()
+            def cb(para): callback(para,args)
+        return fmin_barrier_bfgs(f,init,fprime=df,
+                                 gtol=1.1e-6,maxiter=1000,args=args,
+                                 callback=cb,barrier=barrier)
+    objective.optimize = optimize
+    return objective
+#        return Opt.fmin_ncg(self.f,params,fprime=self.df,avextol=1.1e-5,
+#                            maxiter=10000,args=data,
+#                            callback=cb)
+#        return Opt.fmin_bfgs(self.f,params,fprime=self.df,
+#                             gtol=1.1e-6,maxiter=10000,args=data,callback=cb)
 
 
 def backtrack(f,xk,pk,barrier):

@@ -38,6 +38,8 @@ model  = sin_model(sigma)
 #model  = exp_model(sigma)
 #model  = lin_model(sigma)
 baye   = posterior(model,prior)
+baye   = optimizer(baye)
+
 
 data, U, V1, bbar, Cb , STAB = LNLNP(T=10000,sigma=model.sigma,NL=model.NL,N=27)
 Nsub, N     =  U.shape
@@ -94,10 +96,10 @@ s,ld = slogdet(baye.Cb(U))
 print ' slogdet=', s, exp(ld)
 print
 
-
 trupar = UU
 for i in arange(5):
-    trupar = baye.MAP(trupar,[data])
+    trupar = baye.optimize(init=trupar,args=[data])
+#    trupar = baye.MAP(trupar,[data])
 
 UUUUUU = concatenate( (U[:,-1:],U[:,:-1]) , 1)
 shipar = UUUUUU.flatten()

@@ -4,11 +4,11 @@ Linear-Quadratic-Linear-Exponential-Poisson model fitter.
 @author: kolia
 """
 from numpy  import add, reshape, concatenate, eye, isnan, iscomplex,\
-                   Inf, arange, max, min, ones_like, minimum, log, exp
+                   Inf, arange, max, min, minimum, log
 from numpy.linalg import inv, slogdet, det
 from theano import function
 import theano.tensor  as Th
-from optimize import fmin_barrier_bfgs
+from optimize import optimizer, fmin_barrier_bfgs
 #import scipy.optimize as Opt
 
 import pylab as p
@@ -73,6 +73,7 @@ class posterior:
 
         self.dpost_dM   = function( [    U,V2,V1,invM,detM,STA,STC], dpost_dM) #
 
+        self.optimize   = optimizer( self )
 
     def barrier(self,params,data):
         (U,V2,V1) = self.params(params,data)
@@ -104,7 +105,7 @@ class posterior:
         result = None
         for i,(n,sta,stc) in enumerate(zip(N_spikes,STA,STC)):
             IM = eye(self.N)-self.M(U,V2,V1[i,:])
-            detIM = det(IM)
+#            detIM = det(IM)
 #            print 'det(IM) : ', detIM
             term = n * g(U,V2,V1[i,:], inv(IM), det(IM), sta, stc)
             if any(isnan(term.flatten())):

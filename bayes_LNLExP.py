@@ -7,7 +7,7 @@ from numpy.linalg import inv,slogdet
 from theano import function
 import theano.tensor  as Th
 #import scipy.optimize as Opt
-from optimize import fmin_barrier_bfgs
+from optimize import optimizer, fmin_barrier_bfgs
 import pylab as p
 
 class quad_model:
@@ -121,7 +121,8 @@ class posterior:
         return reduce( add ,  [ n**2/(n+self.prior_g) * f(U,sta,stc,Cbm1).flatten() \
                                for n,sta,stc in zip(N_spikes,STA,STC)])
 
-    def callback(self,U, (N_spikes,STA,STC)):
+    def callback(self,U, data):
+        (N_spikes,STA,STC) = data[0]
         U = reshape(U,(-1,len(STA[0])))
         s,ld = slogdet(self.Cb(U))
         print '||U||^2 : ', sum( U*U ), 'slogdet : ', s, exp(ld)
@@ -145,8 +146,8 @@ class posterior:
 
     def  f(self, U, data): return -self.sum_RGCs( self.posterior , U, data)
     def df(self, U, data): return -self.sum_RGCs( self.dposterior, U, data)
-    def MAP(self,x0,data): 
-        def cb(para): return self.callback(para,data[0])
-        return fmin_barrier_bfgs(self.f,x0.flatten(),fprime=self.df,
-                                 gtol=1.1e-6,maxiter=5000,args=data,
-                                 callback=cb,barrier=self.barrier)
+#    def MAP(self,x0,data): 
+#        def cb(para): return self.callback(para,data[0])
+#        return fmin_barrier_bfgs(self.f,x0.flatten(),fprime=self.df,
+#                                 gtol=1.1e-6,maxiter=5000,args=data,
+#                                 callback=cb,barrier=self.barrier)
