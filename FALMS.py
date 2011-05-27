@@ -1,12 +1,14 @@
 from numpy import sqrt, dot, sum
 
-def add_quadratic_term( objective ):
+def add_quadratic_term( objective, f='f', df='df', optimize='optimize' ):
     '''Generic: add quadratic term to objective, using its own optimizer.'''
-    def quad_optimize( X, Y, L, mu):
-        def quad_f (x): objective.f (x) + dot(L,x-Y) + sum((x-Y)*(x-Y))*mu
-        def quad_df(x): objective.df(x) +     L      +         2*(x-Y) *mu
-        return objective.optimize( x0=X , f=quad_f , df=quad_df )
-    objective.optimize_quadratic = quad_optimize
+    if isinstance(optimize,type('')):
+        optimize = getattr(objective,optimize)
+    def optimize_quadratic( X, Y, L, mu):
+        def quad_f (x): getattr(objective, f)(x) + dot(L,x-Y) + sum((x-Y)*(x-Y))*mu
+        def quad_df(x): getattr(objective,df)(x) +     L      +         2*(x-Y) *mu
+        return optimize( x0=X , f=quad_f , df=quad_df )
+    objective.optimize_quadratic = optimize_quadratic
     return objective
 
 

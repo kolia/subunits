@@ -8,9 +8,8 @@ from scipy.optimize import approx_fprime, line_search
 import numpy
 from numpy import asarray, sqrt, Inf, isinf
 import scipy.optimize.linesearch
-import copy
 
-from IPython.Debugger import Tracer; debug_here = Tracer()
+# from IPython.Debugger import Tracer; debug_here = Tracer()
 
 _epsilon = sqrt(numpy.finfo(float).eps)
 
@@ -20,13 +19,15 @@ def get_attribute(o,attribute):
     except AttributeError:
         return None
 
-def optimizer( objective ):
-    barrier  = get_attribute( objective, 'barrier'  )
-    callback = get_attribute( objective, 'callback' )
-    args     = get_attribute( objective, 'args'     )
-    init     = get_attribute( objective, 'init'     )
-    def optimize(init=init, args=args, f=objective.f, df=objective.df, 
-                 barrier=barrier, callback=callback, gtol=1.1e-6,
+def optimizer( objective , f='f' , df='df', barrier='barrier', 
+               callback='callback', args='args', init='init' ):
+    barrier  = get_attribute( objective, barrier  )
+    callback = get_attribute( objective, callback )
+    args     = get_attribute( objective, args     )
+    init     = get_attribute( objective, init     )
+    df       = get_attribute( objective, df       )
+    def optimize(init=init, args=args, f=getattr(objective, f), df=df,
+                 barrier=barrier, callback=callback, gtol=1.1e-6, 
                  maxiter=1000 ):
         if callback is None:
             cb = None
