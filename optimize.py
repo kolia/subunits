@@ -28,14 +28,20 @@ def optimizer( objective , f='f' , df='df', barrier='barrier',
     df       = get_attribute( objective, df       )
     def optimize(init=init, args=args, f=getattr(objective, f), df=df,
                  barrier=barrier, callback=callback, gtol=1.1e-6, 
-                 maxiter=1000 ):
+                 maxiter=1000 , full_output=False ):
         if callback is None:
             cb = None
         else:
             def cb(para): callback(para,args)
-        return fmin_barrier_bfgs(f,init,fprime=df,
-                                 gtol=1.1e-6,maxiter=1000,args=args,
-                                 callback=cb,barrier=barrier)
+        x, fx, dfx, _, _, _, _ = fmin_barrier_bfgs(f,init,fprime=df,
+                                                   gtol=1.1e-6,maxiter=1000,
+                                                   args=args,callback=cb,
+                                                   barrier=barrier,
+                                                   full_output=True)
+        if full_output:
+            return (x,fx,dfx)
+        else:
+            return x
     return optimize
 #        return Opt.fmin_ncg(self.f,params,fprime=self.df,avextol=1.1e-5,
 #                            maxiter=10000,args=data,

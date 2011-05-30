@@ -25,7 +25,7 @@ alpha = 10.
 #                   - 0.05 * ( Th.sum( L2mr(U,alpha/2+1)**2 ) + alpha * L2(U) )
 
 #prior = lambda U : - 0.001 * ( Th.sum( L2mr(U,alpha/2+1)**2 ) + alpha * L2(U) )
-prior = lambda U : - 0.006 * ( 3.*Th.sum( L2mr(U,2.0)**2 ) + 2.*sL1(   U,0.01) \
+prior = lambda U : - 0.005 * ( 3.*Th.sum( L2mr(U,1.5)**2 ) + 2.*sL1(   U,0.01) \
                             + 0.5*L2c(U)                   +    rL1(-5*U,0.1 ) \
   + 0.2 * sL1 (U - Th.concatenate([U[:,1:],U[:,0:1]],axis=1),0.01) )
 #  + 0.1 * Th.sum( (U - Th.concatenate([U[:,1:],U[:,0:1]],axis=1)) ** 2. ) \

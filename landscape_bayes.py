@@ -14,20 +14,23 @@ import numpy.random   as R
 
 
 #prior = lambda U : - 0.001 * ( Th.sum( L2mr(U,alpha/2+1)**2 ) + alpha * L2(U) )
-prior = lambda U : - 0.05 * ( Th.sum( L2mr(U,1.3)**2 ) + 1.*sL1(U,0.01) )
+#prior = lambda U : - 0.2 * ( Th.sum( L2mr(U,1.3)**2 ) + 1.*sL1(U,0.01) ) \
 #       -0.001*Th.sum( (U - Th.concatenate([U[:,1:],U[:,0:1]],axis=1)) ** 2. )
+prior = lambda U : - 0.05 * ( 3.*Th.sum( L2mr(U,1.6)**2 ) + 2.*sL1(   U,0.01) )
+
 #prior= lambda U : 0
 
-stim_sigma = 1.5
+stim_sigma = 0.5
 
 sigma  = stim_sigma
 model  = sin_model(sigma)
 #model  = quad_model(sigma,0.2,2.)
 #model  = exp_model(sigma)
-#model  = lin_model(sigma)
+linmodel  = lin_model(sigma)
 baye   = posterior(model,prior)
+baye.optimize = optimizer(baye)
 
-data, U, V1, bbar, Cb , STAB = LNLNP(T=10000,sigma=stim_sigma,NL=model.NL,N=27)
+data, U, V1, bbar, Cb , STAB = LNLNP(T=100000,sigma=stim_sigma,NL=model.NL,N=27)
 Nsub, N     =  U.shape
 NRGC, Nsub  =  V1.shape
 
@@ -60,7 +63,7 @@ for i in arange(N):
     print 'params:'
     print params
     for j in arange(3):
-        params    = baye.MAP(params,[data])
+        params = baye.optimize(init=params,args=data)
     filters[i][:] = params
     lls[i] = -baye.f(params,data)
 
