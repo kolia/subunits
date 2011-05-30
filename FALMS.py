@@ -32,8 +32,8 @@ def nuclear_L2( rho ):
     def df( X ):
         [U,s,V] = svd(X)
         return rho * dot(U,V)
-    def optimize_L2( X, Z, mu ):
-        [U,s,V] = svd(X)
+    def optimize_L2( _, Z, mu ):
+        [U,s,V] = svd(Z)
         return dot( U * maximum(s-rho*mu,0) , V )
     O = Objective()
     O.optimize_L2 = optimize_L2
