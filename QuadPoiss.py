@@ -1,6 +1,5 @@
-
 """
-Linear-Quadratic-Linear-Exponential-Poisson model fitter.
+Linear-Quadratic-Linear-Exponential-Poisson model for Nuclear Norm optimizer
 @author: kolia
 """
 from numpy  import add, reshape, concatenate, eye, isnan, iscomplex,\
@@ -13,30 +12,23 @@ from optimize import optimizer
 import pylab as p
 
 class posterior:
-    def __init__(self,N,Nsub,NRGC,prior=lambda U:0):
+    def __init__(self,theta=Th.dvector(),M=Th.dmatrix(),N,Nsub,NRGC):
         self.N     = N
         self.Nsub  = Nsub
         self.NRGC  = NRGC
-        self.prior = prior
-        self.mindet= 0.2
-        U    = Th.dmatrix()                   # SYMBOLIC variables     #
-        V1   = Th.dvector()                                            #
-        V2   = Th.dvector()                                            #
+        self.M     = M
+        self.theta = theta
         STA  = Th.dvector()                                            #
         STC  = Th.dmatrix()                                            #
-        theta= Th.dot( U.T , V1 )                                      #
-        M    = Th.dot( V1 * U.T , (V2 * U.T).T )                       #
         detM = Th.dscalar()
         invM = Th.dmatrix()
         invMtheta = Th.as_tensor_variable(Th.dot(invM,theta),ndim=2)
-        prior     = self.prior(U)                                      #
 
         post = (  Th.log(detM) \
 #                - 1. / (detM-self.mindet) \
                 - Th.sum(invMtheta*theta) \
                 + 2. * Th.sum( theta * STA ) \
-                + Th.sum( M * (STC + Th.outer(STA,STA)) )) / 2. \
-                + prior
+                + Th.sum( M * (STC + Th.outer(STA,STA)) )) / 2.
         dpost_dM  = ( invM + invMtheta * invMtheta.T \
 #                    + 1. * detM * invM / ((detM-self.mindet)**2) \
                     ) / 2.
@@ -47,20 +39,16 @@ class posterior:
                  - Th.grad( cost = Th.sum( dpost_dM * M ) , wrt = dX , 
                             consider_constant=[dpost_dM,STA,STC,invM,invMtheta])
 
-        self.M          = function( [    U,V2,V1]                  ,  M       ) #
-        self.posterior  = function( [    U,V2,V1,invM,detM,STA,STC],  post    ) #
-        self.dpost_dU   = function( [    U,V2,V1,invM,detM,STA,STC], dpost(U) ) #
-        self.dpost_dV1  = function( [    U,V2,V1,invM,detM,STA,STC], dpost(V1)) #
-        self.dpost_dV2  = function( [    U,V2,V1,invM,detM,STA,STC], dpost(V2)) #
-
-        self.dpost_dM   = function( [    U,V2,V1,invM,detM,STA,STC], dpost_dM) #
+        self.posterior    = function( [M,invM,detM,STA,STC],  post    )     #
+        self.dpost_dM     = function( [M,invM,detM,STA,STC], dpost(M) )     #
+        self.dpost_dtheta = function( [M,invM,detM,STA,STC], dpost(theta))  #
 
         self.optimize   = optimizer( self )
 
     def barrier(self,params,data):
-        (U,V2,V1) = self.params(params,data)
-        for i in arange(V1.shape[0]):
-            IM = eye(self.N)-self.M(U,V2,V1[i,:])
+        thetas,Ms = self.params(params,data)
+        for i in arange(len(thetas)):
+            IM = eye(self.N)-Ms[i]
             s,ld = slogdet(IM)
             if iscomplex(s) or s<1 or (ld < log(self.mindet)):
                 return True
@@ -69,12 +57,6 @@ class posterior:
 
     def callback(self,params,data):
         return
-        
-    def U(self,params):
-        return reshape( params , (self.Nsub,self.N) )
-
-    def V1(self,params):
-        return reshape( params , (self.NRGC,self.Nsub) )
 
     def params(self,params,data):
         return (self.U(params[0:self.N*self.Nsub]),
@@ -110,12 +92,12 @@ class posterior:
                               self.params(params,data),
                               self.data  (params,data))
 
-    def df_dU (self, params, data):
+    def df_dtheta (self, params, data):
         return self.sum_RGC( add, self.dpost_dU ,
                               self.params(params,data),
                               self.data  (params,data))
 
-    def df_dV1(self, params, data):
+    def df_dM(self, params, data):
         def concat(a,b): return concatenate((a,b))
         return self.sum_RGC( concat, self.dpost_dV1,
                               self.params(params,data),

@@ -14,7 +14,7 @@ def add_L2_term( objective, f='f', df='df', optimize='optimize' ):
     def optimize_L2( X, Y, mu, **optimize_params):
         def L2_f (x): getattr(objective, f)(x) + sum((x-Y)*(x-Y))/mu*0.5
         def L2_df(x): getattr(objective,df)(x) +           (x-Y) /mu
-        return optimize( x0=X , f='L2_f' , df='L2_df' , **optimize_params)
+        return optimize( x0=X , f=L2_f , df=L2_df , **optimize_params)
     objective.optimize_L2 = optimize_L2
     return objective
 
@@ -47,7 +47,7 @@ def FALM_step( F , G , mu , problem ):
     # Unpack loop variables
     X,Y,Ym,Z,t,tm,skipped = problem
 
-    # minimize f(X) - <G.df(Z),X-Z> + ||X-Z||**2/(2*mu) in X for fixed Z
+    # minimize f(X) + <G.df(Z),X-Z> + ||X-Z||**2/(2*mu) in X for fixed Z
     Gdf = G.df(Z)
     X , objX , _ = F.optimize_L2( X, Z-Gdf , mu , full_output=True)
     
