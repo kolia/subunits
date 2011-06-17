@@ -9,31 +9,36 @@ import numpy
 from numpy import asarray, sqrt, Inf, isinf
 import scipy.optimize.linesearch
 
-# from IPython.Debugger import Tracer; debug_here = Tracer()
+from IPython.Debugger import Tracer; debug_here = Tracer()
 
 _epsilon = sqrt(numpy.finfo(float).eps)
 
 def get_attribute(o,attribute):
-    try:
-        return getattr(o,attribute)
-    except AttributeError:
-        return None
+    if isinstance(attribute,type('')):
+        try:
+            return getattr(o,attribute)
+        except AttributeError:
+            return None
+    return attribute
 
 def optimizer( objective , f='f' , df='df', barrier='barrier', 
-               callback='callback', args='args', init='init' ):
+               callback='callback', args='args', init_params='init_params' ):
     barrier  = get_attribute( objective, barrier  )
     callback = get_attribute( objective, callback )
     args     = get_attribute( objective, args     )
-    init     = get_attribute( objective, init     )
+    init_params = get_attribute( objective, init_params)
     df       = get_attribute( objective, df       )
-    def optimize(init=init, args=args, f=getattr(objective, f), df=df,
-                 barrier=barrier, callback=callback, gtol=1.1e-6, 
+    flatten   = get_attribute( objective, 'flatten' )
+    def optimize(init_params=init_params, args=args, f=getattr(objective, f), 
+                 df=df, barrier=barrier, callback=callback, gtol=1.1e-6, 
                  maxiter=1000 , full_output=False ):
         if callback is None:
             cb = None
         else:
             def cb(para): callback(para,args)
-        x, fx, dfx, _, _, _, _ = fmin_barrier_bfgs(f,init,fprime=df,
+        if flatten:
+            init_params = flatten(init_params)
+        x, fx, dfx, _, _, _, _ = fmin_barrier_bfgs(f,init_params,fprime=df,
                                                    gtol=1.1e-6,maxiter=1000,
                                                    args=args,callback=cb,
                                                    barrier=barrier,

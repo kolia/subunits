@@ -13,7 +13,7 @@ def LNLNP(
     NL            = sin              ,  # subunit nonlinearity
     N             = 10               ,  # number of cones, subunits & RGCs
     Sigma         = 1.5              ,  # subunit & RGC connection width
-    firing_rate   = 0.1              ,  # RGC firing rate
+    firing_rate    = 0.1              ,  # RGC firing rate
     T             = 1000000          ): # number of time samples
     """Simulate spiking data for a Linear-Nonlinear-Linear-Nonlinear-Poisson model.
     Then use this data to calculate the STAs and STCs.
