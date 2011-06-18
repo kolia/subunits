@@ -1,7 +1,7 @@
 from inspect import getargspec
 from copy    import copy
 from numpy   import size, array, asarray
-from numpy.linalg import slogdet
+import numpy.linalg
 from theano  import function
 import theano.tensor  as Th
 from theano.gof import Op, Apply
@@ -19,7 +19,7 @@ class SLogDet(Op):
         return Apply(self, [x], [o1,o2])
     def perform(self, node, (x,), (z1,z2, )):
         try:
-            s,ldet = slogdet(x)
+            s,ldet = numpy.linalg.slogdet(x)
             z1[0] = asarray(s   , dtype=x.dtype)
             z2[0] = asarray(ldet, dtype=x.dtype)
         except:
@@ -32,7 +32,28 @@ class SLogDet(Op):
         return [gz2 * matrix_inverse(x).T]
     def __str__(self):
         return "SLogDet"
-logdet = SLogDet()
+slogdet = SLogDet()
+
+
+class Eig(Op):
+    """matrix eigenvalues and eigenvectors"""
+    def make_node(self, x):
+        x  = Th.as_tensor_variable(x)
+        o1 = Th.vector(dtype=x.dtype)
+        o2 = Th.matrix(dtype=x.dtype)
+        return Apply(self, [x], [o1,o2])
+    def perform(self, node, (x,), (z1,z2, )):
+        try:
+            w,v = numpy.linalg.eig(x)
+            z1[0] = asarray(w, dtype=x.dtype)
+            z2[0] = asarray(v, dtype=x.dtype)
+        except:
+            print 'Failed to compute eig', x
+            raise
+    def __str__(self):
+        return "Eig"
+eig = Eig()
+
 
 
 def shapely_tensor( x ):

@@ -7,7 +7,7 @@ from scipy.optimize import approx_fprime, line_search
 
 import numpy
 from numpy import asarray, sqrt, Inf, isinf
-import scipy.optimize.linesearch
+from scipy.optimize.linesearch import line_search_wolfe1, line_search_wolfe2
 
 from IPython.Debugger import Tracer; debug_here = Tracer()
 
@@ -87,7 +87,7 @@ def backtrack(f,xk,pk,barrier):
             right = (right+left)/2.
         else:
             left  = (right+left)/2.
-        if left>0 or right<1e-12: break    
+        if left>0 or right<1e-16: break    
 #    print 'amax : ', left
     return left
 
@@ -211,17 +211,37 @@ def fmin_barrier_bfgs(f, x0, fprime=None, args=(), gtol=1e-5, norm=Inf,
                                                 # and line_searches below!
 #        amax = 50.
         
-        alpha_k, fc, gc, old_fval, old_old_fval, gfkp1 = \
-           scipy.optimize.linesearch.line_search(f,myfprime,xk,pk,gfk,
-                                  old_fval,old_old_fval,amax=amax)
-        if alpha_k is None:  # line search failed try different one.
+        print 'amax:%f   f(amax):%f    barrier(amax):%d' % (amax,f(xk+amax*pk),barr(xk+amax*pk))
+
+        if amax < 1e-15:
+            # This line search also failed to find a better solution.
+            warnflag = 2
+            break
+
+        alpha_k, fc, gc, old_fval2, old_old_fval2, gfkp1 = \
+           line_search_wolfe2(f,myfprime,xk,pk,gfk,
+                              old_fval,old_old_fval,amax=amax)
+        if alpha_k is not None:
+            old_fval = old_fval2
+            old_old_fval = old_old_fval2
+        else:
+            # line search failed: try different one.
             alpha_k, fc, gc, old_fval, old_old_fval, gfkp1 = \
-                     line_search(f,myfprime,xk,pk,gfk,
-                                 old_fval,old_old_fval,amax=amax)
-            if alpha_k is None:
-                # This line search also failed to find a better solution.
-                warnflag = 2
-                break
+                     line_search_wolfe1(f,myfprime,xk,pk,gfk,
+                                        old_fval,old_old_fval,amax=amax)
+
+#        alpha_k, fc, gc, old_fval, old_old_fval, gfkp1 = \
+#           scipy.optimize.linesearch.line_search(f,myfprime,xk,pk,gfk,
+#                                  old_fval,old_old_fval,amax=amax)
+#        if alpha_k is None:  # line search failed try different one.
+#            alpha_k, fc, gc, old_fval, old_old_fval, gfkp1 = \
+#                     line_search(f,myfprime,xk,pk,gfk,
+#                                 old_fval,old_old_fval,amax=amax)
+
+        if (alpha_k is None) or (barr(xk + alpha_k * pk)):
+            # This line search also failed to find a better solution.
+            warnflag = 2
+            break
         xkp1 = xk + alpha_k * pk
         if retall:
             allvecs.append(xkp1)
@@ -256,7 +276,7 @@ def fmin_barrier_bfgs(f, x0, fprime=None, args=(), gtol=1e-5, norm=Inf,
         fval = old_fval
     if warnflag == 2:
         if disp:
-            print "Warning: Desired error not necessarily achieved" \
+            print "Warning: Desired error not necessarily achieved " \
                   "due to precision loss"
             print "         Current function value: %f" % fval
             print "         Iterations: %d" % k
