@@ -3,7 +3,7 @@ Linear-Quadratic-Linear-Exponential-Poisson model for Nuclear Norm optimizer
 @author: kolia
 """
 
-from numpy  import add, concatenate, eye, isnan, iscomplex,\
+from numpy  import add, concatenate, eye, isnan, iscomplex, \
                    Inf, arange, max, min, minimum, log, size
 #from numpy.linalg import inv, slogdet, det
 

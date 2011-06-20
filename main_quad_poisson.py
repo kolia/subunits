@@ -39,17 +39,8 @@ init_params['M'    ] = STC[iii] * 0.1
 
 objective = kolia_theano.objective(quadratic_Poisson,init_params=init_params,barrier=barrier,data_match=data_match,quad_term=quad_term,ldet=ldet,eigs=eigs,bar=bar)
 
-## Check derivative
-#print
-#print 'Checking derivatives:'
-#pp = objective.flatten(init_params)
-#df = objective.df(pp,data)
-#dh = 0.00000001
-#ee = eye(len(pp))*dh
-#for i in arange(len(pp)):
-#    print (objective.f(pp+ee[:,i],data)-objective.f(pp,data))/dh,df[i]
 
-def callback(ip,d):
+def callback_one(ip,d):
     pp = objective.inflate(ip)
     M = pp['M']
     N = M.shape[0]
@@ -64,7 +55,7 @@ def callback(ip,d):
           (s , ldet , ds, dldet, norm(pp['theta']), norm(M), objective.barrier(ip,data))
     print
 
-optimize  = optimize.optimizer( objective , callback=callback )
+optimize  = optimize.optimizer( objective , callback=callback_one )
 
 true   = { 'theta' : dot( U.T , V1[iii,:] ) , 'M' : dot( U.T * V1[iii,:] , U ) }
 
@@ -74,13 +65,13 @@ print 'eig true M' , w.real
 trupar = true
 for i in arange(5):
     trupar = optimize(init_params=trupar,args=data)
-    callback(trupar,data)
+    callback_one(trupar,data)
 trupar = objective.inflate(trupar)
 
 params = init_params
 for i in arange(2):
     params = optimize(init_params=params,args=data)
-    callback(params,data)
+    callback_one(params,data)
 params = objective.inflate(params)
 
 
