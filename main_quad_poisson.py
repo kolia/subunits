@@ -40,6 +40,17 @@ init_params['M'    ] = STC[iii] * 0.1
 objective = kolia_theano.objective(quadratic_Poisson,init_params=init_params,barrier=barrier,data_match=data_match,quad_term=quad_term,ldet=ldet,eigs=eigs,bar=bar)
 
 
+# Check derivative
+print
+print 'Checking derivatives:'
+pp = objective.flatten(init_params)
+df = objective.df(pp,data)
+dh = 0.00000001
+ee = eye(len(pp))*dh
+for i in arange(len(pp)):
+    print (objective.f(pp+ee[:,i],data)-objective.f(pp,data))/dh,df[i]
+
+
 def callback_one(ip,d):
     pp = objective.inflate(ip)
     M = pp['M']

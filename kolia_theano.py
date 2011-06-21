@@ -78,14 +78,15 @@ class objective:
         self.Params_Out            = copy(self.Args)
 
         self.Params_In = dict((n,shapely_tensor(x)) for n,x in init_params.items())
-        self.flatParam  = Th.concatenate([Th.flatten(x) for x in self.Params_In])
+        self.flatParam  = Th.concatenate([Th.flatten(x) for _,x in sorted(self.Params_In.items())])
 
         n = 0
         for name,template in sorted(init_params.items()):
             del self.Args[name]
             self.Params_Out[name] = Th.reshape( self.flatParam[n:n+size(template)], 
                                                 template.shape)
-
+            n = n + size(template)
+        self.theano       = {}
         self.theano['f' ] = theano_objective(**self.Params_Out)
         self.theano['df'] = Th.grad( cost = self.theano['f'] , 
                                      wrt  = self.flatParam , 
@@ -93,6 +94,36 @@ class objective:
 
         for name,gen in other.items(): self.theano[name] = gen(**self.Params_Out)
         self.deploy()
+
+    def deploy(self):
+        self.__flat   = function([v for n,v in sorted(self.Params_In.items())] , self.flatParam )
+        self.__unflat = function([self.flatParam], [self.Params_Out[n] for n in sorted(self.Params_In.keys())] )
+
+        def package(some_function):
+            def packaged_function(params,arg_dictionary):
+                argz = [arg_dictionary[n] for n in sorted(self.Args.keys())]
+                return some_function(self.flatten(params),*argz)
+            return packaged_function
+
+        self.flatAll_In = [self.flatParam] + [v for n,v in sorted(self.Args.items())]
+        for name,target in self.theano.items():
+            setattr(self, name, package(function( self.flatAll_In,  target )))
+
+    def inflate(self,x):
+        if isinstance(x,type(array([]))):
+            x = self.__unflat(x)
+        if isinstance(x,type([])):
+            return dict(zip(sorted(self.Params_In.keys()),x))
+             
+    def flatten(self,params):
+        if isinstance(params,type({})):
+#            debug_here()
+            params = [params[name] for name in sorted(self.Params_In.keys())]
+        if isinstance(params,type([])):
+            return self.__flat(*params)
+        if isinstance(params,type(array([]))):
+            return params
+        raise TypeError('flatten expects a dict, list or numpy ndarray')
 
     def __add__(self,y):
         for name,target in self.theano.items():
@@ -120,29 +151,4 @@ class objective:
         self.Args       = reducer(3)
         self.flatParam = Th.concatenate([r[4] for r in replicas])
         return self.deploy()
-
-    def deploy(self):
-        self.__flat       = function(self.Params_In , self.flatParam_Out )
-        self.__unflat     = function([self.flatParam], self.Params_Out   )
-
-        def package(some_function):
-            def packaged_function(params,arg_dictionary):
-                argz = [arg_dictionary[n] for n in sorted(self.Args.keys())]
-                return some_function(self.flatten(params),*argz)
-            return packaged_function
-
-        self.flatAll_In = [self.flatParam] + [v for n,v in sorted(self.Args.items())]
-        for name,target in self.theano.items():
-            setattr(self, name, package(function( self.flatAll_In,  target )))
-            
-    def unflat(self,x):
-        if isinstance(x,type(array([]))):  x = self.__unflat(x)
-        if not isinstance(x,type({})): raise TypeError('inflate expects ndarray')
-        return x
-            
-    def flat(self,x):
-        if isinstance(x,type({})):         x = self.__flat(x)
-        if not isinstance(x,type(array([]))):
-            raise TypeError('flatten expects a dict or numpy ndarray')
-        return x
         
