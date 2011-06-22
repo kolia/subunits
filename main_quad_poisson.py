@@ -25,20 +25,26 @@ quad = lambda x : 0.2*(x+1.)**2
 Nsub, N     =  U.shape
 NRGC, Nsub  =  V1.shape
 
-iii = 0
-
-data  = { 'STA':STA[iii] , 'STC':STC[iii] }
-
+data = {}
 init_params = {}
-init_params['theta'] = STA[iii] * 0.1
-init_params['M'    ] = STC[iii] * 0.1
+
+for iii in range(2):
+    data['STA',iii] = STA[iii]
+    data['STC',iii] = STC[iii]
+    init_params['theta',iii] = STA[iii] * 0.1
+    init_params['M'    ,iii] = STC[iii] * 0.1
 
 #init_params = 0.1*( ones(len(UU)) + 2.*R.randn(len(UU)) )
 #init_params = UU
 
+#iii = 0 
+#data  = { 'STA':STA[iii] , 'STC':STC[iii] }
+#init_params['theta'] = STA[iii] * 0.1
+#init_params['M'    ] = STC[iii] * 0.1
 
-objective = kolia_theano.objective(quadratic_Poisson,init_params=init_params,barrier=barrier,data_match=data_match,quad_term=quad_term,ldet=ldet,eigs=eigs,bar=bar)
-
+objective =  2 * kolia_theano.objective(quadratic_Poisson,init_params=init_params,
+                                       barrier=barrier,data_match=data_match,
+                                       quad_term=quad_term,ldet=ldet,eigs=eigs,bar=bar)
 
 # Check derivative
 print
@@ -61,7 +67,8 @@ def callback_one(ip,d):
     ds , dldet = slogdet(identity(N)-M+0.001*dM)
     w,v = eig( identity(N) - M )
     print 'eig M' , w.real
-    print [objective.f(ip,data),objective.ldet(ip,data),objective.quad_term(ip,data),objective.data_match(ip,data)]
+    print [objective.f(ip,data),objective.ldet(ip,data),
+           objective.quad_term(ip,data),objective.data_match(ip,data)]
     print 'Iteration s, ldet I-M: %d , %f     %d , %f     norm theta %f    norm M %f   barr %d' % \
           (s , ldet , ds, dldet, norm(pp['theta']), norm(M), objective.barrier(ip,data))
     print
@@ -95,7 +102,8 @@ print
 
 def show(string,p):
     print 'log-likelihood of %s = %f   barrier = %f    ldet = %f     minw = %f' \
-        % ( string , objective.f(p,data), objective.barrier(p,data) , objective.ldet(p,data) , min(objective.eigs(p,data)) )
+        % ( string , objective.f(p,data), objective.barrier(p,data) , 
+           objective.ldet(p,data) , min(objective.eigs(p,data)) )
 #    print 'bar ' , objective.bar(p,data)
 
 show('init params' ,init_params)

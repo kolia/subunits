@@ -55,12 +55,12 @@ class Eig(Op):
 eig = Eig()
 
 
-def shapely_tensor( x , dtype='float64'):
+def shapely_tensor( name , x , dtype='float64'):
     if isinstance(x,type(0)):
-        return Th.dscalar()
+        return Th.dscalar(name)
     if isinstance(x,type(array([]))):
         dtensor_x = Th.TensorType(dtype, (False,)*x.ndim)
-        return Th.specify_shape(dtensor_x(),x.shape)
+        return Th.specify_shape(dtensor_x(name),x.shape)
     raise TypeError('shapely_tensor expects a scalar or numpy ndarray')
 
 
@@ -72,32 +72,37 @@ class objective:
     '''
     def __init__(self, theano_objective, init_params=None, **other):
         arg_names,_,_,arg_defaults = getargspec(theano_objective)
-        self.theano_objective      = theano_objective
-        self.init_params           = init_params
-        self.Args                  = dict(zip(arg_names,arg_defaults))
-        self.Params_Out            = copy(self.Args)
-
-        self.Params_In = dict((n,shapely_tensor(x)) for n,x in init_params.items())
+        self.theano_objective = theano_objective
+        self.Args             = dict(zip(arg_names,arg_defaults))
+                
+        stripinit             = dict((self.__strip_entry(e),v) for e,v in init_params.items())
+        self.init_params      = self.__intersect_dicts(self.Args.keys(),stripinit)
+        
+        self.Params_In = dict((n,shapely_tensor(n,x)) for n,x in self.init_params.items())
         self.flatParam  = Th.concatenate([Th.flatten(x) for _,x in sorted(self.Params_In.items())])
+        for name,template in sorted(self.init_params.items()):  del self.Args[name]
 
-        n = 0
-        for name,template in sorted(init_params.items()):
-            del self.Args[name]
-            self.Params_Out[name] = Th.reshape( self.flatParam[n:n+size(template)], 
-                                                template.shape)
-            n = n + size(template)
+        Params_Out        = self.Params_Out(self.flatParam)
         self.theano       = {}
-        self.theano['f' ] = theano_objective(**self.Params_Out)
+        self.theano['f' ] = theano_objective(**Params_Out)
         self.theano['df'] = Th.grad( cost = self.theano['f'] , 
                                      wrt  = self.flatParam , 
                                      consider_constant=[v for _,v in sorted(self.Args.items())])
-
-        for name,gen in other.items(): self.theano[name] = gen(**self.Params_Out)
+        for name,gen in other.items(): self.theano[name] = gen(**Params_Out)
         self.deploy()
+
+    def Params_Out(self,flatParam):
+        Out = copy(self.Args)
+        n = 0
+        for name,template in sorted(self.init_params.items()):
+            Out[name] = Th.reshape( flatParam[n:n+size(template)], template.shape)
+            n = n + size(template)
+        return Out       
 
     def deploy(self):
         self.__flat   = function([v for n,v in sorted(self.Params_In.items())] , self.flatParam )
-        self.__unflat = function([self.flatParam], [self.Params_Out[n] for n in sorted(self.Params_In.keys())] )
+        Params_Out   = self.Params_Out(self.flatParam)
+        self.__unflat = function([self.flatParam], [Params_Out[n] for n in sorted(self.Params_In.keys())] )
 
         def package(some_function):
             def packaged_function(params,arg_dictionary):
@@ -137,8 +142,8 @@ class objective:
        
     def __rmul__(self,n):
         '''self.theano, self.flatParam, self.Params_In, self.Params_Out, self.Args'''
-        replicas = [deepcopy((self.theano,self.Params_In,self.Params_Out,
-                              self.Args,self.flatParams)) for _ in range(n)]
+        replicas = [deepcopy((self.theano,self.Params_In,
+                              self.Args,self.flatParam)) for _ in range(n)]
         for name in self.theano.keys():
             self.theano[name] = Th.add(*[r[0][name] for r in replicas])        
         def reducer(i):
@@ -147,8 +152,33 @@ class objective:
                 new_d.update([((n,j),r[i][n]) for n in replicas[0][i].keys()])
             return new_d
         self.Params_In  = reducer(1)
-        self.Params_Out = reducer(2)
-        self.Args       = reducer(3)
-        self.flatParam = Th.concatenate([r[4] for r in replicas])
+        self.Args       = reducer(2)
+        self.flatParam = Th.concatenate([r[3] for r in replicas])
+        def Params_Out(flatParam):
+            Out = copy(self.Args)
+            n = Th.dscalar('n')
+            for name,template in sorted(self.Params_In.items()):
+                debug_here()
+                numel = Th.prod(template.shape)
+                Out[name] = Th.reshape( flatParam[n:n+numel], template.shape)
+                n = n + numel
+            return Out
+
+        self.Params_Out = Params_Out
         return self.deploy()
+
+    def __strip_entry(self,e):
+        if isinstance(e,type(())):
+            return self.__strip_entry(e[0])
+        elif isinstance(e,type('')):
+            return e
+        else:
+            TypeError('expected nested tuples with string as first non-tuple')
+    
+    def __intersect_dicts(self,names,d):
+        out = {}
+        for name in names:
+            try:              out[name] = d[name]
+            except KeyError:  ()
+        return out
         
