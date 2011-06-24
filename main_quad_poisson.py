@@ -1,6 +1,6 @@
 import QuadPoiss
 reload(QuadPoiss)
-from   QuadPoiss import quadratic_Poisson, barrier, quad_term, data_match, ldet, eigs, bar
+from   QuadPoiss import quadratic_Poisson, barrier, eigs, ldet
 
 import kolia_theano
 reload(kolia_theano)
@@ -16,6 +16,10 @@ from numpy  import arange, sum, dot, mean, min, max, identity, eye
 from numpy.linalg import norm, slogdet, eig
 import numpy.random as R
 import pylab as p
+from copy import deepcopy
+
+from IPython.Debugger import Tracer; debug_here = Tracer()
+
 
 sigma  = 1.
 
@@ -28,57 +32,58 @@ NRGC, Nsub  =  V1.shape
 data = {}
 init_params = {}
 
-for iii in range(2):
-    data['STA',iii] = STA[iii]
-    data['STC',iii] = STC[iii]
-    init_params['theta',iii] = STA[iii] * 0.1
-    init_params['M'    ,iii] = STC[iii] * 0.1
 
 #init_params = 0.1*( ones(len(UU)) + 2.*R.randn(len(UU)) )
 #init_params = UU
 
-#iii = 0 
-#data  = { 'STA':STA[iii] , 'STC':STC[iii] }
-#init_params['theta'] = STA[iii] * 0.1
-#init_params['M'    ] = STC[iii] * 0.1
+iii = 2
+data  = [{ 'STA':STA[i] , 'STC':STC[i] } for i in range(iii)]
+init_params = [{'theta':STA[i] * 0.1 , 'M':STC[iii] * 0.1} for i in range(iii)]
 
-objective =  2 * kolia_theano.objective(quadratic_Poisson,init_params=init_params,
-                                       barrier=barrier,data_match=data_match,
-                                       quad_term=quad_term,ldet=ldet,eigs=eigs,bar=bar)
+term = kolia_theano.term(init_params=init_params[0],differentiate=['f'],
+                          f=quadratic_Poisson, barrier=barrier, ldet=ldet, eigs=eigs)
 
-# Check derivative
-print
-print 'Checking derivatives:'
-pp = objective.flatten(init_params)
-df = objective.df(pp,data)
-dh = 0.00000001
-ee = eye(len(pp))*dh
-for i in arange(len(pp)):
-    print (objective.f(pp+ee[:,i],data)-objective.f(pp,data))/dh,df[i]
+terms = [deepcopy(term) for i in range(iii)]
+
+objective = kolia_theano.sum_objective(terms)
+
+
+## Check derivative
+#print
+#print 'Checking derivatives:'
+#pp = objective.flatten(init_params)
+#df = objective.df(pp,data)
+#dh = 0.00000001
+#ee = eye(len(pp))*dh
+#for i in arange(len(pp)):
+#    print (objective.f(pp+ee[:,i],data)-objective.f(pp,data))/dh,df[i]
 
 
 def callback_one(ip,d):
     pp = objective.inflate(ip)
-    M = pp['M']
-    N = M.shape[0]
-    s , ldet = slogdet(identity(N)-M)
-    df = objective.df(pp,d)
-    dM = objective.inflate(df)['M']
-    ds , dldet = slogdet(identity(N)-M+0.001*dM)
-    w,v = eig( identity(N) - M )
-    print 'eig M' , w.real
-    print [objective.f(ip,data),objective.ldet(ip,data),
-           objective.quad_term(ip,data),objective.data_match(ip,data)]
-    print 'Iteration s, ldet I-M: %d , %f     %d , %f     norm theta %f    norm M %f   barr %d' % \
-          (s , ldet , ds, dldet, norm(pp['theta']), norm(M), objective.barrier(ip,data))
     print
+    print 'CALLBACK:'
+    for term,ppp,dd in zip(terms,pp,d):
+        M = ppp['M']
+        N = M.shape[0]
+        s , lldet = slogdet(identity(N)-M)
+        df = term.df(ppp,dd)
+        dM = term.inflate(df)['M']
+        ds , dldet = slogdet(identity(N)-M+0.001*dM)
+        w,v = eig( identity(N) - M )
+        print 'eig M' , w.real
+        print [term.f(ppp,dd)]
+        print 'Iteration s, ldet I-M: %d , %f     %d , %f     norm theta %f    norm M %f   barr %d' % \
+              (s , lldet , ds, dldet, norm(ppp['theta']), norm(M), term.barrier(ppp,dd))
+        print
 
 optimize  = optimize.optimizer( objective , callback=callback_one )
 
-true   = { 'theta' : dot( U.T , V1[iii,:] ) , 'M' : dot( U.T * V1[iii,:] , U ) }
+true   = [{ 'theta' : dot( U.T , V1[i,:] ) , 'M' : 0.1*dot( U.T * V1[i,:] , U ) } for i in range(iii)]
 
-w,v = eig( true['M'] )
-print 'eig true M' , w.real
+for t in true:
+    w,v = eig( eye(t['M'].shape[0]) - t['M'] )
+    print 'eig true M' , w.real
 
 trupar = true
 for i in arange(5):
@@ -93,11 +98,11 @@ for i in arange(2):
 params = objective.inflate(params)
 
 
-optU = params['theta']
+optU = [param['theta'] for param in params]
 print
 print 'stimulus sigma  :  ', sigma
 print 'true    ||subunit RF||^2  : ', sum(U*U,axis=1)
-print 'optimal ||subunit RF||^2  : ', sum(optU*optU)
+print 'optimal ||subunit RF||^2  : ', [sum(optu*optu) for optu in optU]
 print
 
 def show(string,p):
