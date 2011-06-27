@@ -12,6 +12,9 @@ from simulate_data import LNLNP
 import optimize
 reload(optimize)
 
+import FALMS
+reload(FALMS)
+
 #from numpy  import arange, sum, dot, min, identity, eye, reshape, concatenate
 import numpy as np
 from numpy.linalg import norm, slogdet, eig, svd
@@ -28,8 +31,8 @@ sigma  = 1.
 quad = lambda x : 0.2*(x+1.)**2
 
 (N_spikes,STA,STC), U, V1, bbar, Cb , STAB = LNLNP(T=10000,sigma=sigma,NL=quad,N=27)
-Nsub, N     =  U.shape
-NRGC, Nsub  =  V1.shape
+Nsub, Ncones  =  U.shape
+NRGC, Nsub    =  V1.shape
 
 A = np.concatenate([N*np.reshape(sta,(1,len(sta))) for N,sta in zip(N_spikes,STA)])
 #B = np.concatenate([N*(stc + np.outer(sta,sta)) for N,sta,stc in zip(N_spikes,STA,STC)])
@@ -62,20 +65,6 @@ term = kolia_theano.term(init_params=init_params[0],differentiate=['f'],
 
 terms = [deepcopy(term) for i in range(iii)]
 
-objective = kolia_theano.sum_objective(terms)
-
-
-## Check derivative
-#print
-#print 'Checking derivatives:'
-#pp = objective.flatten(init_params)
-#df = objective.df(pp,data)
-#dh = 0.00000001
-#ee = eye(len(pp))*dh
-#for i in arange(len(pp)):
-#    print (objective.f(pp+ee[:,i],data)-objective.f(pp,data))/dh,df[i]
-
-
 def callback_one(ip,d):
     pp = objective.inflate(ip)
     print
@@ -94,45 +83,75 @@ def callback_one(ip,d):
               (s , lldet , ds, dldet, norm(ppp['theta']), norm(M), term.barrier(ppp,dd))
         print
 
-optimize  = optimize.optimizer( objective , callback=callback_one )
+objective = kolia_theano.sum_objective(terms,callback=callback_one)
+
+objective = FALMS.set_argument( objective , data )
+
+#optimize  = optimize.optimizer( objective , callback=callback_one )
+
+mu  = 1
+rho = 1
 
 true   = [{ 'theta' : np.dot( U.T , V1[i,:] ) , 'M' : 0.1*np.dot( U.T * V1[i,:] , U ) } for i in range(iii)]
 
-for t in true:
-    w,v = eig( np.eye(t['M'].shape[0]) - t['M'] )
-    print 'eig true M' , w.real
+def nuclearMatrix(params):
+    return np.reshape(params,(Ncones,-1))
 
-trupar = true
-for i in range(5):
-    trupar = optimize(init_params=trupar,args=data)
-    callback_one(trupar,data)
-trupar = objective.inflate(trupar)
+nuclear_L2 = FALMS.nuclear_L2( rho , get_matrix=nuclearMatrix )
+optimize_L2 = FALMS.add_L2_term( objective )
 
-params = init_params
-for i in range(2):
-    params = optimize(init_params=params,args=data)
-    callback_one(params,data)
-params = objective.inflate(params)
+falmer = FALMS.initialize( objective.flatten(true) )
+
+for i in range(10):
+    falmer = FALMS.step( optimize_L2 , nuclear_L2 , mu , falmer )
+
+## Check derivative
+#print
+#print 'Checking derivatives:'
+#pp = objective.flatten(init_params)
+#df = objective.df(pp,data)
+#dh = 0.00000001
+#ee = eye(len(pp))*dh
+#for i in arange(len(pp)):
+#    print (objective.f(pp+ee[:,i],data)-objective.f(pp,data))/dh,df[i]
 
 
-optU = [param['theta'] for param in params]
-print
-print 'stimulus sigma  :  ', sigma
-print 'true    ||subunit RF||^2  : ', np.sum(U*U,axis=1)
-print 'optimal ||subunit RF||^2  : ', [np.sum(optu*optu) for optu in optU]
-print
 
-def show(string,p):
-    print 'log-likelihood of %s = %f   barrier = %f    ldet = %f     minw = %f' \
-        % ( string , objective.f(p,data), objective.barrier(p,data) , 
-           objective.ldet(p,data) , np.min(objective.eigs(p,data)) )
-#    print 'bar ' , objective.bar(p,data)
-
-show('init params' ,init_params)
-show('true params' ,true       )
-show('opt params'  ,params     )
-show('opt of true' ,trupar     )
-print 'improvement of opt of true    = ', objective.f(params,data) - objective.f(trupar,data)
-
-#p.figure(2)
-#objective.plot(params,U)
+#for t in true:
+#    w,v = eig( np.eye(t['M'].shape[0]) - t['M'] )
+#    print 'eig true M' , w.real
+#
+#trupar = true
+#for i in range(5):
+#    trupar = optimize(init_params=trupar,args=data)
+#    callback_one(trupar,data)
+#trupar = objective.inflate(trupar)
+#
+#params = init_params
+#for i in range(2):
+#    params = optimize(init_params=params,args=data)
+#    callback_one(params,data)
+#params = objective.inflate(params)
+#
+#
+#optU = [param['theta'] for param in params]
+#print
+#print 'stimulus sigma  :  ', sigma
+#print 'true    ||subunit RF||^2  : ', np.sum(U*U,axis=1)
+#print 'optimal ||subunit RF||^2  : ', [np.sum(optu*optu) for optu in optU]
+#print
+#
+#def show(string,p):
+#    print 'log-likelihood of %s = %f   barrier = %f    ldet = %f     minw = %f' \
+#        % ( string , objective.f(p,data), objective.barrier(p,data) , 
+#           objective.ldet(p,data) , np.min(objective.eigs(p,data)) )
+##    print 'bar ' , objective.bar(p,data)
+#
+#show('init params' ,init_params)
+#show('true params' ,true       )
+#show('opt params'  ,params     )
+#show('opt of true' ,trupar     )
+#print 'improvement of opt of true    = ', objective.f(params,data) - objective.f(trupar,data)
+#
+##p.figure(2)
+##objective.plot(params,U)

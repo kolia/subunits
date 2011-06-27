@@ -4,6 +4,7 @@
 """
 
 from scipy.optimize import approx_fprime, line_search
+from copy import deepcopy
 
 import numpy
 from numpy import asarray, sqrt, Inf, isinf
@@ -22,16 +23,21 @@ def get_attribute(o,attribute):
     return attribute
 
 def optimizer( objective , f='f' , df='df', barrier='barrier', 
-               callback='callback', args='args', init_params='init_params' ):
+               callback='callback', args='args', init_params='init_params' , **options):
     barrier  = get_attribute( objective, barrier  )
     callback = get_attribute( objective, callback )
     args     = get_attribute( objective, args     )
     init_params = get_attribute( objective, init_params)
     df       = get_attribute( objective, df       )
     flatten   = get_attribute( objective, 'flatten' )
-    def optimize(init_params=init_params, args=args, f=getattr(objective, f), 
+    f        = getattr(objective, f)
+    if 'full_output' not in options:
+        full_output = False
+    else:
+        full_output = options['full_output']
+    def optimize(init_params=init_params, args=args, f=f, 
                  df=df, barrier=barrier, callback=callback, gtol=1.1e-6, 
-                 maxiter=1000 , full_output=False ):
+                 maxiter=1000 , full_output=full_output ):
         if callback is None:
             cb = None
         else:

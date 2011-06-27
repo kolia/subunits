@@ -70,10 +70,10 @@ class term:
     and sufficient to build a numerical objective:
     self.theano, self.flatParam, self.Params, self.Args, self.init_params
     '''
-    def __init__(self, init_params=None, differentiate=[], **theano_defs):
-        names,_,_,defaults = getargspec(theano_defs.itervalues().next())
+    def __init__(self, init_params=None, differentiate=[], **theano):
+        names,_,_,defaults = getargspec(theano.itervalues().next())
 #        self.defs          = [theano_defs]
-        self.Args          = dict(zip(names,defaults))
+        self.Args          = dict([(name,Th.as_tensor_variable(d,name=name)) for name,d in zip(names,defaults)])
                 
         self.init_params   = self.__intersect_dicts(self.Args.keys(),init_params)
         
@@ -83,11 +83,7 @@ class term:
 
         self.__pack   = function([x for _,x in sorted(self.Params.items())],self.flatParam)
 
-        Params_Out = copy(self.Args)
-        n = 0
-        for name,template in sorted(self.init_params.items()):
-            Params_Out[name] = Th.reshape( self.flatParam[n:n+size(template)], template.shape)
-            n = n + size(template)
+        Params_Out = self.gen_Params_Out(self.flatParam,self.Args)
 
         self.splitParam = \
         function([self.flatParam],[Params_Out[name] for name in sorted(self.Params.keys())])
@@ -98,16 +94,36 @@ class term:
                 return some_function(self.flatten(params),*argz)
             return packaged_function
 
-        arglist = [value for _,value in sorted(self.Args.items())]
-        self.theano       = {}
-        for name,gen in theano_defs.items(): self.theano[name] = gen(**Params_Out)
-        for name in differentiate:
-            self.theano['d'+name] = Th.grad( cost              = self.theano[name] , 
-                                             wrt               = self.flatParam , 
-                                             consider_constant = arglist)
+        self.theano = theano
+        self.theano_functions = {}
 
-        for name,output in self.theano.items():
-            setattr(self,name,package(function([self.flatParam]+arglist,output)))
+        for name in differentiate:
+            if ('d'+name) not in self.theano:
+                self.theano['d'+name] = self.__differentiate(self.theano[name])
+            
+        arglist     = [Params_Out[name] for name in sorted(self.Args.keys())]
+        for name,gen in self.theano.items():
+            self.theano_functions[name] = function([self.flatParam]+arglist,gen(**Params_Out))
+            setattr(self,name,package(self.theano_functions[name]))
+
+    def gen_Params_Out(self,flatParam,Args):
+        Params_Out = copy(Args)
+        n = 0
+        for name,template in sorted(self.init_params.items()):
+            Params_Out[name] = Th.reshape( flatParam[n:n+size(template)], template.shape)
+            n = n + size(template)
+        return Params_Out
+
+    def __differentiate(self,target):
+        def gen_differential(**Params):
+            flatParam   = Th.concatenate([Th.flatten(Params[n]) for n in sorted(self.init_params.keys())])
+#            flatParam   = Th.dvector()
+            Params_Out = self.gen_Params_Out(flatParam,Params)
+            arglist    = [Params_Out[name] for name in sorted(self.Args.keys())]
+            return Th.grad( cost              = target(**Params_Out) ,
+                            wrt               = flatParam ,
+                            consider_constant = arglist)
+        return gen_differential
 
     def repack(self, dic, ll): return dict((name,ll[i]) for i,name in enumerate(dic.keys()))
 
@@ -138,44 +154,71 @@ class term:
 
 
 class sum_objective():
-    def __init__(self, l):
+    def __init__(self, l, **other_fields):
+        self.__common_init(l)
+
+        for name,value in other_fields.items():  setattr(self,name,value)
+
+        Params_Out = []
+        n = 0
+        for init_param,argz in zip(self.initParam,self.Args):
+            Params_Out = Params_Out + [copy(argz)]
+            for name,template in sorted(init_param.items()):
+                Params_Out[-1][name] = Th.reshape( self.flatParam[n:n+size(template)], template.shape)
+                n = n + size(template)
+
+        names  = set(sum([objective.theano.keys() for objective in l],[]))
+        outputs = dict((name,0) for name in names)
+        for name in names:
+            if (name[0] == 'd') and (name[1:] in l[0].theano):
+                outputs[name] = Th.concatenate([o.theano[name](**P) for o,P in zip(self.terms,Params_Out)])
+            else:            
+                for objective,Params in zip(l,Params_Out):
+                    try:    outputs[name] = outputs[name] + objective.theano[name](**Params)
+                    except: print 'Error adding ', name, ' to ', objective
+        for name,target in outputs.items():
+            setattr(self, name, self.__wrap_theano(name,outputs[name]))
+
+    def __wrap_theano(self,name,output):
+        f = function([self.flatParam] + sum(self.__unpack(self.Args),[]), output)
+        self.theano_functions[name] = f
+        def wrapped_function(params,arg_dicts):
+            argz = [[d[n] for n in sorted(args.keys())] for args,d in zip(self.Args,arg_dicts)]
+            return f(self.flatten(params),*sum(argz,[]))
+        return wrapped_function
+
+    def __common_init(self, l):
         self.terms     = l
         self.Params    = [objective.Params      for objective in l]
         self.Args      = [objective.Args        for objective in l]
         self.initParam = [objective.init_params for objective in l]
         self.flatParam = Th.concatenate([objective.flatParam for objective in l])
-
         self.joinParam  = function( [ll.flatParam for ll in l] , self.flatParam )
 
-        Params_Out = []
+        self.theano_functions = {}
+
+        flatParams_Out = []
         n = 0
         for init_param in self.initParam:
             dn = sum([size(value) for _,value in sorted(init_param.items())])
-            Params_Out = Params_Out + [self.flatParam[n:n+dn]]
+            flatParams_Out = flatParams_Out + [self.flatParam[n:n+dn]]
             n = n + dn
-        self.splitParam = function([self.flatParam], Params_Out )
+        self.splitParam = function([self.flatParam], flatParams_Out )
     
-#        names  = set(sum([objective.theano.keys() for objective in l],[]))
-#        self.theano = dict((name,0) for name in names)
-#        for objective in l:
-#            for name in names:
-#                try:    self.theano[name] = self.theano[name] + objective.theano[name]
-#                except: print 'Error adding ', name, ' to ', objective
-#        for name,target in self.theano.items():
-#            setattr(self, name, wrap(function([self.flatParam] + self.unpack(self.Args), target)))
-
-        def wrap(name,reduction):
-            def wrapped_function(params,arg_dicts):
-#                argz = [[d[n] for n in sorted(args.keys())] for args,d in zip(self.Args,arg_dicts)]
-                flats = self.splitParam( self.flatten(params) )                
-                return reduction([ getattr(ll,name)(x,arg_dict) for ll,x,arg_dict in zip(l,flats,arg_dicts)])
-            return wrapped_function
-
+    def __init2__(self, l):
+        self.__common_init(l)
         for name in l[0].theano.keys():
             if (name[0] == 'd') and (name[1:] in l[0].theano):
-                setattr(self,name, wrap(name, lambda l : self.joinParam(*l) ))
+                setattr(self,name, self.__wrap(name, lambda l : self.joinParam(*l) ))
             else:            
-                setattr(self,name, wrap(name, sum))
+                setattr(self,name, self.__wrap(name, sum))
+
+    def __wrap(self,name,reduction):
+        def wrapped_function(params,arg_dicts):
+#                argz = [[d[n] for n in sorted(args.keys())] for args,d in zip(self.Args,arg_dicts)]
+            flats = self.splitParam( self.flatten(params) )                
+            return reduction([ getattr(ll,name)(x,arg_dict) for ll,x,arg_dict in zip(self.terms,flats,arg_dicts)])
+        return wrapped_function
 
     def __unpack(self,dict_list):
         return [[value for _,value in sorted(d.items())] for d in dict_list]
