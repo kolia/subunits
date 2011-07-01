@@ -38,15 +38,15 @@ def optimizer( objective , f='f' , df='df', barrier='barrier',
     def optimize(init_params=init_params, args=args, f=f, 
                  df=df, barrier=barrier, callback=callback, gtol=1.1e-6, 
                  maxiter=1000 , full_output=full_output ):
-        if callback is None:
-            cb = None
-        else:
-            def cb(para): callback(para,args)
+#        if callback is None:
+#            cb = None
+#        else:
+#            def cb(para): callback(para,args)
         if flatten:
             init_params = flatten(init_params)
         x, fx, dfx, _, _, _, _ = fmin_barrier_bfgs(f,init_params,fprime=df,
                                                    gtol=1.1e-6,maxiter=1000,
-                                                   args=args,callback=cb,
+                                                   args=args,callback=callback,
                                                    barrier=barrier,
                                                    full_output=True)
         if full_output:
@@ -259,7 +259,7 @@ def fmin_barrier_bfgs(f, x0, fprime=None, args=(), gtol=1e-5, norm=Inf,
         yk = gfkp1 - gfk
         gfk = gfkp1
         if callback is not None:
-            callback(xk)
+            callback(xk,args)
         k += 1
         gnorm = vecnorm(gfk,ord=norm)
         if (gnorm <= gtol):

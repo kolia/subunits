@@ -73,7 +73,7 @@ class term:
     def __init__(self, init_params=None, differentiate=[], **theano):
         names,_,_,defaults = getargspec(theano.itervalues().next())
 #        self.defs          = [theano_defs]
-        self.Args          = dict([(name,Th.as_tensor_variable(d,name=name)) for name,d in zip(names,defaults)])
+        self.Args          = dict([(n,Th.as_tensor_variable(d,name=n)) for n,d in zip(names,defaults)])
                 
         self.init_params   = self.__intersect_dicts(self.Args.keys(),init_params)
         
@@ -125,7 +125,7 @@ class term:
                             consider_constant = arglist)
         return gen_differential
 
-    def repack(self, dic, ll): return dict((name,ll[i]) for i,name in enumerate(dic.keys()))
+    def repack(self, dic, ll): return dict(p for p in zip(sorted(dic.keys()),ll))
 
     def inflate(self, x):
         if isinstance(x,type(array([]))):
@@ -141,7 +141,7 @@ class term:
         if isinstance(params,type([])):
             return self.__pack(*params)
         if isinstance(params,type(array([]))):
-            return params
+            return params.flatten()
         raise TypeError('expects a numpy ndarray or a list of numpy ndarrays')
 
     def __intersect_dicts(self,names,d):
@@ -217,28 +217,34 @@ class sum_objective():
         def wrapped_function(params,arg_dicts):
 #                argz = [[d[n] for n in sorted(args.keys())] for args,d in zip(self.Args,arg_dicts)]
             flats = self.splitParam( self.flatten(params) )                
-            return reduction([ getattr(ll,name)(x,arg_dict) for ll,x,arg_dict in zip(self.terms,flats,arg_dicts)])
+            return reduction([ getattr(ll,name)(x,arg_dict) \
+                    for ll,x,arg_dict in zip(self.terms,flats,arg_dicts)])
         return wrapped_function
 
     def __unpack(self,dict_list):
         return [[value for _,value in sorted(d.items())] for d in dict_list]
 
-    def __repack(self, dict_list, ll):
-        result = [{} for d in dict_list]
-        n = 0
-        for i,d in enumerate(dict_list):
-            for name in sorted(d.keys()):
-                result[i][name] = ll[n]
-                n = n+1
-        return result
+    def repack(self, dl, ll):
+        return [term.repack(d,l) for term,d,l in zip(self.terms,dl,ll)]
+#    def __repack(self, dict_list, ll):
+#        result = [{} for d in dict_list]
+#        n = 0
+#        for i,d in enumerate(dict_list):
+#            for name in sorted(d.keys()):
+#                result[i][name] = ll[n]
+#                n = n+1
+#        return result
 
     def inflate(self,x):
+        if isinstance(x,type([])) and isinstance(x[0],type({})):
+            return x
         if isinstance(x,type(array([]))):
             x = self.splitParam(x)
         if isinstance(x,type([])) and isinstance(x[0],type(array([]))):
             x = [term.splitParam(param) for term,param in zip(self.terms,x)]
         if isinstance(x,type([])):
-            return self.__repack(self.Params,sum(x,[]))
+            return self.repack(self.Params,x)
+#            return self.__repack(self.Params,sum(x,[]))
         raise TypeError('expects a numpy ndarray or a list of numpy ndarrays')
 
     def flat_list(self,params):
