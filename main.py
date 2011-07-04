@@ -3,9 +3,9 @@ import LQuadLExP
 reload(LQuadLExP)
 
 from LQuadLExP import posterior, posterior_dUV1, posterior_dU, \
-       posterior_dV2, posterior_dV1, posterior_dV2V1, regularize_norm_smooth
-from numpy  import add,reshape,concatenate,log,eye,isnan,ones_like,Inf,max,min
-from numpy.linalg import inv, det, norm, eigvals
+       posterior_dV2, posterior_dV1, posterior_dV2V1
+from numpy  import add,reshape,concatenate,log,eye,Inf,max,min,outer
+from numpy.linalg import inv, det, norm, eigvals, svd
 
 import pylab as p
 
@@ -19,15 +19,10 @@ from numpy import dot, ones , arange, sum, array
 import numpy.random   as R
 import numpy.linalg   as L
 
-# [ norm(U)-1  ,   smooth(U)  ,  L2(U)  ,  L2(V)  ]
-#lam = array([0.1,10.,0.01,0.000001])
-lam = array([0.0000001,0.000001,0.0001,0.0001,0.0001])
-#lam = array([1.,0.,0.00001])
 
-
-V2 = 0.3
+V2 = 0.1
 def NL(x): return x + 0.5 * V2 * ( x ** 2 )
-(N_spikes,STA,STC), U, V1 = simulate_data.LNLNP(NL=NL,N=24)
+(N_spikes,STA,STC), U, V1, bbar, Cb , STAB = simulate_data.LNLNP(NL=NL,N=24)
 Nsub, N    =  U.shape
 NRGC, Nsub = V1.shape
 V2 = V2 * ones((Nsub,))
@@ -48,15 +43,15 @@ V2 = V2 * ones((Nsub,))
 #index  = 2
 #true_params = V1.flatten()
 
-baye   = posterior(N,Nsub,NRGC,regularize_norm_smooth)
-data   = [ (lam, N_spikes , STA , STC) ]
-index  = slice(3)
-true_params = concatenate(( U.flatten() , V2 , V1.flatten() ))
-
-#baye   = posterior_dUV1(N,Nsub,NRGC,regularize_norm_smooth)
-#data   = [ (V2, lam, N_spikes , STA , STC) ]
+#baye   = posterior(N,Nsub,NRGC)
+#data   = [(N_spikes , STA , STC)]
 #index  = slice(3)
-#true_params = concatenate(( U.flatten() , V1.flatten() ))
+#true_params = concatenate(( U.flatten() , V2 , V1.flatten() ))
+
+baye   = posterior_dUV1(N,Nsub,NRGC)
+data   = [ (V2, N_spikes , STA , STC) ]
+index  = slice(3)
+true_params = concatenate(( U.flatten() , V1.flatten() ))
 
 #baye   = posterior_dV2V1(N,Nsub,NRGC)
 #data   = [ (U, N_spikes , STA , STC) ]
@@ -96,24 +91,28 @@ print 'norm( Mk )  = '       , [ norm(eye(N)-baye.M(U,V2,V1[i,:])) \
 print
 print 'true params :'
 baye.callback(true_params,data)
-#params = true_params * ( 1  + 1. * (R.randn(len(true_params))-0.5))
+
+A = concatenate([N*reshape(sta,(1,len(sta))) for N,sta in zip(N_spikes,STA)])
+#B = concatenate([N*(stc + outer(sta,sta)) for N,sta,stc in zip(N_spikes,STA,STC)])
+B = concatenate([N*stc for N,sta,stc in zip(N_spikes,STA,STC)])
+C = concatenate((A,B))
+YU,S,VI = svd(C)
+
 init_params = 0.0001 * R.randn(len(true_params))
+flat_svdU = VI[0:Nsub,:].flatten()
+#order = range(flat_svdU.size)
+#R.shuffle(order)
+#print 'Permutation: ' , order
+#flat_svdU = flat_svdU[ order ]
+init_params = concatenate( [flat_svdU , init_params[flat_svdU.size:]] )
 print
 print 'initial params :'
 baye.callback(init_params,data)
 print
 
 params = init_params
-for i in arange(100):
-    (lam, N_spikes , STA , STC) = data[0]
-    lam[1] = lam[1]*1.2
-    lam[2] = lam[2]*1.2
-    lam[4] = lam[4]*1.2
-    print 'lam : ' , lam
-    data   = [ (lam, N_spikes , STA , STC) ]
-    params = baye.MAP(params,data)
+params = baye.optimize(params,data[0])
 
-#params = baye.MAP(init_params,data)
 
 
 print 'log-likelihood of init params = ', baye.f(init_params,data[0])

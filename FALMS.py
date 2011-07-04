@@ -68,7 +68,7 @@ def nuclear_L2( rho , get_matrix=None ):
 
 def initialize(X):
     '''Initialize FALM with initial condition X.'''
-    return (X, X , X*0 , X , 1 , 1 , 0 )
+    return [X, X , X*0 , X , 1 , 1 , 0 ]
 
 def step( F , G , mu , problem ):
     
@@ -94,4 +94,4 @@ def step( F , G , mu , problem ):
 
     Z  = Yp + (tm-1)/t * (Yp-Y)
     
-    return (X,Yp,Y,Z,t,tm,skip)
+    return [X,Yp,Y,Z,t,tm,skip]

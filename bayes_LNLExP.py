@@ -73,7 +73,7 @@ class posterior:
         self.memo_Cbm1 = None
         self.prior     = prior
         self.prior_g   = prior_g
-        self.mindet    = 1.e-90
+        self.mindet    = 1.e-35
         
         U   = Th.dmatrix()                   # SYMBOLIC variables       #
         STA = Th.dvector()                                              #

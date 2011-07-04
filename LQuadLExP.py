@@ -11,6 +11,7 @@ import theano.tensor  as Th
 from optimize import optimizer
 
 import pylab as p
+from matplotlib.ticker import *
 
 class posterior:
     def __init__(self,N,Nsub,NRGC,prior=lambda U:0):
@@ -81,7 +82,7 @@ class posterior:
                 params[self.N*self.Nsub:self.N*self.Nsub+self.Nsub],
                 self.V1(params[self.N*self.Nsub+self.Nsub:]))
 
-    def data(self,params,data): return data
+    def data(self,params,data): return data[-3:]
 
     def sum_RGC(self,op,g,(U,V2,V1),(N_spikes,STA,STC)):
         result = None
@@ -147,8 +148,8 @@ class posterior:
         (cU,cV2,cV1) = self.params(params,data)
         (tU,tV2,tV1) = self.params(true_params,data)
         (N,n) = cU.shape
-        for i in arange(minimum(N,9)):
-            p.subplot(minimum(N,9)*100+10+i)
+        for i in arange(N):
+            ax = p.subplot(N,1,i+1)
             cUi = cU[i,]
             m = min(cUi)
             M = max(cUi)
@@ -157,7 +158,10 @@ class posterior:
             else:
                 cUi = cUi * max(tU[i,]) / M
             p.plot(arange(n),cUi,'b',arange(n),tU[i,],'rs')
+            ax.yaxis.set_major_locator( MaxNLocator(nbins=2) )
+            if i == 0:  p.title('Inferred and true subunit RFs')
             p.show()
+        p.xlabel('Cone space')
         
 
 #    def Cbm1(self,U):
@@ -173,7 +177,7 @@ class posterior:
 
 
 class posterior_single(posterior):
-    def data(self,params,data): return data[-4:]
+    def data(self,params,data): return data[-3:]
 
 
 class posterior_dU(posterior_single):

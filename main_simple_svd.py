@@ -18,7 +18,6 @@ from numpy.linalg import norm, slogdet, eig, svd
 from scipy.linalg import orth
 import numpy.random as R
 import pylab as p
-from copy import deepcopy
 
 from IPython.Debugger import Tracer; debug_here = Tracer()
 
@@ -51,7 +50,8 @@ def projection(uu,X):
 nnn = U.shape[1]
 for i in range(9):
     p.subplot(900+10+i)
-    p.plot(np.arange(nnn),U[i,:].flatten(),'b',np.arange(nnn), projection(np.transpose(U[i,:]),np.transpose(VI[0:9,:])).flatten(),'rs')
+    p.plot(np.arange(nnn),U[i,:].flatten(),'b',np.arange(nnn), 
+           projection(np.transpose(U[i,:]),np.transpose(VI[0:9,:])).flatten(),'rs')
     p.show()
 
 #data = {}
@@ -98,13 +98,14 @@ for i in range(9):
 #        w,v = eig( np.identity(N) - M )
 #        print 'eig M' , w.real
 #        print [term.f(ppp,dd)]
-#        print 'Iteration s, ldet I-M: %d , %f     %d , %f     norm theta %f    norm M %f   barr %d' % \
-#              (s , lldet , ds, dldet, norm(ppp['theta']), norm(M), term.barrier(ppp,dd))
+#        print 'Iteration s, ldet I-M: %d , %f     %d , %f     norm theta %f    norm M %f   barr %d' \
+#        % (s , lldet , ds, dldet, norm(ppp['theta']), norm(M), term.barrier(ppp,dd))
 #        print
 #
 #optimize  = optimize.optimizer( objective , callback=callback_one )
 #
-#true   = [{ 'theta' : np.dot( U.T , V1[i,:] ) , 'M' : 0.1*np.dot( U.T * V1[i,:] , U ) } for i in range(iii)]
+#true   = [{ 'theta' : np.dot( U.T , V1[i,:] ) , 
+#            'M' : 0.1*np.dot( U.T * V1[i,:] , U ) } for i in range(iii)]
 #
 #for t in true:
 #    w,v = eig( np.eye(t['M'].shape[0]) - t['M'] )

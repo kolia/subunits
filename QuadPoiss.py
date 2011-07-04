@@ -11,45 +11,66 @@ import theano.tensor  as Th
 from theano.sandbox.linalg import matrix_inverse
 from kolia_theano import slogdet, eig
 
-def quadratic_Poisson( theta = Th.dvector(), M    = Th.dmatrix() ,
-                       STA   = Th.dvector(), STC  = Th.dmatrix()):
 
-    IM = Th.identity_like(M)-M
-    s, ldet = slogdet(IM)
+#def parameterize_UV( U  = Th.dmatrix() , V1   = Th.dvector() , 
+#                     V2 = Th.dvector() , STA  = Th.dvector() ,
+#                     STC= Th.dmatrix() ):
+#    return {'STA'  : STA, 'STC':STC, \
+#            'theta': Th.dot( U.T , V1 ), \
+#            'M'    : Th.dot( V1 * U.T , (V2 * U.T).T )}
+
+def UV( U  = Th.dmatrix() , V1   = Th.dvector() , V2 = Th.dvector() ):
+    return {'theta': Th.dot( U.T , V1 ), \
+            'M'    : Th.dot( V1 * U.T , (V2 * U.T).T )}
+
+
+def quadratic_Poisson( theta = Th.dvector(), M    = Th.dmatrix() ,
+                       STA   = Th.dvector(), STC  = Th.dmatrix(), **other):
+
+    ImM = Th.identity_like(M)-(M+M.T)/2
+    s, ldet = slogdet(ImM)
     return -( ldet  \
              - 1./(ldet+6)**2 \
-#             - Th.sum(Th.as_tensor_variable(Th.dot(matrix_inverse(IM),theta),ndim=2) * theta) \
-             - Th.sum(Th.dot(matrix_inverse(IM),theta) * theta) \
+#             - Th.sum(Th.as_tensor_variable(Th.dot(matrix_inverse(ImM),theta),ndim=2) * theta) \
+             - Th.sum(Th.dot(matrix_inverse(ImM),theta) * theta) \
              + 2. * Th.sum( theta * STA ) \
              + Th.sum( M * (STC + Th.outer(STA,STA)) )) / 2.
 
 
-def barrier( theta = Th.dvector(), M    = Th.dmatrix() ,
+def det_barrier( theta = Th.dvector(), M = Th.dmatrix() , **other ):
+     ImM = Th.identity_like(M)-(M+M.T)/2
+     s,ldet = slogdet( ImM)
+     return (s+1)/2 * (ldet+100) < 0
+
+
+def eig_det_barrier( theta = Th.dvector(), M    = Th.dmatrix() ,
              STA   = Th.dvector(), STC  = Th.dmatrix() ):
-     w,v = eig( Th.identity_like(M)-M )
-     s,ldet = slogdet(Th.identity_like(M)-M)
+     ImM = Th.identity_like(M)-(M+M.T)/2
+     w,v = eig( ImM )
+     s,ldet = slogdet( ImM)
      return 1-(ldet>-6)*(Th.min(w)>0)
 #                 return (s+1)/2 * (ldet+100) < 0
 
 
 def bar( theta = Th.dvector(), M    = Th.dmatrix() ,
              STA   = Th.dvector(), STC  = Th.dmatrix() ):
-     w,v = eig( Th.identity_like(M)-M )
-     s,ldet = slogdet(Th.identity_like(M)-M)
+     ImM = Th.identity_like(M)-(M+M.T)/2
+     w,v = eig( ImM )
+     s,ldet = slogdet(ImM)
      return (ldet>-2,Th.min(w)>0,1-(ldet>-2)*(Th.min(w)>0))
 
 
 def eigs( theta = Th.dvector(), M    = Th.dmatrix() ,
           STA   = Th.dvector(), STC  = Th.dmatrix()):
-    w,v = eig( Th.identity_like(M)-M )
+    ImM = Th.identity_like(M)-(M+M.T)/2
+    w,v = eig( ImM )
     return w
 
 
 def ldet( theta = Th.dvector(), M    = Th.dmatrix() ,
           STA   = Th.dvector(), STC  = Th.dmatrix()):
-
-    IM = Th.identity_like(M)-M
-    s, ldet = slogdet(IM)
+    ImM = Th.identity_like(M)-(M+M.T)/2
+    s, ldet = slogdet(ImM)
     return ldet
 
 

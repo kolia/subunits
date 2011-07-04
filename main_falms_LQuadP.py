@@ -58,12 +58,21 @@ init_params = {}
 
 iii = 1
 data  = [{ 'STA':STA[i] , 'STC':STC[i] } for i in range(iii)]
-init_params = [{'theta':STA[i] * 0.1 , 'M':STC[iii] * 0.1} for i in range(iii)]
+init_params = [{'theta':STA[i] * 0.05 , 'M':STC[iii] * 0.05} for i in range(iii)]
 
 term = kolia_theano.term(init_params=init_params[0],differentiate=['f'],
                           f=quadratic_Poisson, barrier=barrier, ldet=ldet, eigs=eigs)
 
 terms = [deepcopy(term) for i in range(iii)]
+
+def syM(x):
+    xx = x['M']
+    x['M'] = (xx+np.transpose(xx))/2.
+    return x
+
+def symm(X):
+    X = [ syM(x) for x in objective.inflate(X)]
+    return objective.flatten(X)
 
 def callback_one(ip,d):
     pp = objective.inflate(ip)
@@ -71,6 +80,7 @@ def callback_one(ip,d):
     print 'CALLBACK:'
     for term,ppp,dd in zip(terms,pp,d):
         M = ppp['M']
+        M = (M+np.transpose(M))/2
         N = M.shape[0]
         s , lldet = slogdet(np.identity(N)-M)
         df = term.df(ppp,dd)
@@ -82,6 +92,24 @@ def callback_one(ip,d):
         print 'Iteration s, ldet I-M: %d , %f     %d , %f     norm theta %f    norm M %f   barr %d' % \
               (s , lldet , ds, dldet, norm(ppp['theta']), norm(M), term.barrier(ppp,dd))
         print
+#        p.close(1)
+#        p.figure(num=1,figsize=(4,12))
+#        p.subplot(3,1,1)
+#        p.imshow(M)
+#        p.title('M')
+#        p.draw()
+#        p.subplot(3,1,2)
+#        p.imshow(dM)
+#        p.title('dM')
+#        p.draw()
+#        p.subplot(3,1,3)
+#        p.imshow(objective.inflate(pk)[0]['M'])
+#        p.title('pk')
+#        p.draw()
+#        p.show()
+#        raw_input('Press any key to continue..')
+#    return (ip,gfk,pk)
+#    return (symm(pp),symm(objective.inflate(gfk)),symm(objective.inflate(pk)))
 
 objective = kolia_theano.sum_objective(terms,callback=callback_one)
 
@@ -97,13 +125,30 @@ true   = [{ 'theta' : np.dot( U.T , V1[i,:] ) , 'M' : 0.1*np.dot( U.T * V1[i,:] 
 def nuclearMatrix(params):
     return np.reshape(params,(Ncones,-1))
 
-nuclear_L2 = FALMS.nuclear_L2( rho , get_matrix=nuclearMatrix )
 optimize_L2 = FALMS.add_L2_term( objective )
 
 falmer = FALMS.initialize( objective.flatten(true) )
 
-for i in range(10):
-    falmer = FALMS.step( optimize_L2 , nuclear_L2 , mu , falmer )
+ranks  = {}
+span   = {}
+result = {}
+for i,rho in enumerate( 0.1 * np.array([2.9,2.9,2.9])):
+#for rho in 0.001 * np.array([2.,2.5,2.8,3.,3.5]):
+#for rho in 0.005 * np.array([1.,2.,4.,8.,16.]):
+    nuclear_L2 = FALMS.nuclear_L2( rho , get_matrix=nuclearMatrix )
+    falmer = FALMS.initialize( objective.flatten(init_params) + 0.03*R.randn(756) )
+    print
+    print
+    print 'RHO : ' , rho
+    for j in range(100):
+        falmer = FALMS.step( optimize_L2 , nuclear_L2 , mu , falmer )
+#        for k in range(4):
+#            falmer[k] = symm(falmer[k])
+
+    uu,ss,vv = svd( nuclearMatrix(falmer[0]) )
+    ranks[(i,rho)]  = ss
+    span[(i,rho)]   = vv
+    result[(i,rho)] = nuclearMatrix(falmer[0])
 
 ## Check derivative
 #print

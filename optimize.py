@@ -38,15 +38,15 @@ def optimizer( objective , f='f' , df='df', barrier='barrier',
     def optimize(init_params=init_params, args=args, f=f, 
                  df=df, barrier=barrier, callback=callback, gtol=1.1e-6, 
                  maxiter=1000 , full_output=full_output ):
-#        if callback is None:
-#            cb = None
-#        else:
-#            def cb(para): callback(para,args)
+        if callback is None:
+            cb = None
+        else:
+            def cb(para): callback(para,args)
         if flatten:
             init_params = flatten(init_params)
         x, fx, dfx, _, _, _, _ = fmin_barrier_bfgs(f,init_params,fprime=df,
                                                    gtol=1.1e-6,maxiter=1000,
-                                                   args=args,callback=callback,
+                                                   args=args,callback=cb,
                                                    barrier=barrier,
                                                    full_output=True)
         if full_output:
@@ -78,12 +78,12 @@ def backtrack(f,xk,pk,barrier):
         
     """
     # initial phase: find a point on other side of barrier by *2.
-    a  = 0.00001
+    a  = 0.001
     while True:
         if a>500.:
             return 500.
         if barrier(xk + a*pk): break
-        a = a * 2.
+        a = a * 1.1
 
     # refinement phase: 8 rounds of dichotomy
     left  = 0
@@ -96,6 +96,20 @@ def backtrack(f,xk,pk,barrier):
         if left>0 or right<1e-16: break    
 #    print 'amax : ', left
     return left
+
+def simple_line_search(f,xk,pk,barrier):
+    # initial phase: find a point on other side of barrier by *1.3
+    a     = 0.001
+    fval  = f(xk)
+    if f(xk+a*pk)>fval: a = -a
+    while True:
+        bestf = fval
+        if abs(a)>500.: return a
+        xkp1 = xk+a*pk
+        fval = f(xk)
+        if barrier(xkp1) or (fval>bestf): break
+        a = a * 1.3
+    return a / 1.3
 
 
 def vecnorm(x, ord=2):
@@ -224,6 +238,8 @@ def fmin_barrier_bfgs(f, x0, fprime=None, args=(), gtol=1e-5, norm=Inf,
             warnflag = 2
             break
 
+#        alpha_k = simple_line_search(f,xk,pk,barr)
+
         alpha_k, fc, gc, old_fval2, old_old_fval2, gfkp1 = \
            line_search_wolfe2(f,myfprime,xk,pk,gfk,
                               old_fval,old_old_fval,amax=amax)
@@ -259,7 +275,7 @@ def fmin_barrier_bfgs(f, x0, fprime=None, args=(), gtol=1e-5, norm=Inf,
         yk = gfkp1 - gfk
         gfk = gfkp1
         if callback is not None:
-            callback(xk,args)
+            callback(xk)
         k += 1
         gnorm = vecnorm(gfk,ord=norm)
         if (gnorm <= gtol):

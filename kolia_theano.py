@@ -218,7 +218,7 @@ class sum_objective():
 #                argz = [[d[n] for n in sorted(args.keys())] for args,d in zip(self.Args,arg_dicts)]
             flats = self.splitParam( self.flatten(params) )                
             return reduction([ getattr(ll,name)(x,arg_dict) \
-                    for ll,x,arg_dict in zip(self.terms,flats,arg_dicts)])
+                   for ll,x,arg_dict in zip(self.terms,flats,arg_dicts)])
         return wrapped_function
 
     def __unpack(self,dict_list):
@@ -226,14 +226,6 @@ class sum_objective():
 
     def repack(self, dl, ll):
         return [term.repack(d,l) for term,d,l in zip(self.terms,dl,ll)]
-#    def __repack(self, dict_list, ll):
-#        result = [{} for d in dict_list]
-#        n = 0
-#        for i,d in enumerate(dict_list):
-#            for name in sorted(d.keys()):
-#                result[i][name] = ll[n]
-#                n = n+1
-#        return result
 
     def inflate(self,x):
         if isinstance(x,type([])) and isinstance(x[0],type({})):
@@ -244,7 +236,6 @@ class sum_objective():
             x = [term.splitParam(param) for term,param in zip(self.terms,x)]
         if isinstance(x,type([])):
             return self.repack(self.Params,x)
-#            return self.__repack(self.Params,sum(x,[]))
         raise TypeError('expects a numpy ndarray or a list of numpy ndarrays')
 
     def flat_list(self,params):
@@ -258,5 +249,5 @@ class sum_objective():
 
     def flatten(self,params):
         if isinstance(params,type(array([]))):
-            return params
+            return params.flatten()
         return self.joinParam(*self.flat_list(params))
