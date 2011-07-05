@@ -1,6 +1,6 @@
 import QuadPoiss
 reload(QuadPoiss)
-from   QuadPoiss import quadratic_Poisson, barrier, eigs, ldet
+from   QuadPoiss import quadratic_Poisson, barrier
 
 import kolia_theano
 reload(kolia_theano)
@@ -53,12 +53,19 @@ init_params = {}
 #init_params = 0.1*( ones(len(UU)) + 2.*R.randn(len(UU)) )
 #init_params = UU
 
-iii = 1
-data  = [{ 'STA':STA[i] , 'STC':STC[i] } for i in range(iii)]
-init_params = [{'theta':STA[i] * 0.1 , 'M':STC[iii] * 0.1} for i in range(iii)]
+Nproj = Nsub+3
+T    = VI[0:Nproj,:]
+STA  = [np.dot(T,sta) for sta in STA]
+STC  = [np.dot(np.dot(T,stc),np.transpose(T)) for stc in STC]
+
+iii = NRGC
+data  = [{ 'STA':np.dot(T,STA[i]) , \
+           'STC':np.dot(np.dot(T,STC[i]),np.transpose(T)) } for i in range(iii)]
+init_params = [{'theta':data[i]['STA'] * 0.1 , \
+                'M':data[i]['STC'] * 0.1} for i in range(iii)]
 
 term = kolia_theano.term(init_params=init_params[0],differentiate=['f'],
-                          f=quadratic_Poisson, barrier=barrier, ldet=ldet, eigs=eigs)
+                          f=quadratic_Poisson, barrier=barrier)
 
 terms = [deepcopy(term) for i in range(iii)]
 

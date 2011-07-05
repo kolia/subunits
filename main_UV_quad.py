@@ -1,6 +1,6 @@
 import QuadPoiss
 reload(QuadPoiss)
-from   QuadPoiss import parameterize_UV, quadratic_Poisson, barrier
+from   QuadPoiss import UV, quadratic_Poisson, det_barrier
 
 import kolia_theano
 reload(kolia_theano)
@@ -44,8 +44,8 @@ def subspace(A,B):
 def projection(uu,X):
     X = orth(X)
     return np.dot(X,np.dot(uu,X))
-    
-    
+
+
 data = {}
 init_params = {}
 
@@ -55,11 +55,12 @@ init_params = {}
 
 iii = 1
 data  = [{ 'STA':STA[i] , 'STC':STC[i] } for i in range(iii)]
-init_params = [{'theta':STA[i] * 0.1 , 'M':STC[iii] * 0.1} for i in range(iii)]
+init_params = [{'theta':STA[i] * 0.1 , 'M':STC[iii] * 0.1} \
+                for i in range(iii)]
 
 term = kolia_theano.term(init_params=init_params[0],differentiate=['f'],
-                         f = quadratic_Poisson( **parameterize_UV() ), 
-                         barrier =     barrier( **parameterize_UV() ))
+                         f = quadratic_Poisson( **UV() ), 
+                         barrier = det_barrier( **UV() ))
 
 terms = [deepcopy(term) for i in range(iii)]
 

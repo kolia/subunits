@@ -4,7 +4,7 @@ reload(LQuadLExP)
 
 from LQuadLExP import posterior, posterior_dUV1, posterior_dU, \
        posterior_dV2, posterior_dV1, posterior_dV2V1
-from numpy  import add,reshape,concatenate,log,eye,Inf,max,min,outer
+from numpy  import add,reshape,concatenate,log,eye,outer,transpose
 from numpy.linalg import inv, det, norm, eigvals, svd
 
 import pylab as p
@@ -98,22 +98,38 @@ B = concatenate([N*stc for N,sta,stc in zip(N_spikes,STA,STC)])
 C = concatenate((A,B))
 YU,S,VI = svd(C)
 
-init_params = 0.0001 * R.randn(len(true_params))
-flat_svdU = VI[0:Nsub,:].flatten()
-#order = range(flat_svdU.size)
-#R.shuffle(order)
-#print 'Permutation: ' , order
-#flat_svdU = flat_svdU[ order ]
-init_params = concatenate( [flat_svdU , init_params[flat_svdU.size:]] )
+Nproj = Nsub
+baye_proj = posterior_dUV1(Nproj,Nsub,NRGC)
+T         = VI[0:Nproj,:]
+STA       = [dot(T,sta) for sta in STA]
+STC       = [dot(dot(T,stc),transpose(T)) for stc in STC]
+data_proj = [ (V2, N_spikes , STA , STC) ]
+flat_svdU  = eye(Nproj)[:,0:Nsub].flatten()
+
+init_params_proj = 0.0001 * R.randn(flat_svdU.size+Nsub*NRGC)
+#flat_svdU = T.flatten()
+##order = range(flat_svdU.size)
+##R.shuffle(order)
+##print 'Permutation: ' , order
+##flat_svdU = flat_svdU[ order ]
+init_params_proj = concatenate( [flat_svdU , init_params_proj[flat_svdU.size:]] )
 print
 print 'initial params :'
-baye.callback(init_params,data)
+baye.callback(init_params_proj,data_proj)
 print
 
-params = init_params
-params = baye.optimize(params,data[0])
+params_proj = init_params_proj
+params_proj = baye_proj.optimize(params_proj,data_proj[0])
 
+def rexpand(x):
+    return concatenate([dot(reshape(x[0:Nproj*Nsub],(Nproj,Nsub)),T).flatten(),x[Nproj*Nsub:]])
+#    return concatenate([dot(transpose(T),reshape(x[0:Nproj*Nsub],(Nproj,Nsub))).flatten(),x[Nproj*Nsub:]])
 
+init_params = rexpand( init_params_proj )
+params      = rexpand(      params_proj )
+
+p.figure(2)
+baye.plot(params,true_params,data[0])
 
 print 'log-likelihood of init params = ', baye.f(init_params,data[0])
 print 'log-likelihood of opt  params = ', baye.f(params,data[0])
@@ -129,6 +145,3 @@ print 'log-likelihood of true params = ', baye.f(true_params,data[0])
 #print
 #print 'true U*V1:' , dot(baye.params(true_params,data[0])[0].T,baye.params(true_params,data[0])[2].T)
 #print 'opt U*V1:' , dot(baye.params(params,data[0])[0].T,baye.params(params,data[0])[2].T)
-
-p.figure(2)
-baye.plot(params,true_params,data[0])
