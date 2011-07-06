@@ -23,9 +23,9 @@ import numpy.linalg   as L
 V2 = 0.1
 def NL(x): return x + 0.5 * V2 * ( x ** 2 )
 (N_spikes,STA,STC), U, V1, bbar, Cb , STAB = simulate_data.LNLNP(NL=NL,N=24)
-Nsub, N    =  U.shape
-NRGC, Nsub = V1.shape
-Nproj = Nsub+3
+Nsub, Ncones =  U.shape
+NRGC, Nsub   = V1.shape
+Nproj = Nsub
 V2 = V2 * ones((Nproj,))
 
 
@@ -49,7 +49,7 @@ V2 = V2 * ones((Nproj,))
 #index  = slice(3)
 #true_params = concatenate(( U.flatten() , V2 , V1.flatten() ))
 
-baye   = posterior_dUV1(N,Nproj,NRGC)
+baye   = posterior_dUV1(Ncones,Nproj,NRGC)
 data   = [ (V2, N_spikes , STA , STC) ]
 index  = slice(3)
 true_params = concatenate(( U.flatten() , V1.flatten() ))
@@ -60,15 +60,15 @@ true_params = concatenate(( U.flatten() , V1.flatten() ))
 #true_params = concatenate(( V2 , V1.flatten() ))
 
 
-## Check derivative
-#print
-#print 'Checking derivatives:'
-#df = baye.df(true_params,data[0])
-#UU = U.flatten()
-#dh = 0.00000001
-#ee = eye(len(true_params))*dh
-#for i in arange(len(true_params)):
-#    print (baye.f(true_params+ee[:,i],data[0])-baye.f(true_params,data[0]))/dh , df[i]
+## #Check derivative
+## print
+## print 'Checking derivatives:'
+## df = baye.df(true_params,data[0])
+## UU = U.flatten()
+## dh = 0.00000001
+## ee = eye(len(true_params))*dh
+## for i in arange(len(true_params)):
+##    print (baye.f(true_params+ee[:,i],data[0])-baye.f(true_params,data[0]))/dh , df[i]
 
 
 print
@@ -82,11 +82,11 @@ print
 print 'U.shape    = ', U.shape
 print 'V2.shape   = ', V2.shape
 print 'V1.shape   = ', V1.shape
-print 'N_cones    = ', N
+print 'N_cones    = ', Ncones
 print 'N_subunits = ', Nsub
 print 'N_RGC      = ', NRGC
 print 'N_spikes   = ', N_spikes
-print 'norm( Mk )  = '       , [ norm(eye(N)-baye.M(U,V2[0:Nsub],V1[i,:])) \
+print 'norm( Mk )  = '       , [ norm(eye(Ncones)-baye.M(U,V2[0:Nsub],V1[i,:])) \
                                         for i in range(NRGC)]
 
 print
@@ -98,16 +98,18 @@ A = concatenate([N*reshape(sta,(1,len(sta))) for N,sta in zip(N_spikes,STA)])
 B = concatenate([N*stc for N,sta,stc in zip(N_spikes,STA,STC)])
 C = concatenate((A,B))
 YU,S,VI = svd(C)
+T       = VI[0:Nproj,:]
 
+## baye_proj = posterior_dUV1(Ncones,Nproj,NRGC)
+## data_proj = data
+## flat_svdU = T.flatten()
 baye_proj = posterior_dUV1(Nproj,Nproj,NRGC)
-T         = VI[0:Nproj,:]
 STA       = [dot(T,sta) for sta in STA]
 STC       = [dot(dot(T,stc),transpose(T)) for stc in STC]
 data_proj = [ (V2*ones(Nproj), N_spikes , STA , STC) ]
 flat_svdU  = eye(Nproj).flatten()
 
 init_params_proj = 0.0001 * R.randn(flat_svdU.size+Nproj*NRGC)
-#flat_svdU = T.flatten()
 ##order = range(flat_svdU.size)
 ##R.shuffle(order)
 ##print 'Permutation: ' , order
@@ -122,9 +124,11 @@ params_proj = init_params_proj
 params_proj = baye_proj.optimize(params_proj,data_proj[0])
 
 def rexpand(x):
-    return concatenate([dot(transpose(T),reshape(x[0:Nproj*Nproj],(Nproj,Nproj))).flatten(),x[Nproj*Nproj:]])
+    return concatenate([dot(reshape(x[0:Nproj*Nproj],(Nproj,Nproj)),T).flatten(),x[Nproj*Nproj:]])
 #    return concatenate([dot(transpose(T),reshape(x[0:Nproj*Nsub],(Nproj,Nsub))).flatten(),x[Nproj*Nsub:]])
 
+#init_params = init_params_proj
+#params      = params_proj
 init_params = rexpand( init_params_proj )
 params      = rexpand(      params_proj )
 
