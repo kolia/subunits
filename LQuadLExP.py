@@ -4,7 +4,7 @@ Linear-Quadratic-Linear-Exponential-Poisson model fitter.
 @author: kolia
 """
 from numpy  import add, reshape, concatenate, eye, isnan, iscomplex,\
-                   Inf, arange, max, min, minimum, log
+                   Inf, arange, max, min, minimum, log, zeros
 from numpy.linalg import inv, slogdet, det
 from theano import function
 import theano.tensor  as Th
