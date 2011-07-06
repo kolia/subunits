@@ -4,7 +4,7 @@ reload(LQuadLExP)
 
 from LQuadLExP import posterior, posterior_dUV1, posterior_dU, \
        posterior_dV2, posterior_dV1, posterior_dV2V1
-from numpy  import add,reshape,concatenate,log,eye,outer,transpose
+from numpy  import add,reshape,concatenate,log,eye,outer,transpose,zeros
 from numpy.linalg import inv, det, norm, eigvals, svd
 
 import pylab as p
@@ -122,11 +122,13 @@ params_proj = init_params_proj
 params_proj = baye_proj.optimize(params_proj,data_proj[0])
 
 def rexpand(x):
-    return concatenate([dot(reshape(x[0:Nproj*Nproj],(Nproj,Nproj)),T).flatten(),x[Nproj*Nproj:]])
+    return concatenate([dot(transpose(T),reshape(x[0:Nproj*Nproj],(Nproj,Nproj))).flatten(),x[Nproj*Nproj:]])
 #    return concatenate([dot(transpose(T),reshape(x[0:Nproj*Nsub],(Nproj,Nsub))).flatten(),x[Nproj*Nsub:]])
 
 init_params = rexpand( init_params_proj )
 params      = rexpand(      params_proj )
+
+true_params = concatenate( [zeros(params.size-true_params.size) , true_params] )
 
 p.figure(2)
 baye.plot(params,true_params,data[0])
