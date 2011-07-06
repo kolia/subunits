@@ -146,6 +146,7 @@ class posterior:
 
     def plot(self,params,true_params,data):
         (cU,cV2,cV1) = self.params(params,data)
+        true_params = concatenate( [zeros(params.size-true_params.size) , true_params] )
         (tU,tV2,tV1) = self.params(true_params,data)
         (N,n) = cU.shape
         for i in arange(N):
