@@ -25,7 +25,8 @@ def NL(x): return x + 0.5 * V2 * ( x ** 2 )
 (N_spikes,STA,STC), U, V1, bbar, Cb , STAB = simulate_data.LNLNP(NL=NL,N=24)
 Nsub, N    =  U.shape
 NRGC, Nsub = V1.shape
-V2 = V2 * ones((Nsub,))
+Nproj = Nsub+3
+V2 = V2 * ones((Nproj,))
 
 
 #baye   = posterior_dU(N,Nsub,NRGC)
@@ -48,7 +49,7 @@ V2 = V2 * ones((Nsub,))
 #index  = slice(3)
 #true_params = concatenate(( U.flatten() , V2 , V1.flatten() ))
 
-baye   = posterior_dUV1(N,Nsub,NRGC)
+baye   = posterior_dUV1(N,Nproj,NRGC)
 data   = [ (V2, N_spikes , STA , STC) ]
 index  = slice(3)
 true_params = concatenate(( U.flatten() , V1.flatten() ))
@@ -85,7 +86,7 @@ print 'N_cones    = ', N
 print 'N_subunits = ', Nsub
 print 'N_RGC      = ', NRGC
 print 'N_spikes   = ', N_spikes
-print 'norm( Mk )  = '       , [ norm(eye(N)-baye.M(U,V2,V1[i,:])) \
+print 'norm( Mk )  = '       , [ norm(eye(N)-baye.M(U,V2[0:Nsub],V1[i,:])) \
                                         for i in range(NRGC)]
 
 print
@@ -98,15 +99,14 @@ B = concatenate([N*stc for N,sta,stc in zip(N_spikes,STA,STC)])
 C = concatenate((A,B))
 YU,S,VI = svd(C)
 
-Nproj = Nsub
-baye_proj = posterior_dUV1(Nproj,Nsub,NRGC)
+baye_proj = posterior_dUV1(Nproj,Nproj,NRGC)
 T         = VI[0:Nproj,:]
 STA       = [dot(T,sta) for sta in STA]
 STC       = [dot(dot(T,stc),transpose(T)) for stc in STC]
-data_proj = [ (V2, N_spikes , STA , STC) ]
-flat_svdU  = eye(Nproj)[:,0:Nsub].flatten()
+data_proj = [ (V2*ones(Nproj), N_spikes , STA , STC) ]
+flat_svdU  = eye(Nproj).flatten()
 
-init_params_proj = 0.0001 * R.randn(flat_svdU.size+Nsub*NRGC)
+init_params_proj = 0.0001 * R.randn(flat_svdU.size+Nproj*NRGC)
 #flat_svdU = T.flatten()
 ##order = range(flat_svdU.size)
 ##R.shuffle(order)
@@ -122,7 +122,7 @@ params_proj = init_params_proj
 params_proj = baye_proj.optimize(params_proj,data_proj[0])
 
 def rexpand(x):
-    return concatenate([dot(reshape(x[0:Nproj*Nsub],(Nproj,Nsub)),T).flatten(),x[Nproj*Nsub:]])
+    return concatenate([dot(reshape(x[0:Nproj*Nproj],(Nproj,Nproj)),T).flatten(),x[Nproj*Nproj:]])
 #    return concatenate([dot(transpose(T),reshape(x[0:Nproj*Nsub],(Nproj,Nsub))).flatten(),x[Nproj*Nsub:]])
 
 init_params = rexpand( init_params_proj )
