@@ -66,7 +66,7 @@ init_params = {}
 #                'M':data[i]['STC'] * 0.1} for i in range(iii)]
 
 
-iii = 1
+iii = 2
 data  = [{ 'STA':STA[i] , \
            'STC':STC[i] } for i in range(iii)]
 init_params = [{'theta':data[i]['STA'] * 0.1 , \

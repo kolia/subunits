@@ -22,7 +22,6 @@ def quadratic_Poisson( theta = Th.dvector(), M    = Th.dmatrix() ,
 
     ImM = Th.identity_like(M)-(M+M.T)/2
     s, ldet = slogdet(ImM)
-    ldet = 0
     return -( ldet  \
              - 1./(ldet+6)**2 \
 #             - Th.sum(Th.as_tensor_variable(Th.dot(matrix_inverse(ImM),theta),ndim=2) * theta) \
