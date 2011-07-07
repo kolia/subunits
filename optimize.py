@@ -37,7 +37,7 @@ def optimizer( objective , f='f' , df='df', barrier='barrier',
         full_output = options['full_output']
     def optimize(init_params=init_params, args=args, f=f, 
                  df=df, barrier=barrier, callback=callback, gtol=1.1e-6, 
-                 maxiter=500 , full_output=full_output ):
+                 maxiter=2 , full_output=full_output ):
         if callback is None:
             cb = None
         else:
