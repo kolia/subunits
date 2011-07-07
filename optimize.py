@@ -78,7 +78,7 @@ def backtrack(f,xk,pk,barrier):
         
     """
     # initial phase: find a point on other side of barrier by *2.
-    a  = 0.001
+    a  = 1.
     while True:
         if a>500.:
             return 500.
@@ -231,7 +231,7 @@ def fmin_barrier_bfgs(f, x0, fprime=None, args=(), gtol=1e-5, norm=Inf,
                                                 # and line_searches below!
 #        amax = 50.
         
-        print 'amax:%f   f(amax):%f    barrier(amax):%d' % (amax,f(xk+amax*pk),barr(xk+amax*pk))
+        print 'amax:%f   f(amax):%f    barrier(amax):%d' % (amax,f(xk+amax*pk),barr(xk+amax*pk)), '  ' ,
 
         if amax < 1e-15:
             # This line search also failed to find a better solution.

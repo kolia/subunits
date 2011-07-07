@@ -66,7 +66,7 @@ init_params = {}
 #                'M':data[i]['STC'] * 0.1} for i in range(iii)]
 
 
-iii = 2
+iii = NRGC
 data  = [{ 'STA':STA[i] , \
            'STC':STC[i] } for i in range(iii)]
 init_params = [{'theta':data[i]['STA'] * 0.1 , \
@@ -94,22 +94,23 @@ objective = kolia_theano.sum_objective(terms)
 
 
 def callback_one(ip,d):
-    pp = objective.inflate(ip)
-    print
-    print 'CALLBACK:'
-    for term,ppp,dd in zip(terms,pp,d):
-        M = ppp['M']
-        N = M.shape[0]
-        s , lldet = slogdet(np.identity(N)-M)
-        df = term.df(ppp,dd)
-        dM = term.inflate(df)['M']
-        ds , dldet = slogdet(np.identity(N)-M+0.001*dM)
-#        w,v = eig( np.identity(N) - M )
-#        print 'eig M' , w.real
-#        print [term.f(ppp,dd)]
-        print 'Iteration s, ldet I-M: %d , %f     %d , %f     norm theta %f    norm M %f   barr %d' % \
-              (s , lldet , ds, dldet, norm(ppp['theta']), norm(M), term.barrier(ppp,dd))
-        print
+    print 'Objective: ' , objective.f(ip,d) , '  barrier: ', objective.barrier(ip,d)
+#    pp = objective.inflate(ip)
+#    print
+#    print 'CALLBACK:'
+#    for term,ppp,dd in zip(terms,pp,d):
+#        M = ppp['M']
+#        N = M.shape[0]
+#        s , lldet = slogdet(np.identity(N)-M)
+#        df = term.df(ppp,dd)
+#        dM = term.inflate(df)['M']
+#        ds , dldet = slogdet(np.identity(N)-M+0.001*dM)
+##        w,v = eig( np.identity(N) - M )
+##        print 'eig M' , w.real
+##        print [term.f(ppp,dd)]
+#        print 'Iteration s, ldet I-M: %d , %f     %d , %f     norm theta %f    norm M %f   barr %d' % \
+#              (s , lldet , ds, dldet, norm(ppp['theta']), norm(M), term.barrier(ppp,dd))
+#        print
 
 optimize  = optimize.optimizer( objective , callback=callback_one )
 
