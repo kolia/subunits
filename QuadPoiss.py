@@ -8,8 +8,8 @@ from numpy  import add, concatenate, eye, isnan, iscomplex, \
 #from numpy.linalg import inv, slogdet, det
 
 import theano.tensor  as Th
-from theano.sandbox.linalg import matrix_inverse
-from kolia_theano import slogdet, eig
+from theano.sandbox.linalg import matrix_inverse, det
+from kolia_theano import logdet, eig
 
 
 def UV( U  = Th.dmatrix() , V1   = Th.dvector() , V2 = Th.dvector() ):
@@ -21,8 +21,8 @@ def quadratic_Poisson( theta = Th.dvector(), M    = Th.dmatrix() ,
                        STA   = Th.dvector(), STC  = Th.dmatrix(), **other):
 
     ImM = Th.identity_like(M)-(M+M.T)/2
-    w, v = eig(ImM)
-    ldet = Th.sum(Th.log(w))
+#    ldet = logdet( ImM)
+    ldet = Th.log( det( ImM) )
     return -( ldet  \
              - 1./(ldet+6)**2 \
 #             - Th.sum(Th.as_tensor_variable(Th.dot(matrix_inverse(ImM),theta),ndim=2) * theta) \
@@ -34,8 +34,8 @@ def quadratic_Poisson( theta = Th.dvector(), M    = Th.dmatrix() ,
 def det_barrier( theta = Th.dvector(), M    = Th.dmatrix() , 
                  STA   = Th.dvector(), STC  = Th.dmatrix(), **other ):
      ImM = Th.identity_like(M)-(M+M.T)/2
-     s,ldet = slogdet( ImM)
-     return (s+1)/2 * (ldet+100) < 0
+     ldet = logdet( ImM)
+     return (ldet+100) < 0
 
 
 def eig_barrier( theta = Th.dvector(), M    = Th.dmatrix() ,

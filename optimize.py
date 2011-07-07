@@ -37,7 +37,7 @@ def optimizer( objective , f='f' , df='df', barrier='barrier',
         full_output = options['full_output']
     def optimize(init_params=init_params, args=args, f=f, 
                  df=df, barrier=barrier, callback=callback, gtol=1.1e-6, 
-                 maxiter=1000 , full_output=full_output ):
+                 maxiter=500 , full_output=full_output ):
         if callback is None:
             cb = None
         else:
@@ -45,7 +45,7 @@ def optimizer( objective , f='f' , df='df', barrier='barrier',
         if flatten:
             init_params = flatten(init_params)
         x, fx, dfx, _, _, _, _ = fmin_barrier_bfgs(f,init_params,fprime=df,
-                                                   gtol=1.1e-6,maxiter=1000,
+                                                   gtol=gtol,maxiter=maxiter,
                                                    args=args,callback=cb,
                                                    barrier=barrier,
                                                    full_output=True)

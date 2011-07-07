@@ -10,29 +10,27 @@ from theano.sandbox.linalg import matrix_inverse
 from IPython.Debugger import Tracer; debug_here = Tracer()
 
 
-class SLogDet(Op):
+class LogDet(Op):
     """matrix determinant"""
     def make_node(self, x):
         x  = Th.as_tensor_variable(x)
-        o1 = Th.scalar(dtype=x.dtype)
-        o2 = Th.scalar(dtype=x.dtype)
-        return Apply(self, [x], [o1,o2])
-    def perform(self, node, (x,), (z1,z2, )):
+        o  = Th.scalar(dtype=x.dtype)
+        return Apply(self, [x], [o])
+    def perform(self, node, (x,), (z, )):
         try:
             s,ldet = numpy.linalg.slogdet(x)
-            z1[0] = asarray(s   , dtype=x.dtype)
-            z2[0] = asarray(ldet, dtype=x.dtype)
+            z[0] = asarray(s   , dtype=x.dtype)
         except:
             print 'Failed to compute determinant', x
             raise
     def grad(self, inputs, g_outputs):
-        gz1,gz2 = g_outputs
+        gz = g_outputs
         x, = inputs
 #        debug_here()
-        return [gz2 * matrix_inverse(x).T]
+        return [gz * matrix_inverse(x).T]
     def __str__(self):
-        return "SLogDet"
-slogdet = SLogDet()
+        return "LogDet"
+logdet = LogDet()
 
 
 class Eig(Op):
