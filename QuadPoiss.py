@@ -21,7 +21,8 @@ def quadratic_Poisson( theta = Th.dvector(), M    = Th.dmatrix() ,
                        STA   = Th.dvector(), STC  = Th.dmatrix(), **other):
 
     ImM = Th.identity_like(M)-(M+M.T)/2
-    s, ldet = slogdet(ImM)
+    w, v = eig(ImM)
+    ldet = Th.sum(Th.log(w))
     return -( ldet  \
              - 1./(ldet+6)**2 \
 #             - Th.sum(Th.as_tensor_variable(Th.dot(matrix_inverse(ImM),theta),ndim=2) * theta) \
@@ -54,5 +55,5 @@ def eigs( theta = Th.dvector(), M    = Th.dmatrix() ,
 def ldet( theta = Th.dvector(), M    = Th.dmatrix() ,
           STA   = Th.dvector(), STC  = Th.dmatrix()):
     ImM = Th.identity_like(M)-(M+M.T)/2
-    s, ldet = slogdet(ImM)
-    return ldet
+    w, v = eig(ImM)
+    return Th.sum(Th.log(w))
