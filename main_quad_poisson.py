@@ -75,18 +75,14 @@ init_params = [{'theta':data[i]['STA'] * 0.1 , \
 #                'M':data[i]['STC'] * 0.1} for i in range(iii)]
 
 
-#term = kolia_theano.term(init_params=init_params[0],differentiate=['f'],
-#                          f=quadratic_Poisson, barrier=eig_barrier, ldet=ldet, eigs=eigs)
-
-terms = [kolia_theano.term(init_params=init_params[0],differentiate=['f'],
-                          f=quadratic_Poisson, barrier=eig_barrier, ldet=ldet, eigs=eigs) for i in range(iii)]
+term = kolia_theano.term(init_params=init_params[0],differentiate=['f'],
+                          f=quadratic_Poisson, barrier=eig_barrier, ldet=ldet, eigs=eigs)
 
 
 #terms = [deepcopy(term) for i in range(iii)]
-#terms = [deepcopy(term) for i in range(iii)]
+#objective = kolia_theano.sum_objective(terms)
 
-objective = kolia_theano.sum_objective(terms)
-
+objective = term
 
 ## Check derivative
 #print
@@ -134,9 +130,11 @@ true   = [{ 'theta' : np.dot( U.T , V1[i,:] ) , 'M' : 0.1*np.dot( U.T * V1[i,:] 
 
 params = init_params
 for i in range(2):
-    params = optimize(init_params=params,args=data)
+    params = [optimize(init_params=par,args=d) for par,d in zip(params,data)]
+#    params = optimize(init_params=params,args=data)
 #    callback_one(params,data)
-params = objective.inflate(params)
+params = [objective.inflate(par) for par in params]
+#params = objective.inflate(params)
 
 
 def plot_thetas(params):
@@ -145,8 +143,8 @@ def plot_thetas(params):
     Nsub = len(params)
     for i,t in enumerate(params):
         ax = p.subplot(Nsub,1,i+1)
-#        theta = dot(t['theta'],T)
-        theta = t['theta']
+        theta = dot(t['theta'],T)
+#        theta = t['theta']
         p.plot(np.arange(theta.size),theta,'b')
         ax.yaxis.set_major_locator( MaxNLocator(nbins=2) )
         if i == 0:  p.title('Inferred subunit RFs')
@@ -167,11 +165,11 @@ def show(string,p):
            objective.ldet(p,data) , np.min(objective.eigs(p,data)) )
 #    print 'bar ' , objective.bar(p,data)
 
-show('init params' ,init_params)
-show('true params' ,true       )
-show('opt params'  ,params     )
-#show('opt of true' ,trupar     )
-#print 'improvement of opt of true    = ', objective.f(params,data) - objective.f(trupar,data)
+#show('init params' ,init_params)
+#show('true params' ,true       )
+#show('opt params'  ,params     )
+##show('opt of true' ,trupar     )
+##print 'improvement of opt of true    = ', objective.f(params,data) - objective.f(trupar,data)
 
 #p.figure(2)
 #objective.plot(params,U)
