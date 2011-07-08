@@ -1,6 +1,6 @@
 from inspect import getargspec
 from copy    import copy
-from numpy   import size, array, asarray
+from numpy   import size, array, asarray, concatenate, reshape
 import numpy.linalg
 from theano  import function
 import theano.tensor  as Th
@@ -61,6 +61,36 @@ def shapely_tensor( name , x , dtype='float64'):
         return Th.specify_shape(dtensor_x(name),x.shape)
     raise TypeError('shapely_tensor expects a scalar or numpy ndarray')
 
+def deep_iter(X):
+    if isinstance(X,type(dict())):
+        for _,x in sorted(X.items()):
+            for y in deep_iter(x): yield y
+    if isinstance(X,type([])):
+        for   x in X:
+            for y in deep_iter(x): yield y
+    if isinstance(X,type(array([]))):
+        yield X
+    
+def flat(X): return concatenate( [x.flatten() for x in deep_iter(X)] )
+
+def __unflat(template,X,n=0):
+    if isinstance(template,type(array([]))):
+        return reshape( X[n:n+template.size] , template.shape) , n+template.size
+    elif isinstance(template,type(dict())):
+        iterset = sorted(template.items())
+        result  = {}
+    elif isinstance(template,type([])):
+        iterset = enumerate(template)
+        result  = [None for i in len(template)]
+    else:
+        raise TypeError('unflat expects numpy ndarray, list or dict')
+    for key,x in iterset:
+        rec , n  = __unflat(x,X,n=n)
+        result[key] = rec
+    return result,n
+
+def unflat(template,X): return __unflat(template,X)[0]
+
 
 class term:
     '''
@@ -89,7 +119,7 @@ class term:
         def package(some_function):
             def packaged_function(params,arg_dictionary):
                 argz = [arg_dictionary[n] for n in sorted(self.Args.keys())]
-                return some_function(self.flatten(params),*argz)
+                return some_function(flat(params),*argz)
             return packaged_function
 
         self.theano = theano
@@ -112,6 +142,9 @@ class term:
             n = n + size(template)
         return Params_Out
 
+    def flat(self,X): return flat(X)
+    def unflat(self,X): return unflat(self.init_params,X)
+
     def __differentiate(self,target):
         def gen_differential(**Params):
             flatParam   = Th.concatenate([Th.flatten(Params[n]) for n in sorted(self.init_params.keys())])
@@ -122,25 +155,6 @@ class term:
                             wrt               = flatParam ,
                             consider_constant = arglist)
         return gen_differential
-
-    def repack(self, dic, ll): return dict(p for p in zip(sorted(dic.keys()),ll))
-
-    def inflate(self, x):
-        if isinstance(x,type(array([]))):
-            x = self.splitParam(x)
-        if isinstance(x,type([])):
-            return self.repack(self.Params,x)
-        raise TypeError('expects a numpy ndarray or a list of numpy ndarrays')
-
-    def flatten(self,params):
-#        debug_here()
-        if isinstance(params,type(dict())):
-            params = [x for _,x in sorted(params.items())]
-        if isinstance(params,type([])):
-            return self.__pack(*params)
-        if isinstance(params,type(array([]))):
-            return params.flatten()
-        raise TypeError('expects a numpy ndarray or a list of numpy ndarrays')
 
     def __intersect_dicts(self,names,d):
         out = {}

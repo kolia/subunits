@@ -10,6 +10,8 @@ import numpy
 from numpy import asarray, sqrt, Inf, isinf
 from scipy.optimize.linesearch import line_search_wolfe1, line_search_wolfe2
 
+from kolia_theano import flat
+
 from IPython.Debugger import Tracer; debug_here = Tracer()
 
 _epsilon = sqrt(numpy.finfo(float).eps)
@@ -29,7 +31,6 @@ def optimizer( objective , f='f' , df='df', barrier='barrier',
     args     = get_attribute( objective, args     )
     init_params = get_attribute( objective, init_params)
     df       = get_attribute( objective, df       )
-    flatten   = get_attribute( objective, 'flatten' )
     f        = getattr(objective, f)
     if 'full_output' not in options:
         full_output = False
@@ -42,8 +43,7 @@ def optimizer( objective , f='f' , df='df', barrier='barrier',
             cb = None
         else:
             def cb(para): callback(para,args)
-        if flatten:
-            init_params = flatten(init_params)
+        init_params = flat(init_params)
         x, fx, dfx, _, _, _, _ = fmin_barrier_bfgs(f,init_params,fprime=df,
                                                    gtol=gtol,maxiter=maxiter,
                                                    args=args,callback=cb,
