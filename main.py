@@ -120,34 +120,34 @@ print 'initial params :'
 baye.callback(init_params_proj,data_proj)
 print
 
-params_proj = init_params_proj
-params_proj = baye_proj.optimize(params_proj,data_proj[0])
-
-def rexpand(x):
-    return concatenate([dot(reshape(x[0:Nproj*Nproj],(Nproj,Nproj)),T).flatten(),x[Nproj*Nproj:]])
-#    return concatenate([dot(transpose(T),reshape(x[0:Nproj*Nsub],(Nproj,Nsub))).flatten(),x[Nproj*Nsub:]])
-
-#init_params = init_params_proj
-#params      = params_proj
-init_params = rexpand( init_params_proj )
-params      = rexpand(      params_proj )
-
-true_params = concatenate( [zeros(params.size-true_params.size) , true_params] )
-
-p.figure(2)
-baye.plot(params,true_params,data[0])
-
-print 'log-likelihood of init params = ', baye.f(init_params,data[0])
-print 'log-likelihood of opt  params = ', baye.f(params,data[0])
-print 'log-likelihood of true params = ', baye.f(true_params,data[0])
-
-#print 'init params:'
-#print  baye.params(init_params,data[0])[index]
-#print 'true params:'
-#print  baye.params(true_params,data[0])[index]
-#print 'opt  params:'
-#print  baye.params(params ,data[0])[index]
-#print
-#print
-#print 'true U*V1:' , dot(baye.params(true_params,data[0])[0].T,baye.params(true_params,data[0])[2].T)
-#print 'opt U*V1:' , dot(baye.params(params,data[0])[0].T,baye.params(params,data[0])[2].T)
+#params_proj = init_params_proj
+#params_proj = baye_proj.optimize(params_proj,data_proj[0])
+#
+#def rexpand(x):
+#    return concatenate([dot(reshape(x[0:Nproj*Nproj],(Nproj,Nproj)),T).flatten(),x[Nproj*Nproj:]])
+##    return concatenate([dot(transpose(T),reshape(x[0:Nproj*Nsub],(Nproj,Nsub))).flatten(),x[Nproj*Nsub:]])
+#
+##init_params = init_params_proj
+##params      = params_proj
+#init_params = rexpand( init_params_proj )
+#params      = rexpand(      params_proj )
+#
+#true_params = concatenate( [zeros(params.size-true_params.size) , true_params] )
+#
+#p.figure(2)
+#baye.plot(params,true_params,data[0])
+#
+#print 'log-likelihood of init params = ', baye.f(init_params,data[0])
+#print 'log-likelihood of opt  params = ', baye.f(params,data[0])
+#print 'log-likelihood of true params = ', baye.f(true_params,data[0])
+#
+##print 'init params:'
+##print  baye.params(init_params,data[0])[index]
+##print 'true params:'
+##print  baye.params(true_params,data[0])[index]
+##print 'opt  params:'
+##print  baye.params(params ,data[0])[index]
+##print
+##print
+##print 'true U*V1:' , dot(baye.params(true_params,data[0])[0].T,baye.params(true_params,data[0])[2].T)
+##print 'opt U*V1:' , dot(baye.params(params,data[0])[0].T,baye.params(params,data[0])[2].T)

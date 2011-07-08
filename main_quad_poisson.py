@@ -24,12 +24,11 @@ from matplotlib.ticker import *
 
 from IPython.Debugger import Tracer; debug_here = Tracer()
 
+sigma = 1.
 
-sigma  = 1.
-
-quad = lambda x : 0.2*(x+1.)**2
-
-(N_spikes,STA,STC), U, V1, bbar, Cb , STAB = LNLNP(T=10000,sigma=sigma,NL=quad,N=27)
+V2 = 0.1
+def NL(x): return x + 0.5 * V2 * ( x ** 2 )
+(N_spikes,STA,STC), U, V1, bbar, Cb , STAB = simulate_data.LNLNP(NL=NL,N=24)
 Nsub, Ncone =  U.shape
 NRGC, Nsub  =  V1.shape
 
@@ -116,7 +115,8 @@ def callback_one(ip,d):
 
 optimize  = optimize.optimizer( objective , callback=callback_one )
 
-true   = [{ 'theta' : np.dot( U.T , V1[i,:] ) , 'M' : 0.1*np.dot( U.T * V1[i,:] , U ) } for i in range(iii)]
+true   = [{ 'theta' : np.dot( U.T , V1[i,:] ) , \
+            'M' : 0.1*np.dot( U.T * V1[i,:] , U ) } for i in range(iii)]
 
 #for t in true:
 #    w,v = eig( np.eye(t['M'].shape[0]) - t['M'] )
@@ -138,16 +138,30 @@ params = [objective.inflate(par) for par in params]
 
 
 def plot_thetas(params):
-    params = objective.inflate(params)
+#    params = objective.inflate(params)
     p.figure(3)
     Nsub = len(params)
-    for i,t in enumerate(params):
+    for i in range(Nsub):
+        di = params[i]
         ax = p.subplot(Nsub,1,i+1)
-        theta = dot(t['theta'],T)
-#        theta = t['theta']
+#        theta = np.dot(di['theta'],T)
+        theta = di['theta']
         p.plot(np.arange(theta.size),theta,'b')
         ax.yaxis.set_major_locator( MaxNLocator(nbins=2) )
-        if i == 0:  p.title('Inferred subunit RFs')
+        if i == 0:  p.title('Inferred thetas')
+        p.show()
+    p.xlabel('Cone space')
+
+
+def plot_matrix(m):
+    p.figure(4)
+    Nsub = m.shape[0]
+    for i in range(Nsub):
+        di = m[i,:]
+        ax = p.subplot(Nsub,1,i+1)
+        p.plot(np.arange(di.size),di,'b')
+        ax.yaxis.set_major_locator( MaxNLocator(nbins=2) )
+        if i == 0:  p.title('First few SVD components')
         p.show()
     p.xlabel('Cone space')
 
@@ -159,6 +173,35 @@ print 'true    ||subunit RF||^2  : ', np.sum(U*U,axis=1)
 print 'optimal ||subunit RF||^2  : ', [np.sum(optu*optu) for optu in optU]
 print
 
+exparams = [{'theta': np.dot(q['theta'],T)  ,  \
+             'M':np.dot(np.dot(np.transpose(T),q['M']),T)} for q in params]
+
+exA = np.concatenate([np.concatenate([np.array([q['theta']]),q['M']]) for q in exparams])
+
+exUa,exSa,exVa = svd(exA)
+
+p.figure(5)
+nnn = U.shape[1]
+for i in range(Nsub):
+    ax = p.subplot(Nsub,1,i+1)
+    p.plot(np.arange(nnn),U[i,:].flatten(),'b',np.arange(nnn), 
+           projection(np.transpose(U[i,:]),np.transpose(exVa[0:9,:])).flatten(),'rs')
+    if i==0: p.title('Subunit RFs and projection onto svd(theta,M)')
+    p.show()
+p.xlabel('Cone space')
+
+
+p.figure(6)
+nnn = U.shape[1]
+for i in range(Nsub):
+    ax = p.subplot(Nsub,1,i+1)
+    p.plot(np.arange(nnn),U[i,:].flatten(),'b',np.arange(nnn), 
+           projection(np.transpose(U[i,:]),np.transpose(VI[0:Nsub,:])).flatten(),'rs')
+    if i==0: p.title('Subunit RFs and projection onto svd(STA,STC)')
+    p.show()
+p.xlabel('Cone space')
+
+
 def show(string,p):
     print 'log-likelihood of %s = %f   barrier = %f    ldet = %f     minw = %f' \
         % ( string , objective.f(p,data), objective.barrier(p,data) , 
@@ -169,7 +212,8 @@ def show(string,p):
 #show('true params' ,true       )
 #show('opt params'  ,params     )
 ##show('opt of true' ,trupar     )
-##print 'improvement of opt of true    = ', objective.f(params,data) - objective.f(trupar,data)
+##print 'improvement of opt of true = ', 
+##    objective.f(params,data) - objective.f(trupar,data)
 
 #p.figure(2)
 #objective.plot(params,U)
