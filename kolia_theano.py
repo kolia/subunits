@@ -91,6 +91,7 @@ def __unflat(template,X,n=0):
 
 def unflat(template,X): return __unflat(template,X)[0]
 
+class Base: pass
 
 class term:
     '''
@@ -98,7 +99,7 @@ class term:
     and sufficient to build a numerical objective:
     self.theano, self.flatParam, self.Params, self.Args, self.init_params
     '''
-    def __init__(self, init_params=None, differentiate=[], **theano):
+    def __init__(self, init_params=None, differentiate=[], callback=None, **theano):
         names,_,_,defaults = getargspec(theano.itervalues().next())
 #        self.defs          = [theano_defs]
         self.Args          = dict([(n,Th.as_tensor_variable(d,name=n)) for n,d in zip(names,defaults)])
@@ -109,31 +110,34 @@ class term:
         self.flatParam  = Th.concatenate([Th.flatten(x) for _,x in sorted(self.Params.items())])
         for name in sorted(self.init_params.keys()):  del self.Args[name]
 
-        self.__pack   = function([x for _,x in sorted(self.Params.items())],self.flatParam)
-
-        Params_Out = self.gen_Params_Out(self.flatParam,self.Args)
+        self.Params_Out = self.gen_Params_Out(self.flatParam,self.Args)
 
         self.splitParam = \
-        function([self.flatParam],[Params_Out[name] for name in sorted(self.Params.keys())])
-
-        def package(some_function):
-            def packaged_function(params,arg_dictionary):
-                argz = [arg_dictionary[n] for n in sorted(self.Args.keys())]
-                return some_function(flat(params),*argz)
-            return packaged_function
+        function([self.flatParam],[self.Params_Out[name] for name in sorted(self.Params.keys())])
 
         self.theano = theano
         self.theano_functions = {}
+        self.callback = callback
 
         for name in differentiate:
             if ('d'+name) not in self.theano:
                 self.theano['d'+name] = self.__differentiate(self.theano[name])
-            
-        arglist     = [Params_Out[name] for name in sorted(self.Args.keys())]
-        for name,gen in self.theano.items():
-            self.theano_functions[name] = function([self.flatParam]+arglist,gen(**Params_Out))
-            setattr(self,name,package(self.theano_functions[name]))
 
+    def where(self,**args):        
+        t = Base()
+        t.args = [args[n] for n in sorted(self.Args.keys())]
+        def package(some_function):
+            def packaged_function(params): return some_function(flat(params),*t.args)
+            return packaged_function
+        arglist     = [self.Params_Out[name] for name in sorted(self.Args.keys())]
+        for name,gen in self.theano.items():
+            self.theano_functions[name] = function([self.flatParam]+arglist,gen(**self.Params_Out))
+            setattr(t,name,package(self.theano_functions[name]))
+        if self.callback:
+            def callback(params): return self.callback(t,params)
+            t.callback = callback
+        return t
+            
     def gen_Params_Out(self,flatParam,Args):
         Params_Out = copy(Args)
         n = 0

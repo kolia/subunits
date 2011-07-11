@@ -25,10 +25,9 @@ def get_attribute(o,attribute):
     return attribute
 
 def optimizer( objective , f='f' , df='df', barrier='barrier', 
-               callback='callback', args='args', init_params='init_params' , **options):
+               callback='callback', init_params='init_params' , **options):
     barrier  = get_attribute( objective, barrier  )
     callback = get_attribute( objective, callback )
-    args     = get_attribute( objective, args     )
     init_params = get_attribute( objective, init_params)
     df       = get_attribute( objective, df       )
     f        = getattr(objective, f)
@@ -36,17 +35,13 @@ def optimizer( objective , f='f' , df='df', barrier='barrier',
         full_output = False
     else:
         full_output = options['full_output']
-    def optimize(init_params=init_params, args=args, f=f, 
+    def optimize(init_params=init_params, f=f, 
                  df=df, barrier=barrier, callback=callback, gtol=1.1e-6, 
                  maxiter=500 , full_output=full_output ):
-        if callback is None:
-            cb = None
-        else:
-            def cb(para): callback(para,args)
         init_params = flat(init_params)
         x, fx, dfx, _, _, _, _ = fmin_barrier_bfgs(f,init_params,fprime=df,
                                                    gtol=gtol,maxiter=maxiter,
-                                                   args=args,callback=cb,
+                                                   callback=callback,
                                                    barrier=barrier,
                                                    full_output=True)
         if full_output:
@@ -121,15 +116,15 @@ def vecnorm(x, ord=2):
         return numpy.sum(abs(x)**ord,axis=0)**(1.0/ord)
 
 
-def wrap_function(function, arg):
+def wrap_function(function):
     ncalls = [0]
     def function_wrapper(x):
         ncalls[0] += 1
-        return function(x, arg)
+        return function(x)
     return ncalls, function_wrapper
 
 
-def fmin_barrier_bfgs(f, x0, fprime=None, args=(), gtol=1e-5, norm=Inf,
+def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-5, norm=Inf,
               epsilon=_epsilon, maxiter=None, full_output=0, disp=1,
               retall=0, callback=None, barrier=None):
     """Minimize a function using the BFGS algorithm without jumping a barrier.
@@ -202,12 +197,12 @@ def fmin_barrier_bfgs(f, x0, fprime=None, args=(), gtol=1e-5, norm=Inf,
         x0.shape = (1,)
     if maxiter is None:
         maxiter = len(x0)*200
-    func_calls, f    = wrap_function(f      , args)
-    barr_calls, barr = wrap_function(barrier, args)
+    func_calls, f    = wrap_function(f      )
+    barr_calls, barr = wrap_function(barrier)
     if fprime is None:
         grad_calls, myfprime = wrap_function(approx_fprime, (f, epsilon))
     else:
-        grad_calls, myfprime = wrap_function(fprime, args)
+        grad_calls, myfprime = wrap_function(fprime)
     gfk = myfprime(x0)
     k = 0
     N = len(x0)
