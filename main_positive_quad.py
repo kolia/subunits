@@ -103,7 +103,7 @@ optU = param['U']
 print
 print 'stimulus sigma  :  ', sigma
 print 'true    ||subunit RF||^2  : ', np.sum(U*U,axis=1)
-print 'optimal ||subunit RF||^2  : ', np.sum(optu*optu)
+print 'optimal ||subunit RF||^2  : ', np.sum(optU*optU)
 print
 
 
