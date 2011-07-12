@@ -145,6 +145,10 @@ for i in range(Nsub):
     p.show()
 p.xlabel('Cone space')
 
+def testargs(x,y,z=1,*a,**d):
+    resulta = sum([aa for aa in a])
+    resultd = sum([aa for aa in d.values()])
+    return resulta + resultd+x + y + z
 
 def show(string,p):
     print 'log-likelihood of %s = %f   barrier = %f    ldet = %f     minw = %f' \

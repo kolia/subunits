@@ -1,6 +1,7 @@
-from inspect import getargspec
-from copy    import copy
-from numpy   import size, array, asarray, concatenate, reshape
+from inspect   import getargspec
+from functools import partial
+from copy      import copy
+from numpy     import size, array, asarray, concatenate, reshape
 import numpy.linalg
 from theano  import function
 import theano.tensor  as Th
@@ -70,7 +71,7 @@ def deep_iter(X):
             for y in deep_iter(x): yield y
     if isinstance(X,type(array([]))):
         yield X
-    
+
 def flat(X): return concatenate( [x.flatten() for x in deep_iter(X)] )
 
 def __unflat(template,X,n=0):
@@ -91,6 +92,28 @@ def __unflat(template,X,n=0):
 
 def unflat(template,X): return __unflat(template,X)[0]
 
+def reparameterize(func,reparam):
+    output = reparam()
+    keydict = getargs( reparam )
+    arguments,_,_,defaults = getargspec(func)
+    for name,value in zip(arguments,defaults):
+        if name not in output:  keydict[name] = value
+    def c(**dummy):
+#        debug_here()
+        return func(**reparam(**dummy))
+    c.__name__ = func.__name__
+    result = partial(c,**keydict)
+    result.__name__ = func.__name__
+    return result
+
+def getargs(func):
+    try:
+        names,_,_,defaults = getargspec(func)
+    except:
+        [names,defaults] = zip( *func.keywords.items() )
+    return dict( zip(names[-len(defaults):],defaults) )
+    
+
 class Base: pass
 
 class term:
@@ -100,12 +123,12 @@ class term:
     self.theano, self.flatParam, self.Params, self.Args, self.init_params
     '''
     def __init__(self, init_params=None, differentiate=[], callback=None, **theano):
-        names,_,_,defaults = getargspec(theano.itervalues().next())
+        keydict = getargs( theano.itervalues().next() )
 #        self.defs          = [theano_defs]
-        self.Args          = dict([(n,Th.as_tensor_variable(d,name=n)) for n,d in zip(names,defaults)])
-                
+        self.Args          = dict([(n,Th.as_tensor_variable(d,name=n)) for n,d in keydict.items()])
+
         self.init_params   = self.__intersect_dicts(self.Args.keys(),init_params)
-        
+
         self.Params    = dict((n,shapely_tensor(n,x)) for n,x in self.init_params.items())
         self.flatParam  = Th.concatenate([Th.flatten(x) for _,x in sorted(self.Params.items())])
         for name in sorted(self.init_params.keys()):  del self.Args[name]
@@ -118,12 +141,14 @@ class term:
         self.theano = theano
         self.theano_functions = {}
         self.callback = callback
+        self.differentiate = differentiate
 
-        for name in differentiate:
+        for name in self.differentiate:
             if ('d'+name) not in self.theano:
                 self.theano['d'+name] = self.__differentiate(self.theano[name])
 
-    def where(self,**args):        
+
+    def where(self,**args):
         t = Base()
         t.args = [args[n] for n in sorted(self.Args.keys())]
         def package(some_function):
@@ -137,7 +162,7 @@ class term:
             def callback(params): return self.callback(t,params)
             t.callback = callback
         return t
-            
+
     def gen_Params_Out(self,flatParam,Args):
         Params_Out = copy(Args)
         n = 0

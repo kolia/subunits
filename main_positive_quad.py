@@ -1,6 +1,6 @@
 import QuadPoiss
 reload(QuadPoiss)
-from   QuadPoiss import quadratic_Poisson, eig_barrier, ldet, eigs
+from   QuadPoiss import quadratic_Poisson, UV, eig_barrier, ldet, eigs
 
 import kolia_theano
 reload(kolia_theano)
@@ -69,13 +69,14 @@ init_params = [{'U' : U , \
 def callback( term , params ):
     print 'Objective: ' , term.f(params) , '  barrier: ', term.barrier(params)
 
+targets = { 'f':quadratic_Poisson, 'barrier':eig_barrier, 'ldet':ldet, 'eigs':eigs }
 
-f = quadtaric_Poisson(**UV())
+targets = dict( (name,kolia_theano.reparameterize(f,UV)) for name,f in targets.items() )
 
-term = kolia_theano.term(init_params=init_params[0],differentiate=['f'],callback=callback,
-                         f=quadtaric_Poisson(**UV()),
-                         barrier=eig_barrier(**UV()),
-                         ldet=ldet(**UV()), eigs=eigs(**UV()))
+term = kolia_theano.term( init_params=init_params[0], differentiate=['f'], 
+                          callback=callback, **targets )
+
+
 
 optimizers = [ optimize.optimizer( term.where(**dat) ) for dat in data ]
 

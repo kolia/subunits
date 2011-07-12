@@ -12,13 +12,14 @@ from theano.sandbox.linalg import matrix_inverse, det
 from kolia_theano import logdet, eig
 
 
-def UV( U  = Th.dmatrix() , V1   = Th.dvector() , V2 = Th.dvector() ):
-    return {'theta': Th.dot( U.T , V1 ), \
-            'M'    : Th.dot( V1 * U.T , (V2 * U.T).T )}
+def UV( U  = Th.dmatrix('U') , V1   = Th.dvector('V1') , V2 = Th.dvector('V2') , **result):
+    result['theta'] = Th.dot( U.T , V1 )
+    result['M'    ] = Th.dot( V1 * U.T , (V2 * U.T).T )
+    return result
 
 
-def quadratic_Poisson( theta = Th.dvector(), M    = Th.dmatrix() ,
-                       STA   = Th.dvector(), STC  = Th.dmatrix(), **other):
+def quadratic_Poisson( theta = Th.dvector('theta'), M    = Th.dmatrix('M') ,
+                       STA   = Th.dvector('STA'), STC  = Th.dmatrix('STC'), **other):
 
     ImM = Th.identity_like(M)-(M+M.T)/2
 #    ldet = logdet( ImM)
@@ -31,29 +32,30 @@ def quadratic_Poisson( theta = Th.dvector(), M    = Th.dmatrix() ,
              + Th.sum( M * (STC + Th.outer(STA,STA)) )) / 2.
 
 
-def det_barrier( theta = Th.dvector(), M    = Th.dmatrix() , 
-                 STA   = Th.dvector(), STC  = Th.dmatrix(), **other ):
+def det_barrier( theta = Th.dvector('theta'), M    = Th.dmatrix('M') ,
+                 STA   = Th.dvector('STA'), STC  = Th.dmatrix('STC'), **other):
      ImM = Th.identity_like(M)-(M+M.T)/2
      ldet = logdet( ImM)
      return (ldet+100) < 0
 
 
-def eig_barrier( theta = Th.dvector(), M    = Th.dmatrix() ,
-                 STA   = Th.dvector(), STC  = Th.dmatrix() ):
+def eig_barrier( theta = Th.dvector('theta'), M    = Th.dmatrix('M') ,
+                 STA   = Th.dvector('STA'), STC  = Th.dmatrix('STC'), **other):
      ImM = Th.identity_like(M)-(M+M.T)/2
      w,v = eig( ImM )
      return 1-(Th.sum(Th.log(w))>-6)*(Th.min(w)>0)
 
 
-def eigs( theta = Th.dvector(), M    = Th.dmatrix() ,
-          STA   = Th.dvector(), STC  = Th.dmatrix()):
+def eigs( theta = Th.dvector('theta'), M    = Th.dmatrix('M') ,
+#def eigs( M   , theta = Th.dvector('theta'),
+          STA   = Th.dvector('STA')  , STC   = Th.dmatrix('STC'), **other):
     ImM = Th.identity_like(M)-(M+M.T)/2
     w,v = eig( ImM )
     return w
 
 
-def ldet( theta = Th.dvector(), M    = Th.dmatrix() ,
-          STA   = Th.dvector(), STC  = Th.dmatrix()):
+def ldet( theta = Th.dvector('theta'), M    = Th.dmatrix('M') ,
+          STA   = Th.dvector('STA'), STC  = Th.dmatrix('STC'), **other):
     ImM = Th.identity_like(M)-(M+M.T)/2
     w, v = eig(ImM)
     return Th.sum(Th.log(w))
