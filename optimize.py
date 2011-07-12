@@ -57,7 +57,7 @@ def optimizer( objective , f='f' , df='df', barrier='barrier',
 
 
 def backtrack(f,xk,pk,barrier):
-    if barrier is None: return 50
+    if barrier is None: return 500
     """Find alpha that satisfies strong Wolfe conditions.
 
     Parameters
@@ -73,10 +73,10 @@ def backtrack(f,xk,pk,barrier):
         
     """
     # initial phase: find a point on other side of barrier by *2.
-    a  = 1.
+    a  = 10.
     while True:
-        if a>500.:
-            return 500.
+        if a>5000.:
+            return 5000.
         if barrier(xk + a*pk): break
         a = a * 1.1
 

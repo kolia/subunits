@@ -1,6 +1,8 @@
+from functools import partial
+
 import QuadPoiss
 reload(QuadPoiss)
-from   QuadPoiss import quadratic_Poisson, UV, eig_barrier, ldet, eigs
+from   QuadPoiss import quadratic_Poisson, UVs, eig_barrier, ldet, eigs
 
 import kolia_theano
 reload(kolia_theano)
@@ -45,48 +47,29 @@ def projection(uu,X):
     return np.dot(X,np.dot(uu,X))
 
 
-data = {}
-init_params = {}
-
-
-Nproj = Nsub
-T    = VI[0:Nproj,:]
-
-#iii = NRGC
-#data  = [{ 'STA':np.dot(T,STA[i]) , \
-#           'STC':np.dot(np.dot(T,STC[i]),np.transpose(T)) } for i in range(iii)]
-#init_params = [{'theta':data[i]['STA'] * 0.1 , \
-#                'M':data[i]['STC'] * 0.1} for i in range(iii)]
-
-iii = NRGC
-data  = [{ 'STA': STA[i] , \
-           'STC': STC[i] ,
-           'V2' : V2*np.ones(Nsub) } for i in range(iii)]
-init_params = [{'U' : U , \
-                'V1': V1[i,:].flatten() } for i in range(iii)]
-
 
 def callback( term , params ):
     print 'Objective: ' , term.f(params) , '  barrier: ', term.barrier(params)
 
+true = {'U' : U , 'V1': V1 }
+data = {'STAs':np.vstack(STA) , 'STCs':np.vstack([stc[np.newaxis,:] for stc in STC]), 
+        'V2':V2*np.ones(Nsub) , 'N':NRGC }
+
 targets = { 'f':quadratic_Poisson, 'barrier':eig_barrier, 'ldet':ldet, 'eigs':eigs }
 
-targets = dict( (name,kolia_theano.reparameterize(f,UV)) for name,f in targets.items() )
+targets = kolia_theano.reparameterize(targets,UVs(NRGC))
 
-term = kolia_theano.term( init_params=init_params[0], differentiate=['f'], 
+term = kolia_theano.term( init_params=true, differentiate=['f'], 
                           callback=callback, **targets )
 
+optimizer = optimize.optimizer( term.where(**data) )
 
-
-optimizers = [ optimize.optimizer( term.where(**dat) ) for dat in data ]
-
-true   = [{'U' : U , \
-                'V1': V1[i,:].flatten() } for i in range(iii)]
+init_params = true
 
 params = init_params
 for i in range(2):
-    params = [opt(init_params=par) for opt,par in zip(optimizers,params)]
-params = [term.unflat(par) for par in params]
+    params = optimizer(init_params=params)
+params = term.unflat(params)
 
 
 def plot_U(params):
@@ -95,7 +78,6 @@ def plot_U(params):
     for i in range(Nsub):
         di = params[i]
         ax = p.subplot(Nsub,1,i+1)
-#        theta = np.dot(di['theta'],T)
         theta = di['U']
         p.plot(np.arange(theta.size),theta,'b')
         ax.yaxis.set_major_locator( MaxNLocator(nbins=2) )
@@ -117,11 +99,11 @@ def plot_matrix(m):
     p.xlabel('Cone space')
 
 
-optU = [param['U'] for param in params]
+optU = param['U']
 print
 print 'stimulus sigma  :  ', sigma
 print 'true    ||subunit RF||^2  : ', np.sum(U*U,axis=1)
-print 'optimal ||subunit RF||^2  : ', [np.sum(optu*optu) for optu in optU]
+print 'optimal ||subunit RF||^2  : ', np.sum(optu*optu)
 print
 
 

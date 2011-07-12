@@ -3,7 +3,7 @@ from functools import partial
 from copy      import copy
 from numpy     import size, array, asarray, concatenate, reshape
 import numpy.linalg
-from theano  import function
+from theano  import function, scan
 import theano.tensor  as Th
 from theano.gof import Op, Apply
 from theano.sandbox.linalg import matrix_inverse
@@ -92,20 +92,34 @@ def __unflat(template,X,n=0):
 
 def unflat(template,X): return __unflat(template,X)[0]
 
-def reparameterize(func,reparam):
+def __reparameterize(func,reparam):
     output = reparam()
+    if isinstance(output,type([])):
+        def c(**dummy):
+            result = Th.as_tensor_variable(0) 
+            for repar in reparam(**dummy):
+                result = func(**repar)+result
+            return result
+    else:
+        def c(**dummy):  return func(**reparam(**dummy))
     keydict = getargs( reparam )
     arguments,_,_,defaults = getargspec(func)
+    if isinstance(output,type([])): output = output[0]
     for name,value in zip(arguments,defaults):
         if name not in output:  keydict[name] = value
-    def c(**dummy):
-#        debug_here()
-        return func(**reparam(**dummy))
     c.__name__ = func.__name__
     result = partial(c,**keydict)
     result.__name__ = func.__name__
     return result
 
+def reparameterize(funcs,reparam):
+    if isinstance(funcs,type([])):
+        return [__reparameterize(f,reparam) for f in funcs]
+    elif isinstance(funcs,type({})):
+        return dict( (name,__reparameterize(f,reparam)) for name,f in funcs.items() )
+    else:
+        return __reparameterize(funcs,reparam)
+    
 def getargs(func):
     try:
         names,_,_,defaults = getargspec(func)
@@ -147,6 +161,9 @@ class term:
             if ('d'+name) not in self.theano:
                 self.theano['d'+name] = self.__differentiate(self.theano[name])
 
+        self.arglist = [self.Params_Out[name] for name in sorted(self.Args.keys())]
+        for name,gen in self.theano.items():
+            self.theano_functions[name] = function([self.flatParam]+self.arglist,gen(**self.Params_Out))
 
     def where(self,**args):
         t = Base()
@@ -154,9 +171,7 @@ class term:
         def package(some_function):
             def packaged_function(params): return some_function(flat(params),*t.args)
             return packaged_function
-        arglist     = [self.Params_Out[name] for name in sorted(self.Args.keys())]
         for name,gen in self.theano.items():
-            self.theano_functions[name] = function([self.flatParam]+arglist,gen(**self.Params_Out))
             setattr(t,name,package(self.theano_functions[name]))
         if self.callback:
             def callback(params): return self.callback(t,params)

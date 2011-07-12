@@ -18,8 +18,17 @@ def UV( U  = Th.dmatrix('U') , V1   = Th.dvector('V1') , V2 = Th.dvector('V2') ,
     return result
 
 
+def UVs(N):
+    def UV( U    = Th.dmatrix('U')   , V1  = Th.dmatrix('V1') , V2 = Th.dvector('V2') ,
+            STAs = Th.dmatrix('STAs'), STCs = Th.dtensor3('STCs'), **other):
+        return [{'theta': Th.dot( U.T , V1[i] ) ,
+                 'M'  :   Th.dot( V1[i] * U.T , (V2 * U.T).T ),
+                 'STA':   STAs[i,:],
+                 'STC':   STCs[i,:,:]} for i in range(N)]
+    return UV
+
 def quadratic_Poisson( theta = Th.dvector('theta'), M    = Th.dmatrix('M') ,
-                       STA   = Th.dvector('STA'), STC  = Th.dmatrix('STC'), **other):
+                       STA   = Th.dvector('STA')  , STC  = Th.dmatrix('STC'), **other):
 
     ImM = Th.identity_like(M)-(M+M.T)/2
 #    ldet = logdet( ImM)
