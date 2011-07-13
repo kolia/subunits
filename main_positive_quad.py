@@ -67,14 +67,14 @@ term = kolia_theano.term( init_params=true, differentiate=['f'],
 
 optimizer = optimize.optimizer( term.where(**data) )
 
-trupar = true
-for i in range(2):
-    trupar = optimizer(init_params=trupar)
-trupar = term.unflat(trupar)
+#trupar = true
+#for i in range(2):
+#    trupar = optimizer(init_params=trupar)
+#trupar = term.unflat(trupar)
 
 
-init_params = {'lU' : np.log( 0.001+0.01*R.random(size=U.shape)  ) , 
-               'lV1': np.log( 0.001+0.01*R.random(size=V1.shape) )}
+init_params = {'lU' : np.log( 0.001+0.1*R.random(size=U.shape)  ) , 
+               'lV1': np.log( 0.001+0.1*R.random(size=V1.shape) )}
 
 params = init_params
 for i in range(2):
@@ -109,7 +109,7 @@ def plot_matrix(m):
     p.xlabel('Cone space')
 
 
-optU = params['U']
+optU = np.exp( params['lU'] )
 print
 print 'stimulus sigma  :  ', sigma
 print 'true    ||subunit RF||^2  : ', np.sum(U*U,axis=1)
