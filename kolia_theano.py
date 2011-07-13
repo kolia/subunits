@@ -98,10 +98,11 @@ def __reparameterize(func,reparam):
         def c(**dummy):
             result = Th.as_tensor_variable(0) 
             for repar in reparam(**dummy):
+                repar.update(dummy)
                 result = func(**repar)+result
             return result
     else:
-        def c(**dummy):  return func(**reparam(**dummy))
+        def c(**dummy):  return func(**dummy.update(reparam(**dummy)))
     keydict = getargs( reparam )
     arguments,_,_,defaults = getargspec(func)
     if isinstance(output,type([])): output = output[0]

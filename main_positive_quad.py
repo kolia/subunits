@@ -2,7 +2,8 @@ from functools import partial
 
 import QuadPoiss
 reload(QuadPoiss)
-from   QuadPoiss import quadratic_Poisson, UVs, eig_barrier, ldet, eigs
+from   QuadPoiss import positive_quadratic_Poisson, UVs , eig_positive_barrier, \
+                        eig_barrier, ldet, eigs, positive
 
 import kolia_theano
 reload(kolia_theano)
@@ -49,13 +50,15 @@ def projection(uu,X):
 
 
 def callback( term , params ):
-    print 'Objective: ' , term.f(params) , '  barrier: ', term.barrier(params)
+    print 'Objective: ' , term.f(params) , '  barrier: ', term.barrier(params) 
+    #, '  logdet: ', term.ldet(params),  '  eigs: ', term.eigs(params), '  positive: ',term.positive(params)
 
 true = {'U' : U , 'V1': V1 }
 data = {'STAs':np.vstack(STA) , 'STCs':np.vstack([stc[np.newaxis,:] for stc in STC]), 
         'V2':V2*np.ones(Nsub) , 'N':NRGC }
 
-targets = { 'f':quadratic_Poisson, 'barrier':eig_barrier, 'ldet':ldet, 'eigs':eigs }
+targets = { 'f':positive_quadratic_Poisson, 'positive':positive,
+            'barrier':eig_positive_barrier, 'ldet':ldet, 'eigs':eigs }
 
 targets = kolia_theano.reparameterize(targets,UVs(NRGC))
 
@@ -64,7 +67,14 @@ term = kolia_theano.term( init_params=true, differentiate=['f'],
 
 optimizer = optimize.optimizer( term.where(**data) )
 
-init_params = true
+trupar = true
+for i in range(2):
+    trupar = optimizer(init_params=trupar)
+trupar = term.unflat(trupar)
+
+
+init_params = {'U' :0.001+0.01*R.random(size=U.shape) , 
+               'V1':0.001+0.01*R.random(size=V1.shape)}
 
 params = init_params
 for i in range(2):

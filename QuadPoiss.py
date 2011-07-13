@@ -27,6 +27,10 @@ def UVs(N):
                  'STC':   STCs[i,:,:]} for i in range(N)]
     return UV
 
+def positive_barrier( U = Th.dmatrix('U' ), V1  = Th.dmatrix('V1'),
+                     V2 = Th.dvector('V2'), **other):
+     return 1-Th.prod(Th.concatenate([U.flatten()>0,V1.flatten()>0,V2.flatten()>0]))
+
 def quadratic_Poisson( theta = Th.dvector('theta'), M    = Th.dmatrix('M') ,
                        STA   = Th.dvector('STA')  , STC  = Th.dmatrix('STC'), **other):
 
@@ -47,13 +51,43 @@ def det_barrier( theta = Th.dvector('theta'), M    = Th.dmatrix('M') ,
      ldet = logdet( ImM)
      return (ldet+100) < 0
 
+def positive( U = Th.dmatrix('U' ), V1 = Th.dmatrix('V1'),
+             V2 = Th.dvector('V2'), **other):
+    return Th.sum( 0.00000001/Th.concatenate([U.flatten(),V1.flatten(),V2.flatten()])**0.01 )
+#    return Th.sum( 0.000000001*Th.log(Th.concatenate([U.flatten(),V1.flatten(),V2.flatten()]) ) )
+
+def positive_quadratic_Poisson( U = Th.dmatrix('U' ),   V1    = Th.dmatrix('V1'),
+                               V2 = Th.dvector('V2'), 
+                            theta = Th.dvector('theta'), M    = Th.dmatrix('M') ,
+                            STA   = Th.dvector('STA'  ), STC  = Th.dmatrix('STC'), **other):
+
+    ImM = Th.identity_like(M)-(M+M.T)/2
+#    ldet = logdet( ImM)
+    ldet = Th.log( det( ImM) )
+    return -( ldet - positive(U=U,V1=V1,V2=V2) \
+             - 1./(ldet+6)**2 \
+#             - Th.sum(Th.as_tensor_variable(Th.dot(matrix_inverse(ImM),theta),ndim=2) * theta) \
+             - Th.sum(Th.dot(matrix_inverse(ImM),theta) * theta) \
+             + 2. * Th.sum( theta * STA ) \
+             + Th.sum( M * (STC + Th.outer(STA,STA)) )) / 2.
+
+
+
+def eig_positive_barrier( U = Th.dmatrix('U' ), V1  = Th.dmatrix('V1'),
+                         V2 = Th.dvector('V2'), 
+                      theta = Th.dvector('theta'), M    = Th.dmatrix('M') ,
+                      STA   = Th.dvector('STA'  ), STC  = Th.dmatrix('STC'), **other):
+     ImM = Th.identity_like(M)-(M+M.T)/2
+     w,v = eig( ImM )
+     eigbar = 1-(Th.sum(Th.log(w))>-6)*(Th.min(w)>0)
+     posbar = 1-Th.prod(Th.concatenate([U.flatten()>0,V1.flatten()>0,V2.flatten()>0]))
+     return eigbar + posbar
 
 def eig_barrier( theta = Th.dvector('theta'), M    = Th.dmatrix('M') ,
                  STA   = Th.dvector('STA'), STC  = Th.dmatrix('STC'), **other):
      ImM = Th.identity_like(M)-(M+M.T)/2
      w,v = eig( ImM )
      return 1-(Th.sum(Th.log(w))>-6)*(Th.min(w)>0)
-
 
 def eigs( theta = Th.dvector('theta'), M    = Th.dmatrix('M') ,
 #def eigs( M   , theta = Th.dvector('theta'),

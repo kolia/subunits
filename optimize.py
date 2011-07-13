@@ -1,13 +1,8 @@
-# -*- coding: utf-8 -*-
-"""
-@author: Slight modification of scipy.optimize.fmin_bfgs by kolia.
-"""
-
 from scipy.optimize import approx_fprime, line_search
 from copy import deepcopy
 
 import numpy
-from numpy import asarray, sqrt, Inf, isinf
+from numpy import asarray, sqrt, Inf, isinf, minimum
 from scipy.optimize.linesearch import line_search_wolfe1, line_search_wolfe2
 
 from kolia_theano import flat
@@ -73,12 +68,13 @@ def backtrack(f,xk,pk,barrier):
         
     """
     # initial phase: find a point on other side of barrier by *2.
-    a  = 10.
+    a  = 1.
     while True:
         if a>5000.:
             return 5000.
         if barrier(xk + a*pk): break
         a = a * 1.1
+
 
     # refinement phase: 8 rounds of dichotomy
     left  = 0
@@ -219,14 +215,13 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-5, norm=Inf,
     while (gnorm > gtol) and (k < maxiter):
         pk = -numpy.dot(Hk,gfk)
 
-#        debug_here()
-
         amax = backtrack(f,xk,pk,barr)          # scipy.optimize.fmin_bfgs 
                                                 # modified here 
                                                 # and line_searches below!
-#        amax = 50.
-        
+#        amax = 50.        
         print 'amax:%f   f(amax):%f    barrier(amax):%d' % (amax,f(xk+amax*pk),barr(xk+amax*pk)), '  ' ,
+        if callback is not None:
+            callback(xk)
 
         if amax < 1e-15:
             # This line search also failed to find a better solution.
@@ -255,6 +250,9 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-5, norm=Inf,
 #                     line_search(f,myfprime,xk,pk,gfk,
 #                                 old_fval,old_old_fval,amax=amax)
 
+#        debug_here()
+        alpha_k = minimum(alpha_k,amax)
+
         if (alpha_k is None) or (barr(xk + alpha_k * pk)):
             # This line search also failed to find a better solution.
             warnflag = 2
@@ -269,8 +267,6 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-5, norm=Inf,
 
         yk = gfkp1 - gfk
         gfk = gfkp1
-        if callback is not None:
-            callback(xk)
         k += 1
         gnorm = vecnorm(gfk,ord=norm)
         if (gnorm <= gtol):
