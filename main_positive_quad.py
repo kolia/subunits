@@ -99,7 +99,7 @@ def plot_matrix(m):
     p.xlabel('Cone space')
 
 
-optU = param['U']
+optU = params['U']
 print
 print 'stimulus sigma  :  ', sigma
 print 'true    ||subunit RF||^2  : ', np.sum(U*U,axis=1)
