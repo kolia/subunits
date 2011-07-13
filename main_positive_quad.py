@@ -73,8 +73,8 @@ optimizer = optimize.optimizer( term.where(**data) )
 #trupar = term.unflat(trupar)
 
 
-init_params = {'lU' : np.log( 0.001+0.1*R.random(size=U.shape)  ) , 
-               'lV1': np.log( 0.001+0.1*R.random(size=V1.shape) )}
+init_params = {'lU' : np.log( 0.0001+0.05*R.random(size=U.shape)  ) , 
+               'lV1': np.log( 0.0001+0.05*R.random(size=V1.shape) )}
 
 params = init_params
 for i in range(2):
@@ -82,16 +82,21 @@ for i in range(2):
 params = term.unflat(params)
 
 
-def plot_U(params):
+def plot_U(params,trupar=None):
     p.figure(3)
-    Nsub = len(params)
-    for i in range(Nsub):
-        di = params[i]
+    U = np.exp(params['lU'])
+    if trupar is not None: trupar=np.exp(trupar['lU'])
+    Nsub = U.shape[0]
+    for i in range(Nsub):        
+        theta = U[i]
+        x  = np.arange(theta.size)
         ax = p.subplot(Nsub,1,i+1)
-        theta = di['U']
-        p.plot(np.arange(theta.size),theta,'b')
+        if trupar is not None:
+            p.plot(x,theta,'b',x,trupar[i],'rs')
+        else:
+            p.plot(x,theta,'b')
         ax.yaxis.set_major_locator( MaxNLocator(nbins=2) )
-        if i == 0:  p.title('Inferred thetas')
+        if i == 0:  p.title('Inferred U')
         p.show()
     p.xlabel('Cone space')
 
