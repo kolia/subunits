@@ -2,8 +2,8 @@ from functools import partial
 
 import QuadPoiss
 reload(QuadPoiss)
-from   QuadPoiss import positive_quadratic_Poisson, UVs , eig_positive_barrier, \
-                        eig_barrier, ldet, eigs, positive
+from   QuadPoiss import quadratic_Poisson, UVs , lUVs ,eig_positive_barrier, \
+                        eig_barrier, ldet, eigs
 
 import kolia_theano
 reload(kolia_theano)
@@ -53,14 +53,14 @@ def callback( term , params ):
     print 'Objective: ' , term.f(params) , '  barrier: ', term.barrier(params) 
     #, '  logdet: ', term.ldet(params),  '  eigs: ', term.eigs(params), '  positive: ',term.positive(params)
 
-true = {'U' : U , 'V1': V1 }
+true = {'lU' : np.log(U) , 'lV1': np.log(V1) }
 data = {'STAs':np.vstack(STA) , 'STCs':np.vstack([stc[np.newaxis,:] for stc in STC]), 
         'V2':V2*np.ones(Nsub) , 'N':NRGC }
 
-targets = { 'f':positive_quadratic_Poisson, 'positive':positive,
-            'barrier':eig_positive_barrier, 'ldet':ldet, 'eigs':eigs }
+targets = { 'f':quadratic_Poisson, #'positive':positive,
+            'barrier':eig_barrier, 'ldet':ldet, 'eigs':eigs }
 
-targets = kolia_theano.reparameterize(targets,UVs(NRGC))
+targets = kolia_theano.reparameterize(targets,lUVs(NRGC))
 
 term = kolia_theano.term( init_params=true, differentiate=['f'], 
                           callback=callback, **targets )
@@ -73,8 +73,8 @@ for i in range(2):
 trupar = term.unflat(trupar)
 
 
-init_params = {'U' :0.001+0.01*R.random(size=U.shape) , 
-               'V1':0.001+0.01*R.random(size=V1.shape)}
+init_params = {'lU' : np.log( 0.001+0.01*R.random(size=U.shape)  ) , 
+               'lV1': np.log( 0.001+0.01*R.random(size=V1.shape) )}
 
 params = init_params
 for i in range(2):

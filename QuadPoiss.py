@@ -17,10 +17,25 @@ def UV( U  = Th.dmatrix('U') , V1   = Th.dvector('V1') , V2 = Th.dvector('V2') ,
     result['M'    ] = Th.dot( V1 * U.T , (V2 * U.T).T )
     return result
 
+def exponentiate(lU  = Th.dmatrix('lU') , lV1  = Th.dmatrix('lV1'), **result ):
+    result['U' ] = Th.exp(lU)
+    result['V1'] = Th.exp(lV1)
+    return result
 
 def UVs(N):
     def UV( U    = Th.dmatrix('U')   , V1  = Th.dmatrix('V1') , V2 = Th.dvector('V2') ,
             STAs = Th.dmatrix('STAs'), STCs = Th.dtensor3('STCs'), **other):
+        return [{'theta': Th.dot( U.T , V1[i] ) ,
+                 'M'  :   Th.dot( V1[i] * U.T , (V2 * U.T).T ),
+                 'STA':   STAs[i,:],
+                 'STC':   STCs[i,:,:]} for i in range(N)]
+    return UV
+
+def lUVs(N):
+    def UV( lU   = Th.dmatrix('lU')  , lV1  = Th.dmatrix('lV1') , V2 = Th.dvector('V2') ,
+            STAs = Th.dmatrix('STAs'), STCs = Th.dtensor3('STCs'), **other):
+        U  = Th.exp(lU )
+        V1 = Th.exp(lV1)
         return [{'theta': Th.dot( U.T , V1[i] ) ,
                  'M'  :   Th.dot( V1[i] * U.T , (V2 * U.T).T ),
                  'STA':   STAs[i,:],
