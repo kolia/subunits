@@ -1,7 +1,3 @@
-import QuadPoiss
-reload(QuadPoiss)
-from   QuadPoiss import quadratic_Poisson, eig_barrier
-
 import kolia_theano
 reload(kolia_theano)
 
@@ -20,6 +16,11 @@ import pylab as p
 from matplotlib.ticker import *
 
 from IPython.Debugger import Tracer; debug_here = Tracer()
+
+import QuadPoiss
+reload(QuadPoiss)
+from   QuadPoiss import quadratic_Poisson, eig_barrier
+
 
 sigma = 1.
 
@@ -63,13 +64,13 @@ init_params = [{'theta':data[i]['STA'] * 0.1 , \
 #                'M':data[i]['STC'] * 0.1} for i in range(iii)]
 
 
-def callback( term , params ):
-    print 'Objective: ' , term.f(params) , '  barrier: ', term.barrier(params)
+def callback( objective , params ):
+    print 'Objective: ' , objective.f(params) , '  barrier: ', objective.barrier(params)
 
-term = kolia_theano.term(init_params=init_params[0],differentiate=['f'],callback=callback,
+objective = kolia_theano.Objective(init_params=init_params[0],differentiate=['f'],callback=callback,
                           f=quadratic_Poisson, barrier=eig_barrier)
 
-optimizers = [ optimize.optimizer( term.where(**dat) ) for dat in data ]
+optimizers = [ optimize.optimizer( objective.where(**dat) ) for dat in data ]
 
 true   = [{ 'theta' : np.dot( U.T , V1[i,:] ) , \
             'M' : 0.1*np.dot( U.T * V1[i,:] , U ) } for i in range(iii)]
@@ -77,7 +78,7 @@ true   = [{ 'theta' : np.dot( U.T , V1[i,:] ) , \
 params = init_params
 for i in range(2):
     params = [opt(init_params=par) for opt,par in zip(optimizers,params)]
-params = [term.unflat(par) for par in params]
+params = [objective.unflat(par) for par in params]
 
 
 def plot_thetas(params):

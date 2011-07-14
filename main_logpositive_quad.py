@@ -28,8 +28,8 @@ Nsub, Ncone =  U.shape
 NRGC, Nsub  =  V1.shape
 
 
-def callback( term , params ):
-    print 'Objective: ' , term.f(params) , '  barrier: ', term.barrier(params)
+def callback( objective , params ):
+    print 'Objective: ' , objective.f(params) , '  barrier: ', objective.barrier(params)
 
 
 true = {'lU' : np.log(U) , 'lV1': np.log(V1) }
@@ -40,13 +40,15 @@ targets = { 'f':quadratic_Poisson, 'barrier':eig_barrier }
 
 targets = kolia_theano.reparameterize(targets,lUVs(NRGC))
 
-term = kolia_theano.term( init_params=true, differentiate=['f'], 
+objective = kolia_theano.Objective( init_params=true, differentiate=['f'], 
                           callback=callback, **targets )
 
-optimizer = optimize.optimizer( term.where(**data) )
+optimizer = optimize.optimizer( objective.where(**data) )
 
-atrupar = term.unflat(trupar)
-
+trupar = true
+for i in range(2):
+    trupar = optimizer(init_params=trupar)
+trupar = objective.unflat(trupar)
 
 init_params = {'lU' : np.log( 0.0001+0.05*R.random(size=U.shape)  ) , 
                'lV1': np.log( 0.0001+0.05*R.random(size=V1.shape) )}
@@ -54,7 +56,7 @@ init_params = {'lU' : np.log( 0.0001+0.05*R.random(size=U.shape)  ) ,
 params = init_params
 for i in range(10):
     params = optimizer(init_params=params)
-params = term.unflat(params)
+params = objective.unflat(params)
 
 
 def plot_lU(params,trupar=None):
