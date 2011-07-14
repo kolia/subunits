@@ -1,4 +1,3 @@
-
 """
 Linear-Quadratic-Linear-Exponential-Poisson model fitter.
 @author: kolia

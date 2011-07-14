@@ -3,7 +3,7 @@ from functools import partial
 from copy      import copy
 from numpy     import size, array, asarray, concatenate, reshape
 import numpy.linalg
-from theano  import function, scan
+from theano  import function
 import theano.tensor  as Th
 from theano.gof import Op, Apply
 from theano.sandbox.linalg import matrix_inverse
@@ -12,7 +12,7 @@ from IPython.Debugger import Tracer; debug_here = Tracer()
 
 
 class LogDet(Op):
-    """matrix determinant"""
+    """SYMBOLIC log-determinant, with gradient."""
     def make_node(self, x):
         x  = Th.as_tensor_variable(x)
         o  = Th.scalar(dtype=x.dtype)
@@ -22,7 +22,7 @@ class LogDet(Op):
             s,ldet = numpy.linalg.slogdet(x)
             z[0] = asarray(s   , dtype=x.dtype)
         except:
-            print 'Failed to compute determinant', x
+            print 'Failed to compute determinant',
             raise
     def grad(self, inputs, g_outputs):
         gz = g_outputs
@@ -35,7 +35,7 @@ logdet = LogDet()
 
 
 class Eig(Op):
-    """matrix eigenvalues and eigenvectors"""
+    """SYMBOLIC matrix eigenvalues and eigenvectors, without gradient."""
     def make_node(self, x):
         x  = Th.as_tensor_variable(x)
         o1 = Th.vector(dtype=x.dtype)
@@ -55,6 +55,7 @@ eig = Eig()
 
 
 def shapely_tensor( name , x , dtype='float64'):
+    '''Return SYMBOLIC tensor with the same dimensions and size as input.'''
     if isinstance(x,type(0)):
         return Th.dscalar(name)
     if isinstance(x,type(array([]))):
@@ -63,6 +64,9 @@ def shapely_tensor( name , x , dtype='float64'):
     raise TypeError('shapely_tensor expects a scalar or numpy ndarray')
 
 def deep_iter(X):
+    '''Generates depth-first iterator over numpy array values 
+    in nested dictionaries and lists: useful for generic flattening of 
+    structured parameters.'''
     if isinstance(X,type(dict())):
         for _,x in sorted(X.items()):
             for y in deep_iter(x): yield y
@@ -72,7 +76,10 @@ def deep_iter(X):
     if isinstance(X,type(array([]))):
         yield X
 
-def flat(X): return concatenate( [x.flatten() for x in deep_iter(X)] )
+def flat(X):
+    '''Flatten and concatenate all the numpy arrays contained in 
+    possibly nested dictonaries and lists.'''
+    return concatenate( [x.flatten() for x in deep_iter(X)] )
 
 def __unflat(template,X,n=0):
     if isinstance(template,type(array([]))):
@@ -90,7 +97,12 @@ def __unflat(template,X,n=0):
         result[key] = rec
     return result,n
 
-def unflat(template,X): return __unflat(template,X)[0]
+def unflat(template,X):
+    '''Populate all the numpy arrays contained in 
+    possibly nested dictonaries and lists of template, taking the 
+    values from flat vector X of appropriate length: this is the 
+    inverse operation of flat(X).'''    
+    return __unflat(template,X)[0]
 
 def __reparameterize(func,reparam):
     output = reparam()
@@ -114,6 +126,8 @@ def __reparameterize(func,reparam):
     return result
 
 def reparameterize(funcs,reparam):
+    '''Reparameterize a symbolic expression as a function of some new 
+    variables.'''
     if isinstance(funcs,type([])):
         return [__reparameterize(f,reparam) for f in funcs]
     elif isinstance(funcs,type({})):
@@ -122,6 +136,8 @@ def reparameterize(funcs,reparam):
         return __reparameterize(funcs,reparam)
     
 def getargs(func):
+    '''Get the named arguments of a function or partial, with 
+    their default values.'''
     try:
         names,_,_,defaults = getargspec(func)
     except:
@@ -131,12 +147,26 @@ def getargs(func):
 
 class Base: pass
 
-class term:
-    '''
-    Fields necessary for operating on objectives symbolically,
-    and sufficient to build a numerical objective:
-    self.theano, self.flatParam, self.Params, self.Args, self.init_params
-    '''
+class Objective:
+    '''Compile a list of theano expression generators given as named 
+    arguments into an object with corresponding numerical functions, as a 
+    function of the parameters in dictionary init_params.  All of these 
+    functions can be transparently called either with parameters structured 
+    as nested dictionaries and lists of numpy arrays, of by a flat vector of
+    appropriate length concatenating all the parameters.
+    
+    Init_params only serves as a template for determining which variables
+    are required, and their types and sizes are.
+    All other dependencies of the theano targets should be provided as 
+    arguments using objective.where(), which spawns off an objective with 
+    the values of the arguments fixed to the specified values.
+
+    For all parameter names appearing in init_params that are in the list 
+    differentiate, a numerical function returning the gradient with respect 
+    to parameters of that quantity will be provided, under the name 
+    'd' + name; for example, the gradient of f will become objective.df
+
+    Optionally, a callback function of the parameters'''
     def __init__(self, init_params=None, differentiate=[], callback=None, **theano):
         keydict = getargs( theano.itervalues().next() )
 #        self.defs          = [theano_defs]
@@ -207,104 +237,3 @@ class term:
             try:              out[name] = d[name]
             except KeyError:  ()
         return out
-
-
-
-class sum_objective():
-    def __init__(self, l, **other_fields):
-        self.__common_init(l)
-
-        for name,value in other_fields.items():  setattr(self,name,value)
-
-        Params_Out = []
-        n = 0
-        for init_param,argz in zip(self.initParam,self.Args):
-            Params_Out = Params_Out + [copy(argz)]
-            for name,template in sorted(init_param.items()):
-                Params_Out[-1][name] = Th.reshape( self.flatParam[n:n+size(template)], template.shape)
-                n = n + size(template)
-
-        names  = set(sum([objective.theano.keys() for objective in l],[]))
-        outputs = dict((name,0) for name in names)
-        for name in names:
-            if (name[0] == 'd') and (name[1:] in l[0].theano):
-                outputs[name] = Th.concatenate([o.theano[name](**P) for o,P in zip(self.terms,Params_Out)])
-            else:            
-                for objective,Params in zip(l,Params_Out):
-                    try:    outputs[name] = outputs[name] + objective.theano[name](**Params)
-                    except: print 'Error adding ', name, ' to ', objective
-        for name,target in outputs.items():
-            setattr(self, name, self.__wrap_theano(name,outputs[name]))
-
-    def __wrap_theano(self,name,output):
-        f = function([self.flatParam] + sum(self.__unpack(self.Args),[]), output)
-        self.theano_functions[name] = f
-        def wrapped_function(params,arg_dicts):
-            argz = [[d[n] for n in sorted(args.keys())] for args,d in zip(self.Args,arg_dicts)]
-            return f(self.flatten(params),*sum(argz,[]))
-        return wrapped_function
-
-    def __common_init(self, l):
-        self.terms     = l
-        self.Params    = [objective.Params      for objective in l]
-        self.Args      = [objective.Args        for objective in l]
-        self.initParam = [objective.init_params for objective in l]
-        self.flatParam = Th.concatenate([objective.flatParam for objective in l])
-        self.joinParam  = function( [ll.flatParam for ll in l] , self.flatParam )
-
-        self.theano_functions = {}
-
-        flatParams_Out = []
-        n = 0
-        for init_param in self.initParam:
-            dn = sum([size(value) for _,value in sorted(init_param.items())])
-            flatParams_Out = flatParams_Out + [self.flatParam[n:n+dn]]
-            n = n + dn
-        self.splitParam = function([self.flatParam], flatParams_Out )
-    
-    def __init2__(self, l):
-        self.__common_init(l)
-        for name in l[0].theano.keys():
-            if (name[0] == 'd') and (name[1:] in l[0].theano):
-                setattr(self,name, self.__wrap(name, lambda l : self.joinParam(*l) ))
-            else:            
-                setattr(self,name, self.__wrap(name, sum))
-
-    def __wrap(self,name,reduction):
-        def wrapped_function(params,arg_dicts):
-#                argz = [[d[n] for n in sorted(args.keys())] for args,d in zip(self.Args,arg_dicts)]
-            flats = self.splitParam( self.flatten(params) )                
-            return reduction([ getattr(ll,name)(x,arg_dict) \
-                   for ll,x,arg_dict in zip(self.terms,flats,arg_dicts)])
-        return wrapped_function
-
-    def __unpack(self,dict_list):
-        return [[value for _,value in sorted(d.items())] for d in dict_list]
-
-    def repack(self, dl, ll):
-        return [term.repack(d,l) for term,d,l in zip(self.terms,dl,ll)]
-
-    def inflate(self,x):
-        if isinstance(x,type([])) and isinstance(x[0],type({})):
-            return x
-        if isinstance(x,type(array([]))):
-            x = self.splitParam(x)
-        if isinstance(x,type([])) and isinstance(x[0],type(array([]))):
-            x = [term.splitParam(param) for term,param in zip(self.terms,x)]
-        if isinstance(x,type([])):
-            return self.repack(self.Params,x)
-        raise TypeError('expects a numpy ndarray or a list of numpy ndarrays')
-
-    def flat_list(self,params):
-        if isinstance(params,type([])) and isinstance(params[0],type(dict())):
-            params = self.__unpack(params)
-        if isinstance(params,type([])) and isinstance(params[0],type([])):
-            return [term.flatten(pl) for term,pl in zip(self.terms,params)]
-        if isinstance(params,type(array([]))):
-            return self.splitParam(params)
-        raise TypeError('expects a list of dicts, list of lists or numpy ndarray')
-
-    def flatten(self,params):
-        if isinstance(params,type(array([]))):
-            return params.flatten()
-        return self.joinParam(*self.flat_list(params))

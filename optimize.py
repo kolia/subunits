@@ -1,6 +1,7 @@
-from scipy.optimize import approx_fprime, line_search
-from copy import deepcopy
-
+"""
+Minor changes to the BFGS optimizer in scipy.optimize
+"""
+from scipy.optimize import approx_fprime
 import numpy
 from numpy import asarray, sqrt, Inf, isinf, minimum
 from scipy.optimize.linesearch import line_search_wolfe1, line_search_wolfe2
@@ -11,7 +12,7 @@ from IPython.Debugger import Tracer; debug_here = Tracer()
 
 _epsilon = sqrt(numpy.finfo(float).eps)
 
-def get_attribute(o,attribute):
+def __get_attribute(o,attribute):
     if isinstance(attribute,type('')):
         try:
             return getattr(o,attribute)
@@ -21,11 +22,17 @@ def get_attribute(o,attribute):
 
 def optimizer( objective , f='f' , df='df', barrier='barrier', 
                callback='callback', init_params='init_params' , **options):
-    barrier  = get_attribute( objective, barrier  )
-    callback = get_attribute( objective, callback )
-    init_params = get_attribute( objective, init_params)
-    df       = get_attribute( objective, df       )
-    f        = getattr(objective, f)
+    '''Return a function which optimizes over an objective function.
+    By default, the objective is objective.f and its gradient objective.df.
+    Optional barrier  function defaulting to objective.barrier.
+    Optional callback function defaulting to objective.callback.
+    Optional default init_params defaulting to objective.init_params.
+    '''
+    barrier     = __get_attribute( objective, barrier  )
+    callback    = __get_attribute( objective, callback )
+    init_params = __get_attribute( objective, init_params)
+    df          = __get_attribute( objective, df       )
+    f           = getattr(objective, f)
     if 'full_output' not in options:
         full_output = False
     else:
@@ -51,14 +58,12 @@ def optimizer( objective , f='f' , df='df', barrier='barrier',
 #                             gtol=1.1e-6,maxiter=10000,args=data,callback=cb)
 
 
-def backtrack(f,xk,pk,barrier):
+def backtrack(xk,pk,barrier):
     if barrier is None: return 500
-    """Find alpha that satisfies strong Wolfe conditions.
+    """Find large(st) alpha such that barrier(xk+alpha*pk) is 0.
 
     Parameters
     ----------
-    f : callable f(x)
-        Objective function.
     xk : ndarray
         Starting point.
     pk : ndarray
@@ -67,14 +72,13 @@ def backtrack(f,xk,pk,barrier):
         barrier(x) returns true iff a barrier has been jumped.
         
     """
-    # initial phase: find a point on other side of barrier by *2.
+    # initial phase: find a point on other side of barrier by *1.1
     a  = 1.
     while True:
         if a>5000.:
             return 5000.
         if barrier(xk + a*pk): break
         a = a * 1.1
-
 
     # refinement phase: 8 rounds of dichotomy
     left  = 0
@@ -87,20 +91,6 @@ def backtrack(f,xk,pk,barrier):
         if left>0 or right<1e-16: break    
 #    print 'amax : ', left
     return left
-
-def simple_line_search(f,xk,pk,barrier):
-    # initial phase: find a point on other side of barrier by *1.3
-    a     = 0.001
-    fval  = f(xk)
-    if f(xk+a*pk)>fval: a = -a
-    while True:
-        bestf = fval
-        if abs(a)>500.: return a
-        xkp1 = xk+a*pk
-        fval = f(xk)
-        if barrier(xkp1) or (fval>bestf): break
-        a = a * 1.3
-    return a / 1.3
 
 
 def vecnorm(x, ord=2):
@@ -215,7 +205,7 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-5, norm=Inf,
     while (gnorm > gtol) and (k < maxiter):
         pk = -numpy.dot(Hk,gfk)
 
-        amax = backtrack(f,xk,pk,barr)          # scipy.optimize.fmin_bfgs 
+        amax = backtrack(xk,pk,barr)          # scipy.optimize.fmin_bfgs 
                                                 # modified here 
                                                 # and line_searches below!
 #        amax = 50.        
@@ -241,14 +231,6 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-5, norm=Inf,
             alpha_k, fc, gc, old_fval, old_old_fval, gfkp1 = \
                      line_search_wolfe1(f,myfprime,xk,pk,gfk,
                                         old_fval,old_old_fval,amax=amax)
-
-#        alpha_k, fc, gc, old_fval, old_old_fval, gfkp1 = \
-#           scipy.optimize.linesearch.line_search(f,myfprime,xk,pk,gfk,
-#                                  old_fval,old_old_fval,amax=amax)
-#        if alpha_k is None:  # line search failed try different one.
-#            alpha_k, fc, gc, old_fval, old_old_fval, gfkp1 = \
-#                     line_search(f,myfprime,xk,pk,gfk,
-#                                 old_fval,old_old_fval,amax=amax)
 
 #        debug_here()
         alpha_k = minimum(alpha_k,amax)
