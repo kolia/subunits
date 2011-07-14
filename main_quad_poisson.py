@@ -1,6 +1,6 @@
 import QuadPoiss
 reload(QuadPoiss)
-from   QuadPoiss import quadratic_Poisson, eig_barrier, ldet, eigs
+from   QuadPoiss import quadratic_Poisson, eig_barrier
 
 import kolia_theano
 reload(kolia_theano)
@@ -11,13 +11,11 @@ reload(simulate_data)
 import optimize
 reload(optimize)
 
-#from numpy  import arange, sum, dot, min, identity, eye, reshape, concatenate
 import numpy as np
-from numpy.linalg import norm, slogdet, eig, svd
+from numpy.linalg import svd
 from scipy.linalg import orth
 import numpy.random as R
 import pylab as p
-from copy import deepcopy
 
 from matplotlib.ticker import *
 
@@ -69,7 +67,7 @@ def callback( term , params ):
     print 'Objective: ' , term.f(params) , '  barrier: ', term.barrier(params)
 
 term = kolia_theano.term(init_params=init_params[0],differentiate=['f'],callback=callback,
-                          f=quadratic_Poisson, barrier=eig_barrier, ldet=ldet, eigs=eigs)
+                          f=quadratic_Poisson, barrier=eig_barrier)
 
 optimizers = [ optimize.optimizer( term.where(**dat) ) for dat in data ]
 
@@ -144,24 +142,3 @@ for i in range(Nsub):
     if i==0: p.title('Subunit RFs and projection onto svd(STA,STC)')
     p.show()
 p.xlabel('Cone space')
-
-def testargs(x,y,z=1,*a,**d):
-    resulta = sum([aa for aa in a])
-    resultd = sum([aa for aa in d.values()])
-    return resulta + resultd+x + y + z
-
-def show(string,p):
-    print 'log-likelihood of %s = %f   barrier = %f    ldet = %f     minw = %f' \
-        % ( string , objective.f(p,data), objective.barrier(p,data) , 
-           objective.ldet(p,data) , np.min(objective.eigs(p,data)) )
-#    print 'bar ' , objective.bar(p,data)
-
-#show('init params' ,init_params)
-#show('true params' ,true       )
-#show('opt params'  ,params     )
-##show('opt of true' ,trupar     )
-##print 'improvement of opt of true = ', 
-##    objective.f(params,data) - objective.f(trupar,data)
-
-#p.figure(2)
-#objective.plot(params,U)

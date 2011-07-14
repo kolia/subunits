@@ -1,6 +1,6 @@
 import QuadPoiss
 reload(QuadPoiss)
-from   QuadPoiss import quadratic_Poisson, UVs , eig_barrier
+from   QuadPoiss import quadratic_Poisson, lUVs , eig_barrier
 
 import kolia_theano
 reload(kolia_theano)
@@ -32,27 +32,24 @@ def callback( term , params ):
     print 'Objective: ' , term.f(params) , '  barrier: ', term.barrier(params)
 
 
-true = {'U' : U , 'V1': V1 }
+true = {'lU' : np.log(U) , 'lV1': np.log(V1) }
 data = {'STAs':np.vstack(STA) , 'STCs':np.vstack([stc[np.newaxis,:] for stc in STC]), 
         'V2':V2*np.ones(Nsub) , 'N':NRGC }
 
 targets = { 'f':quadratic_Poisson, 'barrier':eig_barrier }
 
-targets = kolia_theano.reparameterize(targets,UVs(NRGC))
+targets = kolia_theano.reparameterize(targets,lUVs(NRGC))
 
 term = kolia_theano.term( init_params=true, differentiate=['f'], 
                           callback=callback, **targets )
 
 optimizer = optimize.optimizer( term.where(**data) )
 
-trupar = true
-for i in range(2):
-    trupar = optimizer(init_params=trupar)
-trupar = term.unflat(trupar)
+atrupar = term.unflat(trupar)
 
 
-init_params = {'U' : 0.0001+0.05*R.random(size=U.shape ) ,
-               'V1': 0.0001+0.05*R.random(size=V1.shape) }
+init_params = {'lU' : np.log( 0.0001+0.05*R.random(size=U.shape)  ) , 
+               'lV1': np.log( 0.0001+0.05*R.random(size=V1.shape) )}
 
 params = init_params
 for i in range(10):
@@ -60,10 +57,10 @@ for i in range(10):
 params = term.unflat(params)
 
 
-def plot_U(params,trupar=None):
+def plot_lU(params,trupar=None):
     p.figure(3)
-    U = params['U']
-    if trupar is not None: trupar=trupar['U']
+    U = np.exp(params['lU'])
+    if trupar is not None: trupar=np.exp(trupar['lU'])
     Nsub = U.shape[0]
     for i in range(Nsub):        
         theta = U[i]
@@ -79,7 +76,7 @@ def plot_U(params,trupar=None):
     p.xlabel('Cone space')
 
 
-optU = params['U']
+optU = np.exp( params['lU'] )
 print
 print 'stimulus sigma  :  ', sigma
 print 'true    ||subunit RF||^2  : ', np.sum(U*U,axis=1)

@@ -2,11 +2,6 @@
 Linear-Quadratic-Linear-Exponential-Poisson model for Nuclear Norm optimizer
 @author: kolia
 """
-
-from numpy  import add, concatenate, eye, isnan, iscomplex, \
-                   Inf, arange, max, min, minimum, log, size
-#from numpy.linalg import inv, slogdet, det
-
 import theano.tensor  as Th
 from theano.sandbox.linalg import matrix_inverse, det
 from kolia_theano import logdet, eig
@@ -34,8 +29,8 @@ def UVs(N):
 def lUVs(N):
     def UV( lU   = Th.dmatrix('lU')  , lV1  = Th.dmatrix('lV1') , V2 = Th.dvector('V2') ,
             STAs = Th.dmatrix('STAs'), STCs = Th.dtensor3('STCs'), **other):
-        U  = Th.exp(lU )
-        V1 = Th.exp(lV1)
+        U  = Th.exp(lU + 1e-10)
+        V1 = Th.exp(lV1+ 1e-10)
         return [{'theta': Th.dot( U.T , V1[i] ) ,
                  'M'  :   Th.dot( V1[i] * U.T , (V2 * U.T).T ),
                  'STA':   STAs[i,:],
@@ -50,11 +45,9 @@ def quadratic_Poisson( theta = Th.dvector('theta'), M    = Th.dmatrix('M') ,
                        STA   = Th.dvector('STA')  , STC  = Th.dmatrix('STC'), **other):
 
     ImM = Th.identity_like(M)-(M+M.T)/2
-#    ldet = logdet( ImM)
     ldet = Th.log( det( ImM) )
     return -( ldet  \
              - 1./(ldet+6)**2 \
-#             - Th.sum(Th.as_tensor_variable(Th.dot(matrix_inverse(ImM),theta),ndim=2) * theta) \
              - Th.sum(Th.dot(matrix_inverse(ImM),theta) * theta) \
              + 2. * Th.sum( theta * STA ) \
              + Th.sum( M * (STC + Th.outer(STA,STA)) )) / 2.
