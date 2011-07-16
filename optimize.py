@@ -220,9 +220,11 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-5, norm=Inf,
 
 #        alpha_k = simple_line_search(f,xk,pk,barr)
 
-        alpha_k, fc, gc, old_fval2, old_old_fval2, gfkp1 = \
-           line_search_wolfe2(f,myfprime,xk,pk,gfk,
-                              old_fval,old_old_fval,amax=amax)
+        try:
+            alpha_k, fc, gc, old_fval2, old_old_fval2, gfkp1 = \
+               line_search_wolfe2(f,myfprime,xk,pk,gfk,
+                                  old_fval,old_old_fval,amax=amax)
+        except: print 'Warning: error in line_search_wolfe2..'
         if alpha_k is not None:
             old_fval = old_fval2
             old_old_fval = old_old_fval2

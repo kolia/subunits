@@ -1,4 +1,4 @@
-from numpy        import sqrt, sum , dot , maximum
+from numpy        import sqrt, sum , dot , maximum, minimum, sign, abs
 from numpy.linalg import svd
 from optimize import optimizer
 from copy import copy
@@ -65,6 +65,27 @@ def nuclear_L2( rho , get_matrix=None ):
     O.optimize_L2 = optimize_L2
     return O
 
+
+def L1_L2( rho , get_matrix=None ):
+    '''
+    Provides object with methods:
+        f(X)  = rho * ||X||_1 
+        df(X) = a subgradient of f
+        optimize_quadratic( X, Z, mu ), which
+            minimizes f(X) + 0.5*||X-Z||**2 / mu   in X for fixed Z.
+    '''
+    def f( X ):  return rho * sum(abs(X))
+    def df( X ): return rho * sign(X)
+    def optimize_L2( _, Z, mu ):
+        X = Z
+        X[X>0] = maximum( 0, X[X>0]-mu*rho )
+        X[X<0] = minimum( 0, X[X<0]+mu*rho )
+        return X
+    O = Objective()
+    O.f           = f
+    O.df          = df
+    O.optimize_L2 = optimize_L2
+    return O
 
 def initialize(X):
     '''Initialize FALM with initial condition X.'''

@@ -207,6 +207,8 @@ class Objective:
         if self.callback:
             def callback(params): return self.callback(t,params)
             t.callback = callback
+        t.flat   = self.flat
+        t.unflat = self.unflat
         return t
 
     def gen_Params_Out(self,flatParam,Args):
