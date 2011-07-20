@@ -119,7 +119,7 @@ def step( F , G , mu , problem ):
     return [X,Yp,Y,Z,t,tm,skip]
     
 
-def falms( init_params , F, G, mu=1e-4, maxiter=200, ftol=2e-7, callback=None,verbose=True):
+def falms( init_params , F, G, mu=1, maxiter=200, ftol=2e-7, callback=None,verbose=True):
     '''FALMS optimization: main loop.  Not as simple as you'd hope, but works.
     Mu is ratcheted downwards whenever objective increases; if objective 
     increases by more than 0.2 in an iteration, that iteration is disgarded.
