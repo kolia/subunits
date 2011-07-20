@@ -26,8 +26,8 @@ def add_L2_term( objective, f='f', df='df' ):
     minimizes f(X) + 0.5*||X-Z||**2 / mu in X for fixed Z.
     '''
     def optimize_L2( X, Y, mu, **optimize_params):
-        def L2_f (x,*_): return getattr(objective, f)(x) + sum((x-Y)*(x-Y))/mu*0.5
-        def L2_df(x,*_): return getattr(objective,df)(x) +           (x-Y) /mu
+        def L2_f (x,*_): return getattr(objective, f)(x) + 0.5*sum((x-Y)*(x-Y))/mu
+        def L2_df(x,*_): return getattr(objective,df)(x) +               (x-Y) /mu
         objective.L2_f  = L2_f
         objective.L2_df = L2_df
         opter = optimizer( objective , init_params=X , f='L2_f' , df='L2_df' , **optimize_params)
@@ -89,7 +89,7 @@ def L1_L2( rho , get_matrix=None ):
 
 def initialize(X):
     '''Initialize FALM with initial condition X.'''
-    return [X, X , X*0 , X , 1 , 1 , 0 ]
+    return [X, X , X , X , 1 , 1 , 0 ]
 
 def step( F , G , mu , problem ):
     
@@ -98,17 +98,17 @@ def step( F , G , mu , problem ):
 
     # minimize f(X) + <G.df(Z),X-Z> + ||X-Z||**2/(2*mu) in X for fixed Z
     Gdf = G.df(Z)
-    X , objX , _ = F.optimize_L2( X, Z-Gdf , mu , full_output=True)
+    X , objX , _ = F.optimize_L2( X, Z+mu*Gdf , mu , full_output=True)
     
     # to skip or not to skip
-    skip = G.f(X) - G.f(Z) < objX - mu * sum(Gdf*Gdf) - F.f(X)
+    skip = G.f(X) - G.f(Z) > objX - mu/2 * sum(Gdf*Gdf) - F.f(X)
     if not skip:
         t  = (1 + sqrt(1+4*(1.+skipped)*tm**2))/2
         X  = Y + (tm-1)/t * (Y-Ym)
         Z  = X
 
     # minimize g(Y) +<f_grad(X),Y-X> + ||Y-X||^2/(2*mu)
-    Yp = G.optimize_L2( Y, X-F.df(X) , mu )
+    Yp = G.optimize_L2( Y, X-mu*F.df(X) , mu )
 
     tm = t
     t  = (1 + sqrt(1+2*(1.+skip)*t**2))/2

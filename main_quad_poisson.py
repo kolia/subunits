@@ -90,7 +90,7 @@ def analytical_ML(data):
               'M': np.eye(Ncone) - inv(dat['STC']) } for dat in data]
 
 
-def MaxLike_L1( init_params, data , rho=0.000001, mu=10000, maxiter=100, ftol=1e-6):
+def MaxLike_L1( init_params, data , rho=1., mu=1e-5, maxiter=200, ftol=1e-10):
     '''L1-regularized Max-Likelihood optimization of parameters theta and M'''
     print
     print
@@ -103,15 +103,26 @@ def MaxLike_L1( init_params, data , rho=0.000001, mu=10000, maxiter=100, ftol=1e
     optimize_L2 = FALMS.add_L2_term( obj )
     reg_L1 = FALMS.L1_L2( rho )
     
-    current_X  = obj.flat(init_params)    
+    current_X  = obj.flat(init_params)
+    old_X      = current_X
+    objval_old = 1e10
     falmer = FALMS.initialize( current_X )
     for j in range(maxiter):
-        falmer = FALMS.step( optimize_L2 , reg_L1 , mu , falmer )
-        L2change= np.sum((falmer[0]-current_X)**2)
+        oldfalmer   = falmer
+        falmer = FALMS.step( optimize_L2 , reg_L1 , mu , oldfalmer )
+        objval = obj.f(falmer[0])+reg_L1.f(falmer[0])
+        L2change= np.sum((falmer[0]-old_X)**2) + np.sum((falmer[0]-current_X)**2)
+        print 'FALMS STEP ' , j, 'with rho=',rho,' mu=',mu,'  OBJECTIVE: ', \
+        objval,' (old val: ',objval_old,')'
+        print 'L2 delta-params: ' , L2change, 'L0: ', falmer[0][falmer[0]<>0].shape
         print
-        print 'FALMS STEP : L2 change in params ' , L2change
-        if j>5 and L2change < ftol: break
+        if mu<1e-10 or (j>30 and L2change < ftol): break
+        old_X = current_X
         current_X = falmer[0]
+        objval_old  = objval
+        if objval>objval_old:
+#            falmer = oldfalmer
+            mu = mu/2
     result = obj.unflat( falmer[0] )
     print result
     print
@@ -178,35 +189,43 @@ data  = [{ 'STA':STA[i] , \
 init_params = [{'theta':data[i]['STA'] * 0.1 , \
                 'M':data[i]['STC'] * 0.1} for i in range(NRGC)]
 
-paramL1 = MaxLike_L1(init_params[0],data[0],rho=0.000001,mu=10000)
+params = init_params[0]
+paramL1 = {}
+#for rho in 1e-7*np.array([0.05,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.,1.2,1.5,2.,3.,5.]):
+for rho in 10*np.array([0.1,0.2,0.5,1.,2.,5.,10.]):
+#for rho in np.array([0.8,0.9,1.,1.2,1.4,1.6,1.8,2.]):
+    params = MaxLike_L1(init_params[0],data[0],rho=rho,mu=1e-4,maxiter=200)
+    paramL1[rho] = params
+    print [ (rh,par['M'][par['M']<>0].shape) for rh,par in sorted(paramL1.items())]
 
-params = MaxLike(init_params,data)
 
-analytical = analytical_ML(data)
-
-
-
-Nproj = Nsub
-T     = VI[0:Nproj,:]
-projected_data  = [{ 'STA':np.dot(T,STA[i]) , \
-                     'STC':np.dot(np.dot(T,STC[i]),np.transpose(T)) } for i in range(NRGC)]
-projected_init_params = [{'theta':projected_data[i]['STA'] * 0.1 , \
-                          'M':    projected_data[i]['STC'] * 0.1} for i in range(NRGC)]
-
-projected_params = MaxLike(projected_init_params,projected_data)
-
-reinjected_params = [{'theta': np.dot(q['theta'],T)  ,  \
-                      'M':np.dot(np.dot(np.transpose(T),q['M']),T)} for q in projected_params]
-
-reinjected_A = np.concatenate([np.concatenate([np.array([q['theta']]),q['M']]) \
-                                for q in reinjected_params])
-
-reinjected_UA,reinjected_SA,reinjected_VA = svd(reinjected_A)
-
-plot_vectors([[q['theta'] for q in true      ], [q['theta'] for q in params           ], \
-              [q['theta'] for q in analytical], [q['theta'] for q in reinjected_params]])
-
-plot_matrices([true[0]['M'], params[0]['M'], analytical[0]['M'], reinjected_params[0]['M']])
-
-plot_projection_of_U( onto = np.transpose(reinjected_VA[0:Nsub,:]), name='svd(theta,M)', figure=5)
-plot_projection_of_U( onto = np.transpose(           VI[0:Nsub,:]), name='svd(STA,STC)', figure=6)
+#params = MaxLike(init_params,data)
+#
+#analytical = analytical_ML(data)
+#
+#
+#
+#Nproj = Nsub
+#T     = VI[0:Nproj,:]
+#projected_data  = [{ 'STA':np.dot(T,STA[i]) , \
+#                     'STC':np.dot(np.dot(T,STC[i]),np.transpose(T)) } for i in range(NRGC)]
+#projected_init_params = [{'theta':projected_data[i]['STA'] * 0.1 , \
+#                          'M':    projected_data[i]['STC'] * 0.1} for i in range(NRGC)]
+#
+#projected_params = MaxLike(projected_init_params,projected_data)
+#
+#reinjected_params = [{'theta': np.dot(q['theta'],T)  ,  \
+#                      'M':np.dot(np.dot(np.transpose(T),q['M']),T)} for q in projected_params]
+#
+#reinjected_A = np.concatenate([np.concatenate([np.array([q['theta']]),q['M']]) \
+#                                for q in reinjected_params])
+#
+#reinjected_UA,reinjected_SA,reinjected_VA = svd(reinjected_A)
+#
+#plot_vectors([[q['theta'] for q in true      ], [q['theta'] for q in params           ], \
+#              [q['theta'] for q in analytical], [q['theta'] for q in reinjected_params]])
+#
+#plot_matrices([true[0]['M'], params[0]['M'], analytical[0]['M'], reinjected_params[0]['M']])
+#
+#plot_projection_of_U( onto = np.transpose(reinjected_VA[0:Nsub,:]), name='svd(theta,M)', figure=5)
+#plot_projection_of_U( onto = np.transpose(           VI[0:Nsub,:]), name='svd(STA,STC)', figure=6)

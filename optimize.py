@@ -38,7 +38,7 @@ def optimizer( objective , f='f' , df='df', barrier='barrier',
     else:
         full_output = options['full_output']
     def optimize(init_params=init_params, f=f, 
-                 df=df, barrier=barrier, callback=callback, gtol=1.1e-6, 
+                 df=df, barrier=barrier, callback=callback, gtol=1.1e-7, 
                  maxiter=500 , full_output=full_output ):
         init_params = flat(init_params)
         x, fx, dfx, _, _, _, _ = fmin_barrier_bfgs(f,init_params,fprime=df,
@@ -72,13 +72,13 @@ def backtrack(xk,pk,barrier):
         barrier(x) returns true iff a barrier has been jumped.
         
     """
-    # initial phase: find a point on other side of barrier by *1.1
+    # initial phase: find a point on other side of barrier by *1.5
     a  = 1.
     while True:
         if a>5000.:
             return 5000.
         if barrier(xk + a*pk): break
-        a = a * 1.1
+        a = a * 1.5
 
     # refinement phase: 8 rounds of dichotomy
     left  = 0
@@ -92,6 +92,15 @@ def backtrack(xk,pk,barrier):
 #    print 'amax : ', left
     return left
 
+
+def simple_search(f,xk,pk,amax):
+    oldval = f(xk)
+    alpha  = min(amax,1)
+    for i in range(20):
+        current = f(xk+alpha*pk)        
+        if current<oldval: return alpha
+        alpha = alpha/3.
+    return None
 
 def vecnorm(x, ord=2):
     if ord == Inf:
@@ -220,6 +229,7 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-5, norm=Inf,
 
 #        alpha_k = simple_line_search(f,xk,pk,barr)
 
+        alpha_k = None
         try:
             alpha_k, fc, gc, old_fval2, old_old_fval2, gfkp1 = \
                line_search_wolfe2(f,myfprime,xk,pk,gfk,
@@ -234,11 +244,29 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-5, norm=Inf,
                      line_search_wolfe1(f,myfprime,xk,pk,gfk,
                                         old_fval,old_old_fval,amax=amax)
 
+        if alpha_k is None:
+#            amax = backtrack(xk,-pk,barr)          # scipy.optimize.fmin_bfgs 
+#            alpha_k, fc, gc, old_fval, old_old_fval, gfkp1 = \
+#                     line_search_wolfe1(f,myfprime,xk,-pk,gfk,
+#                                        old_fval,old_old_fval,amax=amax)
+            alpha_k = simple_search(f,xk,pk,amax)
+            if alpha_k is not None: gfkp1   = myfprime(xk + alpha_k*pk)
+
+        if alpha_k is None:
+#            amax = backtrack(xk,-pk,barr)          # scipy.optimize.fmin_bfgs 
+#            alpha_k, fc, gc, old_fval, old_old_fval, gfkp1 = \
+#                     line_search_wolfe1(f,myfprime,xk,-pk,gfk,
+#                                        old_fval,old_old_fval,amax=amax)
+            pk = -pk
+            alpha_k = simple_search(f,xk,pk,amax)
+            if alpha_k is not None: gfkp1   = myfprime(xk + alpha_k*pk)
+
 #        debug_here()
         alpha_k = minimum(alpha_k,amax)
 
         if (alpha_k is None) or (barr(xk + alpha_k * pk)):
             # This line search also failed to find a better solution.
+            print 'alpha_k: ', alpha_k
             warnflag = 2
             break
         xkp1 = xk + alpha_k * pk
