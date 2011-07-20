@@ -8,7 +8,7 @@ import theano.tensor  as Th
 from theano.gof import Op, Apply
 from theano.sandbox.linalg import matrix_inverse
 
-from IPython.Debugger import Tracer; debug_here = Tracer()
+#from IPython.Debugger import Tracer; debug_here = Tracer()
 
 
 class LogDet(Op):

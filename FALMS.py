@@ -3,7 +3,7 @@ from numpy.linalg import svd
 from optimize import optimizer
 from copy import copy
 
-from IPython.Debugger import Tracer; debug_here = Tracer()
+#from IPython.Debugger import Tracer; debug_here = Tracer()
 
 def set_argument( objective , argument , fields=['f','callback','df','barrier'] ):
     def add_field(o,field):

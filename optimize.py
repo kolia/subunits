@@ -8,7 +8,7 @@ from scipy.optimize.linesearch import line_search_wolfe1, line_search_wolfe2
 
 from kolia_theano import flat
 
-from IPython.Debugger import Tracer; debug_here = Tracer()
+#from IPython.Debugger import Tracer; debug_here = Tracer()
 
 _epsilon = sqrt(numpy.finfo(float).eps)
 
