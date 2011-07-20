@@ -160,23 +160,19 @@ obj = objective.where(**data[0])
 optimize_L2 = FALMS.add_L2_term( obj )
 
 # callbak after each FALMS iteration:
-def falms_callback(falmer):
-    if falmer[6]:
-        print '  skipped'
-    else:
-        print '   L0: ', falmer[0][falmer[0]<>0].shape
+def falms_callback(falmer):  print '   L0: ', falmer[1][falmer[1]<>0].shape[0]
 
 params = init_params[0]
 paramL1 = {}
 #for rho in 1e-7*np.array([0.05,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.,1.2,1.5,2.,3.,5.]):
-for rho in np.array([0.001,0.01,0.1,1.,10.]):
+for rho in np.array([0.001,0.01,0.03,0.05,0.07,0.1,0.5,1.]):
 #for rho in np.array([0.1,0.5,1.,1.5,2.,2.5,3.]):
     print
     print 'RHO: ', rho
     reg_L1 = FALMS.L1_L2( rho )
     params = FALMS.falms(params,optimize_L2,reg_L1,ftol=2e-7,callback=falms_callback)
     paramL1[rho] = params
-    print [ (rh,par['M'][par['M']<>0].shape) for rh,par in sorted(paramL1.items())]
+    print [ (rh,par['M'][par['M']<>0].shape[0]) for rh,par in sorted(paramL1.items())]
 
 
 #params = MaxLike(init_params,data)
