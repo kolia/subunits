@@ -22,7 +22,7 @@ def __get_attribute(o,attribute):
 
 def optimizer( objective , f='f' , df='df', barrier='barrier', maxiter=500,
                callback='callback', init_params='init_params' , gtol=1.1e-7,
-               **options):
+               disp=1, **options):
     '''Return a function which optimizes over an objective function.
     By default, the objective is objective.f and its gradient objective.df.
     Optional barrier  function defaulting to objective.barrier.
@@ -40,13 +40,13 @@ def optimizer( objective , f='f' , df='df', barrier='barrier', maxiter=500,
         full_output = options['full_output']
     def optimize(init_params=init_params, f=f, 
                  df=df, barrier=barrier, callback=callback, gtol=gtol, 
-                 maxiter=maxiter , full_output=full_output ):
+                 maxiter=maxiter , full_output=full_output , **options):
         init_params = flat(init_params)
         x, fx, dfx, _, _, _, _ = fmin_barrier_bfgs(f,init_params,fprime=df,
                                                    gtol=gtol,maxiter=maxiter,
                                                    callback=callback,
-                                                   barrier=barrier,
-                                                   full_output=True)
+                                                   barrier=barrier, disp=disp,
+                                                   full_output=True, **options)
         if full_output:
             return (x,fx,dfx)
         else:
@@ -219,7 +219,8 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-5, norm=Inf,
                                                 # modified here 
                                                 # and line_searches below!
 #        amax = 50.        
-        print 'amax:%f   f(amax):%f    barrier(amax):%d' % (amax,f(xk+amax*pk),barr(xk+amax*pk)), '  ' ,
+        if disp:
+            print 'amax:%f   f(amax):%f    barrier(amax):%d' % (amax,f(xk+amax*pk),barr(xk+amax*pk)), '  ' ,
         if callback is not None:
             callback(xk)
 
@@ -235,7 +236,8 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-5, norm=Inf,
             alpha_k, fc, gc, old_fval2, old_old_fval2, gfkp1 = \
                line_search_wolfe2(f,myfprime,xk,pk,gfk,
                                   old_fval,old_old_fval,amax=amax)
-        except: print 'Warning: error in line_search_wolfe2..'
+        except: 
+            if disp : print 'Warning: error in line_search_wolfe2..'
         if alpha_k is not None:
             old_fval = old_fval2
             old_old_fval = old_old_fval2
@@ -267,7 +269,7 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-5, norm=Inf,
 
         if (alpha_k is None) or (barr(xk + alpha_k * pk)):
             # This line search also failed to find a better solution.
-            print 'alpha_k: ', alpha_k
+#            print 'alpha_k: ', alpha_k
             warnflag = 2
             break
         xkp1 = xk + alpha_k * pk

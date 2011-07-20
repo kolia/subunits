@@ -90,54 +90,6 @@ def analytical_ML(data):
               'M': np.eye(Ncone) - inv(dat['STC']) } for dat in data]
 
 
-def MaxLike_L1( init_params, data , rho=1., mu=1e-5, maxiter=200, ftol=1e-7):
-    '''L1-regularized Max-Likelihood optimization of parameters theta and M'''
-    print
-    print
-    print 'Starting L1-regularized Max-Likelihood opt in theta and M, compiling...'
-    # Compile symbolic objectives into numerical objective.
-    objective = kolia_theano.Objective(init_params=init_params,differentiate=['f'],
-                                       callback=callback,
-                                       f=quadratic_Poisson, barrier=eig_barrier) 
-    obj = objective.where(**data)
-    optimize_L2 = FALMS.add_L2_term( obj )
-    reg_L1 = FALMS.L1_L2( rho )
-    
-    current_X  = obj.flat(init_params)
-    old_X      = current_X
-    unskipped  = current_X
-    objval_old = 1e10
-    falmer = FALMS.initialize( current_X )
-    for j in range(maxiter):
-        oldfalmer   = falmer
-        falmer = FALMS.step( optimize_L2 , reg_L1 , mu , oldfalmer )
-        objval = obj.f(falmer[0])+reg_L1.f(falmer[0])
-        L2change= np.sum((falmer[0]-old_X)**2) + np.sum((falmer[0]-current_X)**2)
-        print 'FALMS STEP ' , j, 'with rho=',rho,' mu=',mu,'  OBJECTIVE: ', \
-        objval,' (old val: ',objval_old,')'
-        print 'L2 delta-params: ' , L2change,
-        if falmer[6]:
-            print '  skipped'
-        else:
-            unskipped = falmer[0]
-            print '   L0: ', falmer[0][falmer[0]<>0].shape
-        print
-        if mu<1e-8 or (j>30 and L2change < ftol): break
-        old_X = current_X
-        current_X = falmer[0]
-        if objval>objval_old:
-            mu = mu/2
-        if objval>objval_old+0.2:
-            falmer = oldfalmer
-        else:
-            objval_old  = objval
-    result = obj.unflat( unskipped )
-    print result
-    print
-    print
-    return result
-
-
 def plot_vectors(params,title='Inferred thetas',figure=3):
     '''Takes a list of lists of vectors, plots one vector per subplot.'''
     p.figure(figure)
@@ -197,12 +149,32 @@ data  = [{ 'STA':STA[i] , \
 init_params = [{'theta':data[i]['STA'] * 0.1 , \
                 'M':data[i]['STC'] * 0.1} for i in range(NRGC)]
 
+# quadratic Poisson LL in theta,M:
+objective = kolia_theano.Objective(init_params=init_params[0],differentiate=['f'],
+                                   f=quadratic_Poisson, barrier=eig_barrier) 
+
+# fix particular data:
+obj = objective.where(**data[0])
+
+# LL + quadratic optimizer, for FALMS
+optimize_L2 = FALMS.add_L2_term( obj )
+
+# callbak after each FALMS iteration:
+def falms_callback(falmer):
+    if falmer[6]:
+        print '  skipped'
+    else:
+        print '   L0: ', falmer[0][falmer[0]<>0].shape
+
 params = init_params[0]
 paramL1 = {}
 #for rho in 1e-7*np.array([0.05,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.,1.2,1.5,2.,3.,5.]):
-for rho in np.array([0.05,0.1,0.2,0.5,1.,2.,5.,10.]):
+for rho in np.array([0.001,0.01,0.1,1.,10.]):
 #for rho in np.array([0.1,0.5,1.,1.5,2.,2.5,3.]):
-    params = MaxLike_L1(params,data[0],rho=rho,mu=1e-4,maxiter=200)
+    print
+    print 'RHO: ', rho
+    reg_L1 = FALMS.L1_L2( rho )
+    params = FALMS.falms(params,optimize_L2,reg_L1,ftol=2e-7,callback=falms_callback)
     paramL1[rho] = params
     print [ (rh,par['M'][par['M']<>0].shape) for rh,par in sorted(paramL1.items())]
 

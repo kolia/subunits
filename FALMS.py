@@ -31,7 +31,7 @@ def add_L2_term( objective, f='f', df='df' ):
         objective.L2_f  = L2_f
         objective.L2_df = L2_df
         opter = optimizer( objective , init_params=X , f='L2_f' , df='L2_df' , 
-                          maxiter=100, **optimize_params)
+                          maxiter=100, gtol=1.1e-6, disp=0,  **optimize_params)
         return opter()
     objective.optimize_L2 = optimize_L2
     return objective
@@ -117,3 +117,41 @@ def step( F , G , mu , problem ):
     Z  = Yp + (tm-1)/t * (Yp-Y)
     
     return [X,Yp,Y,Z,t,tm,skip]
+    
+
+def falms( init_params , F, G, mu=1e-4, maxiter=200, ftol=2e-7, callback=None,verbose=True):
+    '''FALMS optimization: main loop.  Not as simple as you'd hope, but works.
+    Mu is ratcheted downwards whenever objective increases; if objective 
+    increases by more than 0.2 in an iteration, that iteration is disgarded.
+    Returns the last unskipped iteration.
+    '''
+    print
+    print
+    print 'Starting FALMS optimization...'
+    # Compile symbolic objectives into numerical objective.
+    
+    current_X  = F.flat(init_params)
+    old_X      = current_X
+    unskipped  = current_X
+    objval_old = 1e10
+    falmer     = initialize( current_X )
+    for j in range(maxiter):
+        oldfalmer   = falmer
+        falmer = step( F , G , mu , oldfalmer )
+        objval = F.f(falmer[0])+G.f(falmer[0])
+        L2change= sum((falmer[0]-old_X)**2) + sum((falmer[0]-current_X)**2)
+        if verbose:
+            print 'STEP %3d   mu= %6.2g   f: %10.8g  dL2: %7.2g' % (j,mu,objval,L2change),
+        if not falmer[6]:
+            unskipped = falmer[0]
+        if callback is not None:    callback(falmer)
+        if mu<1e-8 or (j>30 and L2change < ftol): break
+        old_X = current_X
+        current_X = falmer[0]
+        if objval>objval_old:
+            mu = mu/2
+        if objval>objval_old+0.2:
+            falmer = oldfalmer
+        else:
+            objval_old  = objval
+    return F.unflat( unskipped )
