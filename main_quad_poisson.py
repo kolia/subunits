@@ -164,9 +164,7 @@ def falms_callback(falmer):  print '   L0: ', falmer[1][falmer[1]<>0].shape[0]
 
 params = init_params[0]
 paramL1 = {}
-#for rho in 1e-7*np.array([0.05,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.,1.2,1.5,2.,3.,5.]):
-for rho in np.array([0.001,0.01,0.02,0.03,0.04,0.05,0.06,0.07,0.08,0.09,0.1,0.5,1.]):
-#for rho in np.array([0.1,0.5,1.,1.5,2.,2.5,3.]):
+for rho in np.array([0.001,0.01,0.02,0.03,0.04,0.05,0.06,0.07,0.08,0.09,0.1,0.25,0.5,1.]):
     print
     print 'RHO: ', rho
     reg_L1 = FALMS.L1_L2( rho )
