@@ -20,8 +20,9 @@ def __get_attribute(o,attribute):
             return None
     return attribute
 
-def optimizer( objective , f='f' , df='df', barrier='barrier', 
-               callback='callback', init_params='init_params' , **options):
+def optimizer( objective , f='f' , df='df', barrier='barrier', maxiter=500,
+               callback='callback', init_params='init_params' , gtol=1.1e-7,
+               **options):
     '''Return a function which optimizes over an objective function.
     By default, the objective is objective.f and its gradient objective.df.
     Optional barrier  function defaulting to objective.barrier.
@@ -38,8 +39,8 @@ def optimizer( objective , f='f' , df='df', barrier='barrier',
     else:
         full_output = options['full_output']
     def optimize(init_params=init_params, f=f, 
-                 df=df, barrier=barrier, callback=callback, gtol=1.1e-7, 
-                 maxiter=500 , full_output=full_output ):
+                 df=df, barrier=barrier, callback=callback, gtol=gtol, 
+                 maxiter=maxiter , full_output=full_output ):
         init_params = flat(init_params)
         x, fx, dfx, _, _, _, _ = fmin_barrier_bfgs(f,init_params,fprime=df,
                                                    gtol=gtol,maxiter=maxiter,

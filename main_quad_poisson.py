@@ -90,7 +90,7 @@ def analytical_ML(data):
               'M': np.eye(Ncone) - inv(dat['STC']) } for dat in data]
 
 
-def MaxLike_L1( init_params, data , rho=1., mu=1e-5, maxiter=200, ftol=1e-10):
+def MaxLike_L1( init_params, data , rho=1., mu=1e-5, maxiter=200, ftol=1e-7):
     '''L1-regularized Max-Likelihood optimization of parameters theta and M'''
     print
     print
@@ -105,6 +105,7 @@ def MaxLike_L1( init_params, data , rho=1., mu=1e-5, maxiter=200, ftol=1e-10):
     
     current_X  = obj.flat(init_params)
     old_X      = current_X
+    unskipped  = current_X
     objval_old = 1e10
     falmer = FALMS.initialize( current_X )
     for j in range(maxiter):
@@ -114,16 +115,23 @@ def MaxLike_L1( init_params, data , rho=1., mu=1e-5, maxiter=200, ftol=1e-10):
         L2change= np.sum((falmer[0]-old_X)**2) + np.sum((falmer[0]-current_X)**2)
         print 'FALMS STEP ' , j, 'with rho=',rho,' mu=',mu,'  OBJECTIVE: ', \
         objval,' (old val: ',objval_old,')'
-        print 'L2 delta-params: ' , L2change, 'L0: ', falmer[0][falmer[0]<>0].shape
+        print 'L2 delta-params: ' , L2change,
+        if falmer[6]:
+            print '  skipped'
+        else:
+            unskipped = falmer[0]
+            print '   L0: ', falmer[0][falmer[0]<>0].shape
         print
-        if mu<1e-10 or (j>30 and L2change < ftol): break
+        if mu<1e-8 or (j>30 and L2change < ftol): break
         old_X = current_X
         current_X = falmer[0]
         if objval>objval_old:
-#            falmer = oldfalmer
             mu = mu/2
-        objval_old  = objval
-    result = obj.unflat( falmer[0] )
+        if objval>objval_old+0.2:
+            falmer = oldfalmer
+        else:
+            objval_old  = objval
+    result = obj.unflat( unskipped )
     print result
     print
     print

@@ -30,7 +30,8 @@ def add_L2_term( objective, f='f', df='df' ):
         def L2_df(x,*_): return getattr(objective,df)(x) +               (x-Y) /mu
         objective.L2_f  = L2_f
         objective.L2_df = L2_df
-        opter = optimizer( objective , init_params=X , f='L2_f' , df='L2_df' , **optimize_params)
+        opter = optimizer( objective , init_params=X , f='L2_f' , df='L2_df' , 
+                          maxiter=100, **optimize_params)
         return opter()
     objective.optimize_L2 = optimize_L2
     return objective
