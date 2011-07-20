@@ -12,6 +12,7 @@ from numpy.linalg import svd, inv
 from scipy.linalg import orth
 import numpy.random as R
 import pylab as p
+import cPickle
 
 from matplotlib.ticker import *
 
@@ -159,47 +160,57 @@ obj = objective.where(**data[0])
 # LL + quadratic optimizer, for FALMS
 optimize_L2 = FALMS.add_L2_term( obj )
 
-# callbak after each FALMS iteration:
+# callback after each FALMS iteration:
 def falms_callback(falmer):  print '   L0: ', falmer[1][falmer[1]<>0].shape[0]
 
-params = init_params[0]
-paramL1 = {}
-for rho in np.array([0.001,0.01,0.02,0.03,0.04,0.05,0.06,0.07,0.08,0.09,0.1,0.25,0.5,1.]):
-    print
-    print 'RHO: ', rho
-    reg_L1 = FALMS.L1_L2( rho )
-    params = FALMS.falms(params,optimize_L2,reg_L1,ftol=2e-7,callback=falms_callback)
-    paramL1[rho] = params
-    print [ (rh,par['M'][par['M']<>0].shape[0]) for rh,par in sorted(paramL1.items())]
+r = {'L1':[{} for _ in init_params] , 'true':true}
+
+def save(obj):
+    savefile = open('../../../Desktop/results.pyckle','w')
+    cPickle.dump(r,savefile)  
+    savefile.close()
 
 
-#params = MaxLike(init_params,data)
-#
-#analytical = analytical_ML(data)
-#
-#
-#
-#Nproj = Nsub
-#T     = VI[0:Nproj,:]
-#projected_data  = [{ 'STA':np.dot(T,STA[i]) , \
-#                     'STC':np.dot(np.dot(T,STC[i]),np.transpose(T)) } for i in range(NRGC)]
-#projected_init_params = [{'theta':projected_data[i]['STA'] * 0.1 , \
-#                          'M':    projected_data[i]['STC'] * 0.1} for i in range(NRGC)]
-#
-#projected_params = MaxLike(projected_init_params,projected_data)
-#
-#reinjected_params = [{'theta': np.dot(q['theta'],T)  ,  \
-#                      'M':np.dot(np.dot(np.transpose(T),q['M']),T)} for q in projected_params]
-#
-#reinjected_A = np.concatenate([np.concatenate([np.array([q['theta']]),q['M']]) \
-#                                for q in reinjected_params])
-#
-#reinjected_UA,reinjected_SA,reinjected_VA = svd(reinjected_A)
-#
-#plot_vectors([[q['theta'] for q in true      ], [q['theta'] for q in params           ], \
-#              [q['theta'] for q in analytical], [q['theta'] for q in reinjected_params]])
-#
-#plot_matrices([true[0]['M'], params[0]['M'], analytical[0]['M'], reinjected_params[0]['M']])
-#
-#plot_projection_of_U( onto = np.transpose(reinjected_VA[0:Nsub,:]), name='svd(theta,M)', figure=5)
-#plot_projection_of_U( onto = np.transpose(           VI[0:Nsub,:]), name='svd(STA,STC)', figure=6)
+r['ML'] = MaxLike(init_params,data)
+
+r['analytical'] = analytical_ML(data)
+
+
+
+Nproj = Nsub
+T     = VI[0:Nproj,:]
+projected_data  = [{ 'STA':np.dot(T,STA[i]) , \
+                     'STC':np.dot(np.dot(T,STC[i]),np.transpose(T)) } for i in range(NRGC)]
+projected_init_params = [{'theta':projected_data[i]['STA'] * 0.1 , \
+                          'M':    projected_data[i]['STC'] * 0.1} for i in range(NRGC)]
+
+projected_params = MaxLike(projected_init_params,projected_data)
+
+r['projected_ML'] = [{'theta': np.dot(q['theta'],T)  ,  \
+                      'M':np.dot(np.dot(np.transpose(T),q['M']),T)} for q in projected_params]
+
+reinjected_A = np.concatenate([np.concatenate([np.array([q['theta']]),q['M']]) \
+                                for q in r['projected_ML']])
+
+reinjected_UA,reinjected_SA,reinjected_VA = svd(reinjected_A)
+
+
+for i,params in enumerate(init_params):
+    for rho in np.array([0.001,0.01,0.02,0.03,0.04,0.05,0.06,0.07,0.08,0.09,0.1,0.25,0.5,1.]):
+        print
+        print
+        print 'RHO: ', rho, '  RGC ', i
+        reg_L1 = FALMS.L1_L2( rho )
+        params = FALMS.falms(params,optimize_L2,reg_L1,ftol=2e-7,callback=falms_callback)
+        r['L1'][i][rho] = params
+        print [ (rh,par['M'][par['M']<>0].shape[0]) for rh,par in sorted(r['L1'][i].items())]
+    save()
+
+
+plot_vectors([[q['theta'] for q in r['true']      ], [q['theta'] for q in r['ML']           ], \
+              [q['theta'] for q in r['analytical']], [q['theta'] for q in r['projected_ML']]])
+
+plot_matrices([r['true'][0]['M'], r['ML'][0]['M'], r['analytical'][0]['M'], r['projected_ML'][0]['M']])
+
+plot_projection_of_U( onto = np.transpose(reinjected_VA[0:Nsub,:]), name='svd(theta,M)', figure=5)
+plot_projection_of_U( onto = np.transpose(           VI[0:Nsub,:]), name='svd(STA,STC)', figure=6)

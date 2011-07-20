@@ -125,8 +125,6 @@ def falms( init_params , F, G, mu=0.1, maxiter=200, ftol=2e-7, callback=None,ver
     increases by more than 0.2 in an iteration, that iteration is disgarded.
     Returns the last unskipped iteration.
     '''
-    print
-    print
     print 'Starting FALMS optimization...'
     # Compile symbolic objectives into numerical objective.
     
