@@ -165,7 +165,7 @@ def falms_callback(falmer):  print '   L0: ', falmer[1][falmer[1]<>0].shape[0]
 
 r = {'L1':[{} for _ in init_params] , 'true':true}
 
-def save(obj):
+def save():
     savefile = open('../../../Desktop/results.pyckle','w')
     cPickle.dump(r,savefile)  
     savefile.close()
@@ -195,6 +195,7 @@ reinjected_A = np.concatenate([np.concatenate([np.array([q['theta']]),q['M']]) \
 reinjected_UA,reinjected_SA,reinjected_VA = svd(reinjected_A)
 
 
+save()
 for i,params in enumerate(init_params):
     for rho in np.array([0.001,0.01,0.02,0.03,0.04,0.05,0.06,0.07,0.08,0.09,0.1,0.25,0.5,1.]):
         print
