@@ -200,8 +200,8 @@ init_params = [{'theta':data[i]['STA'] * 0.1 , \
 params = init_params[0]
 paramL1 = {}
 #for rho in 1e-7*np.array([0.05,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.,1.2,1.5,2.,3.,5.]):
-#for rho in 10*np.array([0.1,0.2,0.5,1.,2.,5.,10.]):
-for rho in np.array([0.8,1.,1.2,1.4,1.6,1.8,2.,2.5,3.]):
+for rho in np.array([0.05,0.1,0.2,0.5,1.,2.,5.,10.]):
+#for rho in np.array([0.1,0.5,1.,1.5,2.,2.5,3.]):
     params = MaxLike_L1(params,data[0],rho=rho,mu=1e-4,maxiter=200)
     paramL1[rho] = params
     print [ (rh,par['M'][par['M']<>0].shape) for rh,par in sorted(paramL1.items())]
