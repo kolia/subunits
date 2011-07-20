@@ -120,7 +120,7 @@ def wrap_function(function):
     return ncalls, function_wrapper
 
 
-def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-5, norm=Inf,
+def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
               epsilon=_epsilon, maxiter=None, full_output=0, disp=1,
               retall=0, callback=None, barrier=None):
     """Minimize a function using the BFGS algorithm without jumping a barrier.

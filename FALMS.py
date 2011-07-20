@@ -142,7 +142,7 @@ def falms( init_params , F, G, mu=0.1, maxiter=200, ftol=2e-7, callback=None,ver
         if verbose:
             print 'STEP %3d   mu: %6.2g   f: %10.8g  dL2: %7.2g' % (j,mu,objval,L2change),
         if callback is not None:    callback(falmer)
-        if mu<1e-8 or (j>30 and L2change < ftol): break
+        if mu<1e-8 or (j>5 and L2change < ftol): break
         old_X = current_X
         current_X = falmer[0]
         if objval>=objval_old:
