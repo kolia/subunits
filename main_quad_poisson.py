@@ -119,10 +119,10 @@ def MaxLike_L1( init_params, data , rho=1., mu=1e-5, maxiter=200, ftol=1e-10):
         if mu<1e-10 or (j>30 and L2change < ftol): break
         old_X = current_X
         current_X = falmer[0]
-        objval_old  = objval
         if objval>objval_old:
 #            falmer = oldfalmer
             mu = mu/2
+        objval_old  = objval
     result = obj.unflat( falmer[0] )
     print result
     print
