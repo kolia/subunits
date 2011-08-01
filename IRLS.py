@@ -48,7 +48,10 @@ def s2IRLS_step(y,P,x,iw,nonzero,lam):
 #    iw = zeros(P.shape[1])
 #    iw[nonzero] = siw
     siw = iw[nonzero]
-    iw = iw/3
+    if sum(iw>1e-5)>sum(nonzero)+10:
+        iw = iw*0.2
+    elif abs(sum(iw>1e-5)-sum(nonzero))<2:
+        iw = iw*0.01
     iw[nonzero] = siw
     P_iW = P*iw
     P_iW_P = dot(P,P_iW.T)
@@ -67,7 +70,7 @@ def s2IRLS_step(y,P,x,iw,nonzero,lam):
 
 def IRLS2(y,P,x=0,disp=0,lam=0,maxiter=200):
     nz = ones(P.shape[1])>0
-    iw = 1e-7 * ones(P.shape[1])
+    iw = 1e-4 * ones(P.shape[1])
     for i in range(maxiter):
         old_x = x
         x,iw,nz = s2IRLS_step(y,P,x,iw,nz,lam)
@@ -84,12 +87,13 @@ def IRLS(y,P,x=0,disp=0,lam=0,maxiter=200):
         old_x = x
         x,iw = sIRLS_step(y,P,x,iw,lam)
         if disp:
-            print 'Iteration ',i,' nonzeros: ',sum(iw>1e-6)
+            print 'Iteration ',i,'  nziw:',sum(iw>1e-5),'  dL1(x): ',sum(abs(x-old_x))
+#            print 'Iteration ',i,' nonzeros: ',sum(iw>1e-6)
 #            print 'Iteration ',i,' ARD objective: ',ARD(y,P,iw)
         if sum(abs(x-old_x))<1e-8: break
     return x,iw
 
-def test( n=200 , m=5000 , s=10 ):
+def test( n=200 , m=5000 , s=20 ):
     P = R.randn( n, m )
     x = zeros( m )
     o = R.permutation(arange(m))
