@@ -37,8 +37,8 @@ dSTA = np.concatenate(
             for STA in R['statistics']['features']['STA']], axis=1)
 D,Z = schur(R['statistics']['features']['cov'])
 DD  = np.diag(D)
-keep= DD>1e-10
+keep= DD>1e-6
 P   =  (Z[:,keep] * np.sqrt(DD[keep])).T
 y   =  np.dot ( (Z[:,keep] * 1/np.sqrt(DD[keep])).T , dSTA )
 
-V, iW = IRLS( y, P, x=0, disp_every=200, lam=0, maxiter=100000 )
+V, iW = IRLS( y, P, x=0, disp_every=500, lam=0.3, maxiter=100000 , ftol=1e-7)
