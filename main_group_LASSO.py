@@ -41,4 +41,4 @@ keep= DD>1e-6
 P   =  (Z[:,keep] * np.sqrt(DD[keep])).T
 y   =  np.dot ( (Z[:,keep] * 1/np.sqrt(DD[keep])).T , dSTA )
 
-V, iW = IRLS( y, P, x=0, disp_every=500, lam=0.3, maxiter=100000 , ftol=1e-7)
+V, iW = IRLS( y, P, x=0, disp_every=500, lam=0.3, maxiter=500000 , ftol=1e-8)
