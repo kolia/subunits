@@ -19,7 +19,8 @@ from IPython.Debugger import Tracer; debug_here = Tracer()
 N_cells=[12,6,3]
 
 V2 = 0.1
-def NL(x): return x + 0.5 * V2 * ( x ** 2 )
+#def NL(x): return x + 0.5 * V2 * ( x ** 2 )
+def NL(x): return np.sin(x)
 
 # Quantities of interest
 N_filters = N_cells[1]*2
@@ -29,7 +30,7 @@ filters = np.concatenate(
 
 # Generate stimulus , spikes , and (STA,STC,mean,cov) of quantities of interest
 R = simulate_retina.LNLNP( nonlinearity=NL, N_cells=N_cells ,
-                           average_me={'features':lambda x: np.exp(np.dot(filters,x))},
+                           average_me={'features':lambda x: np.sin(np.dot(filters,x))},
                            N_timebins = 100000 )
 
 dSTA = np.concatenate(
@@ -41,4 +42,4 @@ keep= DD>1e-6
 P   =  (Z[:,keep] * np.sqrt(DD[keep])).T
 y   =  np.dot ( (Z[:,keep] * 1/np.sqrt(DD[keep])).T , dSTA )
 
-V, iW = IRLS( y, P, x=0, disp_every=1000, lam=0.55, maxiter=200000 , ftol=1e-8)
+V, iW = IRLS( y, P, x=0, disp_every=1000, lam=0.5, maxiter=200000 , ftol=1e-8)
