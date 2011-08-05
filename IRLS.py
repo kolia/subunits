@@ -14,14 +14,14 @@ def IRLS_step(y,P,x,iw,lam):
     iw = sum(x**2,axis=1) + iw - sum( dot( P_iW.T , C ) * P_iW.T , axis=1)
     return x,iw
 
-def IRLS(y,P,x=0,disp=0,lam=0,maxiter=1000):
+def IRLS(y,P,x=0,disp_every=0,lam=0,maxiter=1000):
     iw = 1e-4 * ones(P.shape[1])
     for i in range(maxiter):
         old_x = x
         x,iw = IRLS_step(y,P,x,iw,lam)
-        if disp:
-            print 'Iteration ',i,'  nziw:',sum(iw>1e-5),'  dL1(x): ',sum(abs(x-old_x))
-        if sum(abs(x-old_x))<1e-4: break
+        if disp_every and not i%disp_every:
+            print 'Iteration ',i,'  nonzero weights:',sum(iw>1e-5),'  dL1(x): ',sum(abs(x-old_x))
+        if sum(abs(x-old_x))<1e-5: break
     return x,iw
 
 def sIRLS_step(y,P,x,iw,lam,nonzero):

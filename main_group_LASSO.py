@@ -1,8 +1,13 @@
 import simulate_retina
 reload(simulate_retina)
 
+import IRLS
+reload(IRLS)
+from   IRLS import IRLS
+
 import numpy as np
 import pylab as p
+from scipy.linalg import schur
 
 # from matplotlib.ticker import *
 
@@ -17,18 +22,23 @@ V2 = 0.1
 def NL(x): return x + 0.5 * V2 * ( x ** 2 )
 
 # Quantities of interest
-
 N_filters = 10
 filters = np.concatenate(
     [simulate_retina.weights(sigma=0.5+n*0.2, shape=(N_filters,N_cells[0]))
     for n in range(10)] )
 
 # Generate stimulus , spikes , and (STA,STC,mean,cov) of quantities of interest
-D = simulate_retina.LNLNP( nonlinearity=NL, N_cells=N_cells ,
+R = simulate_retina.LNLNP( nonlinearity=NL, N_cells=N_cells ,
                            average_me={'features':lambda x: np.exp(np.dot(filters,x))},
-                           N_timebins = 10000 )
+                           N_timebins = 100000 )
 
-# True parameters
-true = [{ 'theta' : np.dot( D['U'].T , D['V'][i,:] ) , \
-          'M' : 0.1*np.dot( D['U'].T * D['V'][i,:] , D['U'] ) } for i in range(N_cells[2])]
+dSTA = np.concatenate(
+            [STA[:,np.newaxis] - R['statistics']['features']['mean'][:,np.newaxis]
+            for STA in R['statistics']['features']['STA']], axis=1)
+D,Z = schur(R['statistics']['features']['cov'])
+DD  = np.diag(D)
+keep= DD>1e-10
+P   =  (Z[:,keep] * np.sqrt(DD[keep])).T
+y   =  np.dot ( (Z[:,keep] * 1/np.sqrt(DD[keep])).T , dSTA )
 
+V, iW = IRLS( y, P, x=0, disp_every=200, lam=0, maxiter=100000 )
