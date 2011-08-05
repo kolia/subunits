@@ -4,12 +4,12 @@ Generate simulated data.
 """
 
 from numpy  import dot,sin,cos,exp,std,sum,newaxis,sqrt,cov
-from numpy  import arange,transpose,fromfunction
+from numpy  import arange,transpose,fromfunction,pi
 import numpy.random   as R
 
 def weights(shape=(10,10), sigma=1):
     U = fromfunction( lambda i,j: \
-        exp(sigma * cos(j-(shape[0]*i/shape[1])) ), shape)
+        exp(sigma * cos((j-(shape[1]*i/shape[0]))*2*pi/shape[1]) ), shape)
     return U / sqrt(sum(U*U,axis=1))[:,newaxis]
 
 
