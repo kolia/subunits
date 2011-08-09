@@ -17,7 +17,7 @@ def LNLNP(
     sigma_stimulus = 1.           ,  # stimulus standard deviation
     nonlinearity   = sin          ,  # subunit nonlinearity
     N_cells        = [10,5,3]     ,  # number of cones, subunits & RGCs
-    sigma_spatial  = 1.5          ,  # subunit & RGC connection width
+    sigma_spatial  = [2., 1.]     ,  # subunit & RGC connection width
     firing_rate     = 0.1          ,  # RGC firing rate
     N_timebins     = 1000000      ,  # number of time samples
     average_me     = {}           ):  # calculate STA, STC, stim. avg 
@@ -30,8 +30,8 @@ def LNLNP(
         return sigma_stimulus*R.randn(N_cells[0],N_timebins)
     X        = stimulus()                   # cone activations
 
-    U = weights(sigma=sigma_spatial,shape=(N_cells[1],N_cells[0]))
-    V = weights(sigma=sigma_spatial,shape=(N_cells[2],N_cells[1]))
+    U = weights(sigma=sigma_spatial[0],shape=(N_cells[1],N_cells[0]))
+    V = weights(sigma=sigma_spatial[1],shape=(N_cells[2],N_cells[1]))
 
     b        = nonlinearity(dot(U,X))      # subunit activations
     Y        = exp(dot(V,b))               # RGC activations
