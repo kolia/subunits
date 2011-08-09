@@ -14,8 +14,9 @@ def IRLS_step(y,P,x,iw,lam):
     iw = sum(x**2,axis=1) + iw - sum( dot( P_iW.T , C ) * P_iW.T , axis=1)
     return x,iw
 
-def IRLS(y,P,x=0,disp_every=0,lam=0,maxiter=1000,ftol=1e-5,init_iw=1e-4,nonzero=1e-4):
-    iw = init_iw * ones(P.shape[1])
+def IRLS(y,P,x=0,disp_every=0,lam=0,maxiter=1000,ftol=1e-5,iw=1e-4,nonzero=1e-3):
+    if isinstance( iw , type(float)):
+        iw = iw * ones(P.shape[1])
     for i in range(maxiter):
         old_x = x
         x,iw = IRLS_step(y,P,x,iw,lam)
