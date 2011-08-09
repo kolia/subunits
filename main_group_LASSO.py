@@ -24,8 +24,8 @@ def NL(x): return x + 0.5 * V2 * ( x ** 2 )
 # Quantities of interest
 N_filters = N_cells[1]*2
 filters = np.concatenate(
-    [simulate_retina.weights(sigma=2.+n*0., shape=(N_filters,N_cells[0]))
-    for n in range(1)] )
+    [simulate_retina.weights(sigma=1.7+n*0.3, shape=(N_filters,N_cells[0]))
+    for n in range(3)] )
 
 # Generate stimulus , spikes , and (STA,STC,mean,cov) of quantities of interest
 R = simulate_retina.LNLNP( nonlinearity=NL, N_cells=N_cells , sigma_spatial=2.,
@@ -41,7 +41,7 @@ keep= DD>1e-6
 P   =  (Z[:,keep] * np.sqrt(DD[keep])).T
 y   =  np.dot ( (Z[:,keep] * 1/np.sqrt(DD[keep])).T , dSTA )
 
-V, iW = IRLS( y, P, x=0, disp_every=1000, lam=0.001, maxiter=10000000 , ftol=1e-10, nonzero=1e-3)
+V, iW = IRLS( y, P, x=0, disp_every=1000, lam=0.01, maxiter=10000000 , ftol=1e-10, nonzero=1e-3)
 
 def plot_filters(X,same_scale=True):
     for i in range(X.shape[0]):
