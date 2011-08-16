@@ -24,8 +24,8 @@ def NL(x): return x + 0.5 * V2 * ( x ** 2 )
 # Quantities of interest
 N_filters = N_cells[1]*2
 filters = np.concatenate(
-    [simulate_retina.weights(sigma=1.7+n*0.3, shape=(N_filters,N_cells[0]))
-    for n in range(3)] )
+    [simulate_retina.weights(sigma=2.+n*0.3, shape=(N_filters,N_cells[0]))
+    for n in range(1)] )
 
 # Generate stimulus , spikes , and (STA,STC,mean,cov) of quantities of interest
 R = simulate_retina.LNLNP( nonlinearity=NL, N_cells=N_cells , sigma_spatial=[2.,1.],
@@ -34,7 +34,7 @@ R = simulate_retina.LNLNP( nonlinearity=NL, N_cells=N_cells , sigma_spatial=[2.,
 
 dSTA = np.concatenate(
             [STA[:,np.newaxis] - R['statistics']['features']['mean'][:,np.newaxis]
-            for STA in R['statistics']['features']['STA']], axis=1)
+            for STA in R['statistics']['features']['ySTA']], axis=1)
 D,Z = schur(R['statistics']['features']['cov'])
 DD  = np.diag(D)
 keep= DD>1e-6

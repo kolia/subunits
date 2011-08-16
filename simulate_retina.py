@@ -55,6 +55,10 @@ def LNLNP(
         d['STC']  = \
             [ dot( x-d['STA'][i][:,newaxis], transpose((x-d['STA'][i][:,newaxis])*spikes[i,:])) \
             / N_spikes[i]               for i in arange(N_cells[2]) ]
+        d['ySTA']  = [ sum(x*Y[i,:],1) / N_spikes[i] for i in arange(N_cells[2]) ]
+        d['ySTC']  = \
+            [ dot( x-d['STA'][i][:,newaxis], transpose((x-d['STA'][i][:,newaxis])*Y[i,:])) \
+            / N_spikes[i]               for i in arange(N_cells[2]) ]
         return d
     statistics = dict( (name,statistics(average_me[name](X))) for name in average_me.keys())
 
