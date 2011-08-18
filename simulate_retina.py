@@ -72,8 +72,10 @@ def LNLNP(
     average_me     = {}           ):  # calculate STA, STC, stim. avg 
                                      # and cov of these functions of the stimulus
 
-    timebins = [minimum(N_timebins-i*10000,10000) for i,x in 
-                    enumerate(range(ceil(N_timebins/10000.)))]
+    timebins = [minimum(N_timebins-i*50000,50000) for i,x in 
+                    enumerate(range(ceil(N_timebins/50000.)))]
+    for _ in timebins:  print '-',
+    print
     result = LNLNP_chunk(sigma_stimulus, nonlinearity, N_cells, sigma_spatial, 
                          firing_rate, N_timebins=timebins[0], average_me=average_me)
     result['stimulus'] = [result['stimulus']]
@@ -98,5 +100,6 @@ def LNLNP(
         result['N_timebins'] = result['N_timebins'] + ll['N_timebins']
         result['stimulus']   = result['stimulus']   + [ll['stimulus']]
         result['N_spikes']   = result['N_spikes']   + ll['N_spikes']
+        print '+',
     result['stimulus']   = lambda : concatenate([ll['stimulus']() for ll in result['stimulus']])
     return result

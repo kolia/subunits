@@ -30,7 +30,7 @@ filters = np.concatenate(
 # Generate stimulus , spikes , and (STA,STC,mean,cov) of quantities of interest
 R = simulate_retina.LNLNP( nonlinearity=NL, N_cells=N_cells , sigma_spatial=[2.,1.5],
                            average_me={'features':lambda x: NL(np.dot(filters,x))},
-                           N_timebins = 10000000 )
+                           N_timebins = 50000000 )
 
 dSTA = np.concatenate(
             [STA[:,np.newaxis] - R['statistics']['features']['mean'][:,np.newaxis]
@@ -41,7 +41,7 @@ keep= DD>1e-6
 P   =  (Z[:,keep] * np.sqrt(DD[keep])).T
 y   =  np.dot ( (Z[:,keep] * 1/np.sqrt(DD[keep])).T , dSTA )
 
-V, iW = IRLS( y, P, x=0, disp_every=1000, lam=0.012, maxiter=10000000 , ftol=1e-9, nonzero=1e-1)
+V, iW = IRLS( y, P, x=0, disp_every=1000, lam=0.01, maxiter=10000000 , ftol=1e-9, nonzero=1e-1)
 
 def plot_filters(X,same_scale=True):
     for i in range(X.shape[0]):
