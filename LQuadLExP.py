@@ -13,12 +13,13 @@ import pylab as p
 from matplotlib.ticker import *
 
 class posterior:
-    def __init__(self,N,Nsub,NRGC,prior=lambda U:0):
-        self.N     = N
+    def __init__(self,data,Nsub,prior=lambda U:0):
+        self.DATA  = data
+        self.N     = len(data[-2][0])
         self.Nsub  = Nsub
-        self.NRGC  = NRGC
+        self.NRGC  = len(data[-2])
         self.prior = prior
-        self.mindet= 0.2
+        self.mindet= -0.
         U    = Th.dmatrix()                   # SYMBOLIC variables     #
         V1   = Th.dvector()                                            #
         V2   = Th.dvector()                                            #
@@ -32,13 +33,13 @@ class posterior:
         prior     = self.prior(U)                                      #
 
         post = (  Th.log(detM) \
-#                - 1. / (detM-self.mindet) \
+                - 0.01 / (Th.log(detM)-self.mindet) \
                 - Th.sum(invMtheta*theta) \
                 + 2. * Th.sum( theta * STA ) \
                 + Th.sum( M * (STC + Th.outer(STA,STA)) )) / 2. \
                 + prior
         dpost_dM  = ( invM + invMtheta * invMtheta.T \
-#                    + 1. * detM * invM / ((detM-self.mindet)**2) \
+                    + 0.01 * invM / ((Th.log(detM)-self.mindet)**2) \
                     ) / 2.
 
         def dpost(dX):
@@ -57,8 +58,8 @@ class posterior:
 
         self.optimize   = optimizer( self )
 
-    def barrier(self,params,data):
-        (U,V2,V1) = self.params(params,data)
+    def barrier(self,params):
+        (U,V2,V1) = self.params(params)
         for i in arange(V1.shape[0]):
             IM = eye(self.N)-self.M(U,V2,V1[i,:])
             s,ld = slogdet(IM)
@@ -67,7 +68,8 @@ class posterior:
 #        print ' Barrier False ;  slogdet=', s, exp(ld)
         return False
 
-    def callback(self,params,data):
+    def callback(self,params):
+        print
         return
         
     def U(self,params):
@@ -76,12 +78,12 @@ class posterior:
     def V1(self,params):
         return reshape( params , (self.NRGC,self.Nsub) )
 
-    def params(self,params,data):
+    def params(self,params):
         return (self.U(params[0:self.N*self.Nsub]),
                 params[self.N*self.Nsub:self.N*self.Nsub+self.Nsub],
                 self.V1(params[self.N*self.Nsub+self.Nsub:]))
 
-    def data(self,params,data): return data[-3:]
+    def data(self,params): return self.DATA[-3:]
 
     def sum_RGC(self,op,g,(U,V2,V1),(N_spikes,STA,STC)):
         result = None
@@ -105,31 +107,31 @@ class posterior:
             return -result
 
 
-    def     f (self, params, data):
+    def     f (self, params):
         return self.sum_RGC( add, self.posterior, 
-                              self.params(params,data),
-                              self.data  (params,data))
+                              self.params(params),
+                              self.data  (params))
 
-    def df_dU (self, params, data):
+    def df_dU (self, params):
         return self.sum_RGC( add, self.dpost_dU ,
-                              self.params(params,data),
-                              self.data  (params,data))
+                              self.params(params),
+                              self.data  (params))
 
-    def df_dV1(self, params, data):
+    def df_dV1(self, params):
         def concat(a,b): return concatenate((a,b))
         return self.sum_RGC( concat, self.dpost_dV1,
-                              self.params(params,data),
-                              self.data  (params,data))
+                              self.params(params),
+                              self.data  (params))
 
-    def df_dV2(self, params, data):
+    def df_dV2(self, params):
         return self.sum_RGC( add, self.dpost_dV2,
-                              self.params(params,data),
-                              self.data  (params,data))
+                              self.params(params),
+                              self.data  (params))
 
-    def df(self, params, data):
-        return concatenate((self.df_dU(params,data).flatten(),
-                            self.df_dV2(params,data),
-                            self.df_dV1(params,data)))
+    def df(self, params):
+        return concatenate((self.df_dU(params).flatten(),
+                            self.df_dV2(params),
+                            self.df_dV1(params)))
 
 #    def MAP(self,params,data):
 #        def cb(para): return self.callback(para,data)
@@ -143,10 +145,12 @@ class posterior:
 ##                         gtol=1.1e-6,maxiter=10000,args=data,callback=cb)
 
 
-    def plot(self,params,true_params,data):
-        (cU,cV2,cV1) = self.params(params,data)
-        (tU,tV2,tV1) = self.params(true_params,data)
-        (N,n) = cU.shape
+    def plot(self,params,true_params):
+        (cU,cV2,cV1) = params
+        (tU,tV2,tV1) = true_params
+        (N,n)   = cU.shape
+        (tN,tn) = tU.shape
+        N = minimum(N,tN)
         for i in arange(N):
             ax = p.subplot(N,1,i+1)
             cUi = cU[i,]
@@ -176,53 +180,53 @@ class posterior:
 
 
 class posterior_single(posterior):
-    def data(self,params,data): return data[-3:]
+    def data(self,params): return self.DATA[-3:]
 
 
 class posterior_dU(posterior_single):
     '''Optimization wrt U only'''
     def params(self,params,(V2,V1,N_spikes,STA,STC)):
-        return ( self.U(params), V2, V1)
+        return ( self.U(params), self.DATA[0], self.DATA[1])
         
     def df(self,params,data):
-        return self.df_dU(params,data).flatten()
+        return self.df_dU(params).flatten()
 
                     
 class posterior_dV2(posterior_single):
     '''Optimization wrt V2 only'''
-    def params(self,params,(U,V1,N_spikes,STA,STC)):
-        return ( U, params, V1)
+    def params(self,params):
+        return ( U, params, self.DATA[1])
 
-    def df(self,params,data):
-        return self.df_dV2(params,data)
+    def df(self,params):
+        return self.df_dV2(params)
     
 
 class posterior_dV1(posterior_single):
     '''Optimization wrt V1 only'''
-    def params(self,params,(U,V2,N_spikes,STA,STC)):
-        return ( U, V2, self.V1(params))
+    def params(self,params):
+        return ( self.DATA[0], self.DATA[1], self.V1(params))
 
-    def df(self,params,data):
-        return self.df_dV1(params,data)
+    def df(self,params):
+        return self.df_dV1(params)
 
 
 class posterior_dUV1(posterior_single):
     '''Optimization wrt U and V1 only'''
-    def params(self,params,(V2,N_spikes,STA,STC)):
-        return (self.U(params[0:self.N*self.Nsub]),V2,
+    def params(self,params):
+        return (self.U(params[0:self.N*self.Nsub]),self.DATA[0],
                 self.V1(params[self.N*self.Nsub:]))
 
-    def df(self,params,data):
-        return concatenate((self.df_dU(params,data).flatten(),
-                            self.df_dV1(params,data)))
+    def df(self,params):
+        return concatenate((self.df_dU(params).flatten(),
+                            self.df_dV1(params)))
 
 
 class posterior_dV2V1(posterior_single):
     '''Optimization wrt U and V1 only'''
-    def params(self,params,(U,N_spikes,STA,STC)):
-        return (U,params[0:self.Nsub],
+    def params(self,params):
+        return (self.DATA[0],params[0:self.Nsub],
                 self.V1(params[self.Nsub:]))
 
-    def df(self,params,data):
-        return concatenate((self.df_dV2(params,data),
-                            self.df_dV1(params,data)))
+    def df(self,params):
+        return concatenate((self.df_dV2(params),
+                            self.df_dV1(params)))

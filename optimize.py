@@ -220,7 +220,7 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
                                                 # and line_searches below!
 #        amax = 50.        
         if disp:
-            print 'amax:%f   f(amax):%f    barrier(amax):%d' % (amax,f(xk+amax*pk),barr(xk+amax*pk)), '  ' ,
+            print 'amax:%10f   f(amax):%10g    barrier(amax):%d' % (amax,f(xk+amax*pk),barr(xk+amax*pk)), '  ' ,
         if callback is not None:
             callback(xk)
 

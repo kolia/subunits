@@ -9,7 +9,7 @@ def IRLS_step(y,P,x,iw,lam):
     P_iW = P*iw
     P_iW_P = dot(P,P_iW.T)
     C = la.pinv( lam*eye(y.shape[0]) + P_iW_P)
-#    x = dot( P_iW.T , la.solve( lam*eye(y.size) + P_iW_P , y))
+#    x  = dot( P_iW.T , la.solve( lam*eye(y.size) + P_iW_P , y))
     x  = dot( P_iW.T , dot( C , y ))
     iw = sum(x**2,axis=1) + iw - sum( dot( P_iW.T , C ) * P_iW.T , axis=1)
     return x,iw

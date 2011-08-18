@@ -16,18 +16,25 @@ import optimize
 reload(optimize)
 
 from numpy import dot, ones , arange, sum, array
-import numpy.random   as R
+import numpy.random   as Rand
 import numpy.linalg   as L
 
+#execfile('main_group_LASSO.py')
+import main_group_LASSO
+reload(main_group_LASSO)
+from main_group_LASSO import R, V, V2, iW, filters
 
-V2 = 0.1
-def NL(x): return x + 0.5 * V2 * ( x ** 2 )
-(N_spikes,STA,STC), U, V1, bbar, Cb , STAB = simulate_data.LNLNP(NL=NL,N=24)
-Nsub, Ncones =  U.shape
-NRGC, Nsub   = V1.shape
-Nproj = Nsub
-V2 = V2 * ones((Nproj,))
+print 'V = ',V
 
+Ncones   = R['N_cells'][0]
+Nsub     = R['N_cells'][1]
+NRGC     = R['N_cells'][2]
+N_spikes = R['N_spikes']
+STA      = R['statistics']['stimulus']['STA']
+STC      = R['statistics']['stimulus']['STC']
+U        = R['U']
+V1       = R['V']
+nonzero  = 1e-1
 
 #baye   = posterior_dU(N,Nsub,NRGC)
 #data   = [ (V2, V1, N_spikes , STA , STC) ]
@@ -49,8 +56,8 @@ V2 = V2 * ones((Nproj,))
 #index  = slice(3)
 #true_params = concatenate(( U.flatten() , V2 , V1.flatten() ))
 
-baye   = posterior_dUV1(Ncones,Nproj,NRGC)
-data   = [ (V2, N_spikes , STA , STC) ]
+data   = [ V2, N_spikes , STA , STC ]
+baye   = posterior_dUV1(data,Nsub)
 index  = slice(3)
 true_params = concatenate(( U.flatten() , V1.flatten() ))
 
@@ -77,66 +84,36 @@ print '||U||^2  : ', sum(U*U)
 print
 print 'V1 : ' , V1
 print
-print baye.callback(true_params,data)
+print baye.callback(true_params)
 print
 print 'U.shape    = ', U.shape
-print 'V2.shape   = ', V2.shape
 print 'V1.shape   = ', V1.shape
 print 'N_cones    = ', Ncones
 print 'N_subunits = ', Nsub
 print 'N_RGC      = ', NRGC
 print 'N_spikes   = ', N_spikes
-print 'norm( Mk )  = '       , [ norm(eye(Ncones)-baye.M(U,V2[0:Nsub],V1[i,:])) \
+print 'norm( Mk )  = '       , [ norm(eye(Ncones)-baye.M(U,V2*ones(Nsub),V1[i,:])) \
                                         for i in range(NRGC)]
 
 print
 print 'true params :'
-baye.callback(true_params,data)
+baye.callback(true_params)
 
-A = concatenate([N*reshape(sta,(1,len(sta))) for N,sta in zip(N_spikes,STA)])
-#B = concatenate([N*(stc + outer(sta,sta)) for N,sta,stc in zip(N_spikes,STA,STC)])
-B = concatenate([N*stc for N,sta,stc in zip(N_spikes,STA,STC)])
-C = concatenate((A,B))
-YU,S,VI = svd(C)
-T       = VI[0:Nproj,:]
+Nproj    = sum(iW>nonzero)
+data     = [ V2*ones(Nproj), N_spikes , STA , STC ]
+baye_ARD = posterior_dUV1(data,Nproj)
 
-## baye_proj = posterior_dUV1(Ncones,Nproj,NRGC)
-## data_proj = data
-## flat_svdU = T.flatten()
-baye_proj = posterior_dUV1(Nproj,Nproj,NRGC)
-STA       = [dot(T,sta) for sta in STA]
-STC       = [dot(dot(T,stc),transpose(T)) for stc in STC]
-data_proj = [ (V2*ones(Nproj), N_spikes , STA , STC) ]
-flat_svdU  = eye(Nproj).flatten()
-
-init_params_proj = 0.0001 * R.randn(flat_svdU.size+Nproj*NRGC)
-##order = range(flat_svdU.size)
-##R.shuffle(order)
-##print 'Permutation: ' , order
-##flat_svdU = flat_svdU[ order ]
-init_params_proj = concatenate( [flat_svdU , init_params_proj[flat_svdU.size:]] )
+init_params = concatenate([ filters[iW>nonzero,:].flatten() , V[iW>nonzero,:].T.flatten() ])
 print
 print 'initial params :'
-baye.callback(init_params_proj,data_proj)
+baye.callback(init_params)
 print
 
-#params_proj = init_params_proj
-#params_proj = baye_proj.optimize(params_proj,data_proj[0])
-#
-#def rexpand(x):
-#    return concatenate([dot(reshape(x[0:Nproj*Nproj],(Nproj,Nproj)),T).flatten(),x[Nproj*Nproj:]])
-##    return concatenate([dot(transpose(T),reshape(x[0:Nproj*Nsub],(Nproj,Nsub))).flatten(),x[Nproj*Nsub:]])
-#
-##init_params = init_params_proj
-##params      = params_proj
-#init_params = rexpand( init_params_proj )
-#params      = rexpand(      params_proj )
-#
-#true_params = concatenate( [zeros(params.size-true_params.size) , true_params] )
-#
-#p.figure(2)
-#baye.plot(params,true_params,data[0])
-#
+params = baye_ARD.optimize(init_params,maxiter=1)
+
+p.figure(2)
+baye.plot(baye_ARD.params(params),baye.params(true_params))
+
 #print 'log-likelihood of init params = ', baye.f(init_params,data[0])
 #print 'log-likelihood of opt  params = ', baye.f(params,data[0])
 #print 'log-likelihood of true params = ', baye.f(true_params,data[0])

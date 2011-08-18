@@ -3,8 +3,8 @@ Generate simulated data.
 @author: kolia
 """
 
-from numpy  import dot,sin,cos,exp,std,sum,newaxis,sqrt,cov
-from numpy  import arange,transpose,fromfunction,pi
+from numpy  import dot,sin,cos,exp,sum,newaxis,sqrt,cov,ceil,minimum
+from numpy  import arange,transpose,fromfunction,pi,mean,concatenate
 import numpy.random   as R
 
 def weights(shape=(10,10), sigma=1):
@@ -13,13 +13,13 @@ def weights(shape=(10,10), sigma=1):
     return U / sqrt(sum(U*U,axis=1))[:,newaxis]
 
 
-def LNLNP(
+def LNLNP_chunk(
     sigma_stimulus = 1.           ,  # stimulus standard deviation
     nonlinearity   = sin          ,  # subunit nonlinearity
     N_cells        = [10,5,3]     ,  # number of cones, subunits & RGCs
     sigma_spatial  = [2., 1.]     ,  # subunit & RGC connection width
-    firing_rate     = 0.1          ,  # RGC firing rate
-    N_timebins     = 1000000      ,  # number of time samples
+    firing_rate     = 1.           ,  # RGC firing rate
+    N_timebins     = 10000        ,  # number of time samples
     average_me     = {}           ):  # calculate STA, STC, stim. avg 
                                      # and cov of these functions of the stimulus
     """Simulate spiking data for a Linear-Nonlinear-Linear-Nonlinear-Poisson model.
@@ -34,14 +34,10 @@ def LNLNP(
     V = weights(sigma=sigma_spatial[1],shape=(N_cells[2],N_cells[1]))
 
     b        = nonlinearity(dot(U,X))      # subunit activations
-    Y        = exp(dot(V,b))               # RGC activations
-    Y        = Y * N_cells[2] * N_timebins * firing_rate / sum(Y)
-
-    print 'std( X ) = ', std(X)
-    print 'std( U X ) = ', std(dot(U,X))
-    print 'std( V b ) = ', std(dot(V,b))
-
-    spikes = R.poisson(Y)
+    spikes   = exp(dot(V,b))               # RGC activations
+    spikes   = spikes * N_cells[2] * N_timebins * firing_rate / sum(spikes)
+    
+    spikes = R.poisson(spikes)
     N_spikes = sum(spikes,1)
 
     average_me['stimulus'] = lambda x : x
@@ -55,17 +51,52 @@ def LNLNP(
         d['STC']  = \
             [ dot( x-d['STA'][i][:,newaxis], transpose((x-d['STA'][i][:,newaxis])*spikes[i,:])) \
             / N_spikes[i]               for i in arange(N_cells[2]) ]
-        d['ySTA']  = [ sum(x*Y[i,:],1) / N_spikes[i] for i in arange(N_cells[2]) ]
-        d['ySTC']  = \
-            [ dot( x-d['STA'][i][:,newaxis], transpose((x-d['STA'][i][:,newaxis])*Y[i,:])) \
-            / N_spikes[i]               for i in arange(N_cells[2]) ]
         return d
     statistics = dict( (name,statistics(average_me[name](X))) for name in average_me.keys())
 
     result = locals()
     del result['X']
-    del result['Y']
+    del result['spikes']
     del result['b']
     del result['seed']
     del result['average_me']
+    return result
+
+def LNLNP(
+    sigma_stimulus = 1.           ,  # stimulus standard deviation
+    nonlinearity   = sin          ,  # subunit nonlinearity
+    N_cells        = [10,5,3]     ,  # number of cones, subunits & RGCs
+    sigma_spatial  = [2., 1.]     ,  # subunit & RGC connection width
+    firing_rate     = 0.3          ,  # RGC firing rate
+    N_timebins     = 100000       ,  # number of time samples
+    average_me     = {}           ):  # calculate STA, STC, stim. avg 
+                                     # and cov of these functions of the stimulus
+
+    timebins = [minimum(N_timebins-i*10000,10000) for i,x in 
+                    enumerate(range(ceil(N_timebins/10000.)))]
+    result = LNLNP_chunk(sigma_stimulus, nonlinearity, N_cells, sigma_spatial, 
+                         firing_rate, N_timebins=timebins[0], average_me=average_me)
+    result['stimulus'] = [result['stimulus']]
+    for Nt in timebins[1:]:
+        ll = LNLNP_chunk(sigma_stimulus, nonlinearity, N_cells, sigma_spatial, 
+                         firing_rate, N_timebins=Nt, average_me=average_me)
+    #        result['spikes']   = concatenate([l['spikes'] for l in lnp], axis=1)
+    
+        for topname,topd in result['statistics'].items():
+            for name,d in result['statistics'][topname].items():
+                if isinstance(result['statistics'][topname][name],type([])):
+                    for i,(r,l) in enumerate(zip(result['statistics'][topname][name],
+                                                 ll['statistics'][topname][name])):
+                        result['statistics'][topname][name][i] = \
+                            (r*result['N_timebins'] + l*ll['N_timebins'])/ \
+                            (result['N_timebins'] + ll['N_timebins'])                        
+                else:
+                    result['statistics'][topname][name] = \
+                        (result['statistics'][topname][name]*result['N_timebins'] + 
+                             ll['statistics'][topname][name]*    ll['N_timebins'])/ \
+                        (result['N_timebins'] + ll['N_timebins'])
+        result['N_timebins'] = result['N_timebins'] + ll['N_timebins']
+        result['stimulus']   = result['stimulus']   + [ll['stimulus']]
+        result['N_spikes']   = result['N_spikes']   + ll['N_spikes']
+    result['stimulus']   = lambda : concatenate([ll['stimulus']() for ll in result['stimulus']])
     return result
