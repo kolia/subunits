@@ -15,6 +15,8 @@ reload(simulate_data)
 import optimize
 reload(optimize)
 
+import cPickle
+
 from numpy import dot, ones , arange, sum, array
 import numpy.random   as Rand
 import numpy.linalg   as L
@@ -100,16 +102,21 @@ print 'true params :'
 baye.callback(true_params)
 
 Nproj    = sum(iW>nonzero)
+
 data     = [ V2*ones(Nproj), N_spikes , STA , STC ]
 baye_ARD = posterior_dUV1(data,Nproj)
+init_params = concatenate([ filters[iW>nonzero,:].flatten() , V[iW>nonzero,:].T.flatten() ])/1.1
 
-init_params = concatenate([ filters[iW>nonzero,:].flatten() , V[iW>nonzero,:].T.flatten() ])
+#data     = [ V2*ones(Nproj), V[iW>nonzero,:].T, N_spikes , STA , STC ]
+#baye_ARD = posterior_dU(data,Nproj)
+#init_params = concatenate([ filters[iW>nonzero,:].flatten() ])/1.1
+
 print
 print 'initial params :'
 baye.callback(init_params)
 print
 
-params = baye_ARD.optimize(init_params,maxiter=1)
+params = baye_ARD.optimize(init_params,maxiter=5000)
 
 p.figure(2)
 baye.plot(baye_ARD.params(params),baye.params(true_params))

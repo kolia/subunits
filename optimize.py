@@ -3,7 +3,7 @@ Minor changes to the BFGS optimizer in scipy.optimize
 """
 from scipy.optimize import approx_fprime
 import numpy
-from numpy import asarray, sqrt, Inf, isinf, minimum
+from numpy import asarray, sqrt, Inf, isinf, minimum, isfinite
 from scipy.optimize.linesearch import line_search_wolfe1, line_search_wolfe2
 
 from kolia_theano import flat
@@ -218,9 +218,10 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
         amax = backtrack(xk,pk,barr)          # scipy.optimize.fmin_bfgs 
                                                 # modified here 
                                                 # and line_searches below!
-#        amax = 50.        
+#        amax = 50.
+        famax = f(xk+amax*pk)
         if disp:
-            print 'amax:%10f   f(amax):%10g    barrier(amax):%d' % (amax,f(xk+amax*pk),barr(xk+amax*pk)), '  ' ,
+            print 'amax:%10f   f(amax):%10g    barrier(amax):%d' % (amax,famax,barr(xk+amax*pk)), '  ' ,
         if callback is not None:
             callback(xk)
 
@@ -266,6 +267,7 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
 
 #        debug_here()
         alpha_k = minimum(alpha_k,amax)
+        if old_fval>famax and isfinite(famax): alpha_k = amax
 
         if (alpha_k is None) or (barr(xk + alpha_k * pk)):
             # This line search also failed to find a better solution.

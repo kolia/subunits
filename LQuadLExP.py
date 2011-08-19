@@ -12,6 +12,8 @@ from optimize import optimizer
 import pylab as p
 from matplotlib.ticker import *
 
+from IPython.Debugger import Tracer; debug_here = Tracer()
+
 class posterior:
     def __init__(self,data,Nsub,prior=lambda U:0):
         self.DATA  = data
@@ -19,7 +21,7 @@ class posterior:
         self.Nsub  = Nsub
         self.NRGC  = len(data[-2])
         self.prior = prior
-        self.mindet= -0.
+        self.mindet= -2.
         U    = Th.dmatrix()                   # SYMBOLIC variables     #
         V1   = Th.dvector()                                            #
         V2   = Th.dvector()                                            #
@@ -185,7 +187,7 @@ class posterior_single(posterior):
 
 class posterior_dU(posterior_single):
     '''Optimization wrt U only'''
-    def params(self,params,(V2,V1,N_spikes,STA,STC)):
+    def params(self,params):
         return ( self.U(params), self.DATA[0], self.DATA[1])
         
     def df(self,params,data):
