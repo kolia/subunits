@@ -30,23 +30,23 @@ def load():
 
 N_cells=[12,6,3]
 
-V2 = 0.1
+V2 = 1.
 def NL(x): return x + 0.5 * V2 * ( x ** 2 )
 
 # Quantities of interest
 N_filters = N_cells[1]*2
 filters = np.concatenate(
     [simulate_retina.weights(sigma=n, shape=(N_filters,N_cells[0]))
-    for n in [1.,2.,3.]] )
+    for n in [2.,3.,5.]] )
 
 # Generate stimulus , spikes , and (STA,STC,mean,cov) of quantities of interest
 #R = load()
 try:
     R = load()
 except:
-    R = simulate_retina.LNLNP( nonlinearity=NL, N_cells=N_cells , sigma_spatial=[2.,1.5],
+    R = simulate_retina.LNLNP( nonlinearity=NL, N_cells=N_cells , sigma_spatial=[3.,2.],
                                average_me={'features':lambda x: NL(np.dot(filters,x))},
-                               N_timebins = 1000000 )
+                               N_timebins = 5000000 )
     save()
 
 dSTA = np.concatenate(
@@ -58,7 +58,7 @@ keep= DD>1e-6
 P   =  (Z[:,keep] * np.sqrt(DD[keep])).T
 y   =  np.dot ( (Z[:,keep] * 1/np.sqrt(DD[keep])).T , dSTA )
 
-V, iW = IRLS( y, P, x=0, disp_every=1000, lam=0.011, maxiter=10000000 , ftol=1e-7, nonzero=1e-1)
+V, iW = IRLS( y, P, x=0, disp_every=1000, lam=0.6, maxiter=10000000 , ftol=1e-7, nonzero=1e-1)
 
 def plot_filters(X,same_scale=True):
     for i in range(X.shape[0]):
