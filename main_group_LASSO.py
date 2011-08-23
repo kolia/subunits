@@ -30,7 +30,7 @@ def load():
 
 N_cells=[12,6,3]
 
-V2 = 1.
+V2 = 0.5
 def NL(x): return x + 0.5 * V2 * ( x ** 2 )
 
 # Quantities of interest
@@ -44,7 +44,7 @@ filters = np.concatenate(
 try:
     R = load()
 except:
-    R = simulate_retina.LNLNP( nonlinearity=NL, N_cells=N_cells , sigma_spatial=[3.,2.],
+    R = simulate_retina.LNLNP( nonlinearity=NL, N_cells=N_cells , sigma_spatial=[3.,1.],
                                average_me={'features':lambda x: NL(np.dot(filters,x))},
                                N_timebins = 5000000 )
     save()
@@ -58,7 +58,7 @@ keep= DD>1e-6
 P   =  (Z[:,keep] * np.sqrt(DD[keep])).T
 y   =  np.dot ( (Z[:,keep] * 1/np.sqrt(DD[keep])).T , dSTA )
 
-V, iW = IRLS( y, P, x=0, disp_every=1000, lam=0.6, maxiter=10000000 , ftol=1e-7, nonzero=1e-1)
+V, iW = IRLS( y, P, x=0, disp_every=1000, lam=0.7, maxiter=10000000 , ftol=1e-7, nonzero=1e-1)
 
 def plot_filters(X,same_scale=True):
     for i in range(X.shape[0]):

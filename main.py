@@ -15,8 +15,6 @@ reload(simulate_data)
 import optimize
 reload(optimize)
 
-import cPickle
-
 from numpy import dot, ones , arange, sum, array
 import numpy.random   as Rand
 import numpy.linalg   as L
