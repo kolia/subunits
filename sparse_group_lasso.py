@@ -19,7 +19,9 @@ def optimize_coeffs(predictor,group_weight,weight,rr,coeff):
     PP = sum(predictor*predictor,axis=0)
     old_coeff = coeff[0]
     def objective(old_c,coeffL2,z,w,c): 
-        return 0.5*sum((rr[0]-z*(c-old_c))**2) + group_weight*sqrt(coeffL2+c**2) - group_weight*sqrt(coeffL2+old_c**2) + sum(w*abs(c)) - sum(w*abs(old_c))
+        return 0.5*sum((rr[0]-z*(c-old_c))**2) + \
+        group_weight*sqrt(coeffL2+c**2) - \
+        group_weight*sqrt(coeffL2+old_c**2) + sum(w*abs(c)) - sum(w*abs(old_c))
     def best_c(coeffL2,pp,z,c,w):
         old_c = c
         coeffL2[0] -= c**2
@@ -29,12 +31,20 @@ def optimize_coeffs(predictor,group_weight,weight,rr,coeff):
         else:
             counter = 0
             while 1:
-#                print 'obj pre: ', objective(old_c,coeffL2[0],z,w,c),
-                dc    = newton_lasso(pp,pr,coeffL2,group_weight,w,c)
+                old_obj = objective(old_c,coeffL2[0],z,w,c)
+                dc    = newton_lasso(pp,pr,coeffL2[0],group_weight,w,c)
+                while objective(old_c,coeffL2[0],z,w,c+dc)>old_obj:
+                    dc = dc/2
                 c    += dc
                 counter += 1
-                if abs(dc)<1e-10 or counter>10: break
-#                print '  obj post: ', objective(old_c,coeffL2[0],z,w,c)
+                if abs(dc)<1e-10 or counter>20: 
+                    break
+            if counter>20:
+                print 'problem with newton'
+            obj = objective(old_c,coeffL2[0],z,w,c)
+#            print '  OBJECTIVE ',old_obj,' -> ',obj,
+            if obj>old_obj:
+                print 'OBJECTIVE INCREASED!'
             c = c.squeeze()
         coeffL2[0] = coeffL2[0] + c**2
         rr[0] += (old_c-c)*z
@@ -83,18 +93,26 @@ def test( n=10 , m=300 , s=25 , r=1 ):
     y = dot(P,x)
     start = time()
     predictors    = [P[:,s*i:minimum(s*(i+1),P.shape[1])] for i in range(floor(m/s))]
-    group_weights = [1 for _ in predictors]
-    weights       = [ones(p.shape[1]) for p in predictors]
-    r,coeffs  = initialize_group_lasso(predictors, y, coeffs = None)
+    group_weights = [10. for _ in predictors]
+    weights       = [1.*ones(p.shape[1]) for p in predictors]
+    r,coeffs  = initialize_group_lasso(predictors, y)
     def objective():
         return 0.5*sum(r[0]**2) + \
-        sum([gw*sqrt(sum(c**2)) for gw,c in zip(group_weights,coeffs[0])]) + \
-        sum([sum(w*abs(c))      for w ,c in zip(      weights,coeffs[0])])
+        sum([gw*sqrt(sum(c[0]**2)) for gw,c in 
+             filter(lambda c : c[1][0] is not None , zip(group_weights,coeffs))]) + \
+        sum([sum(w*abs(c[0]))      for w ,c in
+             filter(lambda c : c[1][0] is not None , zip(      weights,coeffs))])
     print r
-    for _ in range(100):
+    for iteration in range(1000):
         old_coeffs = [c[0] for c in coeffs]
         group_lasso_step(predictors, group_weights, weights, r, coeffs)
-        print 'objective: ',objective(),'  dc: ', [sum(abs(oc-c[0])) for oc,c in 
-                       filter(lambda c: c[0] is not None and c[1][0] is not None, zip(old_coeffs,coeffs))]
+        print 'objective: ',objective(),
+        print '  nonzero groups: ', len(filter(lambda c : c[0] is not None , coeffs)),
+        print '  nonzeros: ', sum( [sum(cc[0]!=0 for cc in 
+                                    filter(lambda c : c is not None , coeffs))])
+        dc = [sum(abs(oc-c[0])) for oc,c in 
+                       filter(lambda c: c[0] is not None and c[1][0] is not None, \
+                       zip(old_coeffs,coeffs))]
+        if iteration>20 and sum([abs(dcc) for dcc in dc])<1e-5: break
     finish = time()
-    print 'Sparse group LASSO ran for ',finish-start,' seconds for n,m: ',n,m
+    print iteration,'Iterations of sparse group LASSO in ',finish-start,' seconds for n,m: ',n,m
