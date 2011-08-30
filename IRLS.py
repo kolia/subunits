@@ -66,7 +66,7 @@ def test( n=100 , m=3000 , s=25 , r=1 ):
     x[o[:s],:] = R.randn(s,r)
     y = dot(P,x)
     start = time()
-    irlsx , w = IRLS(y,P,disp=1)
+    irlsx , w = IRLS(y,P,disp_every=1)
     finish = time()
     irlsx[abs(irlsx)<1e-7] = 0
     print 'Errors: ', irlsx[abs(irlsx-x)>1e-4] - x[abs(irlsx-x)>1e-4]

@@ -1,9 +1,14 @@
+from   time  import time
+
 import simulate_retina
 reload(simulate_retina)
 
 import IRLS
 reload(IRLS)
 from   IRLS import IRLS
+
+import sparse_group_lasso as sgl
+reload(sgl)
 
 import numpy as np
 import pylab as p
@@ -50,15 +55,31 @@ except:
     save()
 
 dSTA = np.concatenate(
-            [STA[:,np.newaxis] - R['statistics']['features']['mean'][:,np.newaxis]
-            for STA in R['statistics']['features']['STA']], axis=1)
-D,Z = schur(R['statistics']['features']['cov'])
+            [np.sqrt(Nspikes)*
+            (STA[:,np.newaxis]-R['statistics']['features']['mean'][:,np.newaxis])
+            for Nspikes,STA in 
+            zip(R['N_spikes'],R['statistics']['features']['STA'])], axis=1)/2
+D,Z = schur(R['statistics']['features']['cov']/2)
 DD  = np.diag(D)
-keep= DD>1e-6
+keep= DD>1e-10
 P   =  (Z[:,keep] * np.sqrt(DD[keep])).T
 y   =  np.dot ( (Z[:,keep] * 1/np.sqrt(DD[keep])).T , dSTA )
 
-V, iW = IRLS( y, P, x=0, disp_every=1000, lam=0.7, maxiter=10000000 , ftol=1e-7, nonzero=1e-1)
+V, iW = IRLS( y, P, x=0, disp_every=1000, lam=100., maxiter=10000000 , 
+              ftol=1e-7, nonzero=1e-1)
+
+#start = time()
+#predictors    = [P[:,s*i:np.minimum(s*(i+1),P.shape[1])] for i in range(np.floor(m/s))]
+#group_weights = [5. for _ in predictors]
+#weights       = [5.*np.ones(p.shape[1]) for p in predictors]
+#r,coeffs  = sgl.initialize_group_lasso(predictors, y)
+#print r
+#iterations = sgl.sparse_group_lasso(predictors, group_weights, weights, 
+#                                    r, coeffs, maxiter=10000, disp_every=10)
+#finish = time()
+#print iterations,'Iterations of sparse group LASSO in ',finish-start,' seconds for n: ',n
+#print 'infered x ',coeffs
+
 
 def plot_filters(X,same_scale=True):
     for i in range(X.shape[0]):
