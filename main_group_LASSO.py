@@ -55,18 +55,17 @@ except:
     save()
 
 dSTA = np.concatenate(
-            [np.sqrt(Nspikes)*
-            (STA[:,np.newaxis]-R['statistics']['features']['mean'][:,np.newaxis])
+            [np.sqrt(Nspikes) * (STA[:,np.newaxis]-R['statistics']['features']['mean'][:,np.newaxis])
             for Nspikes,STA in 
             zip(R['N_spikes'],R['statistics']['features']['STA'])], axis=1)/2
 D,Z = schur(R['statistics']['features']['cov']/2)
 DD  = np.diag(D)
 keep= DD>1e-10
-P   =  (Z[:,keep] * np.sqrt(DD[keep])).T
+P   =  (Z[:,keep] * np.sqrt(DD[keep])).T * np.sqrt(Nspikes)
 y   =  np.dot ( (Z[:,keep] * 1/np.sqrt(DD[keep])).T , dSTA )
 
-V, iW = IRLS( y, P, x=0, disp_every=1000, lam=100., maxiter=10000000 , 
-              ftol=1e-7, nonzero=1e-1)
+V, iW = IRLS( y, P, x=0, disp_every=1000, lam=200000., maxiter=100000 , 
+              ftol=1e-10, nonzero=1e-1)
 
 #start = time()
 #predictors    = [P[:,s*i:np.minimum(s*(i+1),P.shape[1])] for i in range(np.floor(m/s))]
