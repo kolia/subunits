@@ -1,6 +1,6 @@
 import numpy
-from   numpy import dot, minimum, maximum, sqrt, sign
-from   numpy import ones_like, array, sum
+from   numpy import dot, minimum, maximum, sqrt, sign, concatenate
+from   numpy import ones_like, array, sum, zeros, newaxis
 
 from IPython.Debugger import Tracer; debug_here = Tracer()
 
@@ -92,7 +92,17 @@ def sparse_group_lasso(predictors, group_weights, weights, r, coeffs,
         dc = [sum(abs(oc-c[0])) for oc,c in 
                        filter(lambda c: c[0] is not None and c[1][0] is not None, \
                        zip(old_coeffs,coeffs))]
-        if iteration>20 and sum([abs(dcc) for dcc in dc])<1e-5: break
+        if iteration>20 and sum([abs(dcc) for dcc in dc])<1e-8: break
+
+def inflate(coeffs):
+    for c in coeffs:
+        if c[0] is not None: break
+    if c[0] is None: return None
+    shape = c[0].shape
+    def shaped(c,shape):
+        if c is None: return zeros(shape)
+        return c
+    return concatenate( [shaped(c[0],shape)[:,newaxis].T for c in coeffs] )
 
 def objective(group_weights, weights, r, coeffs):
     return 0.5*sum(r[0]**2) + \
