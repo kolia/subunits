@@ -90,24 +90,34 @@ def sobjective(v,R):
     dSTA  = R['statistics']['features']['STA'][0][:,np.newaxis]- \
             R['statistics']['features']['mean'][:,np.newaxis]
 
-    direct = np.sum(v*( dSTA - 0.5*np.dot(R['statistics']['features']['cov'],v)))
+    direct = np.sum(v*( dSTA.squeeze() - 0.5*np.dot(R['statistics']['features']['cov'],v)))
+#    direct2= np.dot(v,dSTA) - 0.5*np.dot(v,np.dot(R['statistics']['features']['cov'],v))
+
+    debug_here()
 
     D,Z = schur(R['statistics']['features']['cov']/2)
 
-#    print (np.dot(Z,np.dot(D,Z.T)) - R['statistics']['features']['cov']/2)
+#    print np.max( D - np.diag(np.diag(D)) )
+    print 'max( Z D Z.T - C ) ', \
+    np.max(np.abs(np.dot(Z,np.dot(D,Z.T)) - R['statistics']['features']['cov']/2))
 
     D = np.diag(D)
 #    print D
 
     P   =  (Z * np.sqrt(D)).T
-    y   =  np.dot ( (Z * 1/np.sqrt(D)).T , dSTA ) / 2
+    y   =  np.dot ( (Z * 1/np.sqrt(D)).T , dSTA.squeeze() ) / 2
 
-    return [ direct , np.sum( (y-np.dot(P,v))**2 - y**2 ) ]
+    print '2*dot(P.T,y) - dSTA ', np.max(np.abs( 2*np.dot(P.T,y) - dSTA ))
+
+    return [ direct , np.sum( - (y-np.dot(P,v))**2 + y**2 ) ]
+#    return [ direct , direct2, np.sum( - (y-np.dot(P,v))**2 + y**2 ) ]
 
 
 print sobjective(Rand.randn(12,3),R)
-print sobjective(Rand.randn(12,3),R)
-print sobjective(Rand.randn(12,3),R)
+print 
+print
+#print sobjective(Rand.randn(12,3),R)
+#print sobjective(Rand.randn(12,3),R)
 print sobjective(0*Rand.randn(12,3),R)
 print objective(Rand.randn(12,3),R,y,P)
 
