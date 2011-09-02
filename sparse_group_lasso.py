@@ -64,14 +64,18 @@ def sparsify_group(predictor, group_weight, weight, r, coeff):
 
 def initialize_group_lasso(predictors, y, coeffs = None):
     if coeffs is None: coeffs = [[None] for _ in predictors]
+    r = [y]
+    calculate_residual( predictors, r, coeffs )
+    return r, coeffs
+
+def calculate_residual( predictors, r, coeffs ):
     def dotc(p,c):
         if c[0] is None: return 0.
-        else:            return dot(p,c)
+        else:            return dot(p,c[0])
     N = len(predictors)
-    rr = [numpy.sum([y/N - dotc(predictor,c) 
-          for c,predictor in  zip(coeffs,predictors)],axis=0).squeeze()]
-    return rr, coeffs
-
+    r[0] = numpy.sum([r[0]/N - dotc(predictor,c) 
+                      for c,predictor in  zip(coeffs,predictors)],axis=0).squeeze()
+    
 def group_lasso_step(predictors, group_weights, weights, r, coeffs):
     for predictor , group_weight , weight , coeff  in \
     zip(predictors, group_weights, weights, coeffs ):
@@ -80,19 +84,19 @@ def group_lasso_step(predictors, group_weights, weights, r, coeffs):
             optimize_coeffs(predictor,group_weight,weight,r,coeff)
 
 def sparse_group_lasso(predictors, group_weights, weights, r, coeffs, 
-                       maxiter=10000, disp_every=0):
+                       maxiter=10000, disp_every=0, ftol=1e-9):
     for iteration in range(maxiter):
         old_coeffs = [c[0] for c in coeffs]
-        group_lasso_step(predictors, group_weights, weights, r, coeffs)
+        group_lasso_step( predictors, group_weights, weights, r, coeffs )
         if disp_every and not iteration%disp_every:
-            print 'objective: ',objective(group_weights, weights, r, coeffs),
+            print 'objective: ',current_objective(group_weights, weights, r, coeffs),
             print '  nonzero groups: ',len(filter(lambda c: c[0] is not None,coeffs)),
             print '  nonzeros: ', sum( [sum(cc[0]!=0 for cc in 
                                         filter(lambda c: c[0] is not None , coeffs))])
         dc = [sum(abs(oc-c[0])) for oc,c in 
                        filter(lambda c: c[0] is not None and c[1][0] is not None, \
                        zip(old_coeffs,coeffs))]
-        if iteration>20 and sum([abs(dcc) for dcc in dc])<1e-8: break
+        if iteration>20 and sum([abs(dcc) for dcc in dc])<ftol: break
 
 def inflate(coeffs):
     for c in coeffs:
@@ -104,7 +108,16 @@ def inflate(coeffs):
         return c
     return concatenate( [shaped(c[0],shape)[:,newaxis].T for c in coeffs] )
 
-def objective(group_weights, weights, r, coeffs):
+def current_objective(group_weights, weights, r, coeffs):
+    return 0.5*sum(r[0]**2) + \
+    sum([gw*sqrt(sum(c[0]**2)) for gw,c in 
+         filter(lambda c : c[1][0] is not None , zip(group_weights,coeffs))]) + \
+    sum([sum(w*abs(c[0]))      for w ,c in
+         filter(lambda c : c[1][0] is not None , zip(      weights,coeffs))])
+         
+def objective( predictors, group_weights, weights, y, coeffs ):
+    r = [y]
+    calculate_residual(predictors,r,coeffs)
     return 0.5*sum(r[0]**2) + \
     sum([gw*sqrt(sum(c[0]**2)) for gw,c in 
          filter(lambda c : c[1][0] is not None , zip(group_weights,coeffs))]) + \

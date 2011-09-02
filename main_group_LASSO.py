@@ -78,31 +78,36 @@ keep= DD>1e-10
 P   =  (Z[:,keep] * np.sqrt(DD[keep])).T
 y   =  np.dot ( (Z[:,keep] * 1/np.sqrt(DD[keep])).T , dSTA ) / 2
 
-def objective(v,R,y,predictors):
-    total = float( np.sum([Nspikes for Nspikes in R['N_spikes']]) )
-    Nspikes = R['N_spikes']/total
-    dSTA  = np.concatenate(
-            [STA[:,np.newaxis]-R['statistics']['features']['mean'][:,np.newaxis]
-            for STA in R['statistics']['features']['STA']], axis=1)    
+predictors    = [ block_diag(*[column*np.sqrt(Nspke) for Nspke in Nspikes]).T
+                  for column in P.T]
+
+def objective(v,Nspikes,dSTA,y,predictors):
     direct = np.sum(v*Nspikes*( dSTA - 0.5*np.dot(R['statistics']['features']['cov'],v)))
-    r,coeffs  = sgl.initialize_group_lasso(predictors, (np.sqrt(Nspikes)*y).flatten())
     group_weights = [0. for _ in predictors]
     weights       = [np.zeros(pp.shape[1]) for pp in predictors]
-    return [ direct , sgl.objective(group_weights,weights,r,coeffs) ]
+    coeffs = [[vv] for vv in v]
+    direct2 = np.sum( - (np.sqrt(Nspikes)*(y-np.dot(P,v)))**2 + (np.sqrt(Nspikes)*y)**2 )
+    obje = -2.*sgl.objective(predictors, group_weights, weights,
+                             (np.sqrt(Nspikes)*y).T.flatten(),coeffs) + \
+                                        np.sum((np.sqrt(Nspikes)*y)**2)
+    return [ direct , direct2, obje ]
+
+print objective(Rand.randn(12,3),Nspikes,dSTA,y,predictors)
+print objective(Rand.randn(12,3),Nspikes,dSTA,y,predictors)
+
 
 def sobjective(v,R):
     total = float( np.sum([Nspikes for Nspikes in R['N_spikes']]) )
     Nspikes = R['N_spikes']/total
     dSTA  = np.concatenate(
             [STA[:,np.newaxis]-R['statistics']['features']['mean'][:,np.newaxis]
-            for STA in R['statistics']['features']['STA']], axis=1)
+            for STA in R['statistics']['features']['STA']], axis=1)    
+    direct = np.sum(v*Nspikes*( dSTA - 0.5*np.dot(R['statistics']['features']['cov'],v)))
     D,Z = schur(R['statistics']['features']['cov']/2)
     DD  = np.diag(D)
     keep= DD>1e-10
     P   =  (Z[:,keep] * np.sqrt(DD[keep])).T
     y   =  np.dot ( (Z[:,keep] * 1/np.sqrt(DD[keep])).T , dSTA ) /2
-    
-    direct = np.sum(v*Nspikes*( dSTA - 0.5*np.dot(R['statistics']['features']['cov'],v)))
 
 #    print np.max( D - np.diag(np.diag(D)) )
 #    print 'max( Z D Z.T - C ) ', \
@@ -113,27 +118,20 @@ def sobjective(v,R):
                                 (np.sqrt(Nspikes)*y)**2 ) ]
 
 
-print sobjective(Rand.randn(12,3),R)
-print sobjective(Rand.randn(12,3),R)
-print sobjective(Rand.randn(12,3),R)
-print sobjective(0*Rand.randn(12,3),R)
+#print sobjective(Rand.randn(12,3),R)
+#print sobjective(Rand.randn(12,3),R)
+#print sobjective(Rand.randn(12,3),R)
+#print sobjective(0*Rand.randn(12,3),R)
 
-#V, iW = IRLS( y, P, x=0, disp_every=1000, lam=0.15, maxiter=100000 , 
-#              ftol=1e-10, nonzero=1e-1)
+V, iW = IRLS( y, P, x=0, disp_every=1000, lam=0.15, maxiter=100000 , 
+              ftol=1e-10, nonzero=1e-1)
 
 start = time()
-predictors    = [ block_diag(*[column*np.sqrt(Nspke) for Nspke in Nspikes]).T
-                  for column in P.T]
                   
-print
-print
-print objective(Rand.randn(12,3),R,y,predictors)
-                  
-                  
-group_weights = [0.1 for _ in predictors]
+group_weights = [0.05 for _ in predictors]
 weights       = [0.001*np.ones(pp.shape[1]) for pp in predictors]
 
-r,coeffs  = sgl.initialize_group_lasso(predictors, (np.sqrt(Nspikes)*y).flatten())
+r,coeffs  = sgl.initialize_group_lasso(predictors, (np.sqrt(Nspikes)*y).T.flatten())
 print r
 iterations = sgl.sparse_group_lasso(predictors, group_weights, weights, 
                                     r, coeffs, maxiter=10000, disp_every=10)
