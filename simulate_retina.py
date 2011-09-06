@@ -18,8 +18,8 @@ def LNLNP_chunk(
     nonlinearity   = sin          ,  # subunit nonlinearity
     N_cells        = [10,5,3]     ,  # number of cones, subunits & RGCs
     sigma_spatial  = [2., 1.]     ,  # subunit & RGC connection width
-    firing_rate     = 1.           ,  # RGC firing rate
-    N_timebins     = 10000        ,  # number of time samples
+    firing_rate     = 0.1          ,  # RGC firing rate
+    N_timebins     = 100000       ,  # number of time samples
     average_me     = {}           ):  # calculate STA, STC, stim. avg 
                                      # and cov of these functions of the stimulus
     """Simulate spiking data for a Linear-Nonlinear-Linear-Nonlinear-Poisson model.

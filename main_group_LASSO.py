@@ -35,13 +35,13 @@ def load():
 ############################
 # Setting up simulated data
 
-N_cells=[12,6,3]
+N_cells=[40,20,12]
 
-V2 = 0.0
+V2 = 0.2
 def NL(x): return x + 0.5 * V2 * ( x ** 2 )
 
 # Quantities of interest
-N_filters = N_cells[1]*2
+N_filters = N_cells[1]*10
 filters = np.concatenate(
     [simulate_retina.weights(sigma=n, shape=(N_filters,N_cells[0]))
     for n in [10.]] )
@@ -51,18 +51,10 @@ filters = np.concatenate(
 try:
     R = load()
 except:
-    R = simulate_retina.LNLNP( nonlinearity=NL, N_cells=N_cells , sigma_spatial=[10.,1.],
+    R = simulate_retina.LNLNP( nonlinearity=NL, N_cells=N_cells , sigma_spatial=[10.,2.],
                                average_me={'features':lambda x: NL(np.dot(filters,x))},
-                               N_timebins = 5000000 )
+                               N_timebins = 100000 )
     save()
-
-#Nspikes_norm  = np.sum(np.sqrt(R['N_spikes']))/len(R['N_spikes'])
-#
-#dSTA = np.concatenate(
-#            [np.sqrt(Nspikes/2)/Nspikes_norm * 
-#             (STA[:,np.newaxis]-R['statistics']['features']['mean'][:,np.newaxis])
-#            for Nspikes,STA in 
-#            zip(R['N_spikes'],R['statistics']['features']['STA'])], axis=1)
             
 total = float( np.sum([Nspikes for Nspikes in R['N_spikes']]) )
 
@@ -92,8 +84,7 @@ def objective(v,Nspikes,dSTA,y,predictors):
                                         np.sum((np.sqrt(Nspikes)*y)**2)
     return [ direct , direct2, obje ]
 
-print objective(Rand.randn(12,3),Nspikes,dSTA,y,predictors)
-print objective(Rand.randn(12,3),Nspikes,dSTA,y,predictors)
+print objective(Rand.randn(filters.shape[0],N_cells[2]),Nspikes,dSTA,y,predictors)
 
 
 def sobjective(v,R):
@@ -118,27 +109,45 @@ def sobjective(v,R):
                                 (np.sqrt(Nspikes)*y)**2 ) ]
 
 
-#print sobjective(Rand.randn(12,3),R)
-#print sobjective(Rand.randn(12,3),R)
-#print sobjective(Rand.randn(12,3),R)
-#print sobjective(0*Rand.randn(12,3),R)
+def print_coeffs(V,precision=1e-2):
+    lasti = -10
+    for i,v in enumerate(V):
+        if lasti == i-2: print
+        if np.sum(np.abs(v))>precision:    
+            print i,' : ', v
+            lasti = i    
 
-V, iW = IRLS( y, P, x=0, disp_every=1000, lam=0.15, maxiter=100000 , 
-              ftol=1e-10, nonzero=1e-1)
+#print sobjective(Rand.randn(12,3),R)
+
+V, iW = IRLS( y, P, x=0, disp_every=1000, lam=0.0025, maxiter=1000000 , 
+              ftol=1e-7, nonzero=1e-1)
+print 'V'
+print_coeffs(V)
+
+keepers = [sum(abs(v))>1e-2 for v in V]
+result = {'ARD': {'U': filters[keepers,:].T , 'V' : V[keepers,:] }}
+
+def save_result():
+    savefile = open('../../../Desktop/result.pyckle','w')
+    cPickle.dump(result,savefile)
+    savefile.close()
+save_result()
 
 start = time()
-                  
-group_weights = [0.05 for _ in predictors]
-weights       = [0.001*np.ones(pp.shape[1]) for pp in predictors]
+
+group_weights = [0.02 for _ in predictors]
+weights       = [0.01*np.ones(pp.shape[1]) for pp in predictors]
 
 r,coeffs  = sgl.initialize_group_lasso(predictors, (np.sqrt(Nspikes)*y).T.flatten())
 print r
 iterations = sgl.sparse_group_lasso(predictors, group_weights, weights, 
-                                    r, coeffs, maxiter=10000, disp_every=10)
+                                    r, coeffs, maxiter=10000, disp_every=100, ftol=1e-8)
 finish = time()
 print iterations,'Iterations of sparse group LASSO in ',finish-start,' seconds for n: ',n
 print 'infered x '
-print sgl.inflate(coeffs)
+#print np.concatenate( [sgl.inflate(coeffs), np.arange(vv.shape[0])[:,np.newaxis]], axis=1)
+print 'coeffs:'
+print_coeffs(sgl.inflate(coeffs),precision=1e-3)
 
 def plot_filters(X,same_scale=True):
     for i in range(X.shape[0]):
