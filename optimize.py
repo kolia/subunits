@@ -8,7 +8,7 @@ from scipy.optimize.linesearch import line_search_wolfe1, line_search_wolfe2
 
 from kolia_theano import flat
 
-#from IPython.Debugger import Tracer; debug_here = Tracer()
+from IPython.Debugger import Tracer; debug_here = Tracer()
 
 _epsilon = sqrt(numpy.finfo(float).eps)
 
@@ -199,6 +199,7 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
         grad_calls, myfprime = wrap_function(approx_fprime, (f, epsilon))
     else:
         grad_calls, myfprime = wrap_function(fprime)
+#    debug_here()
     gfk = myfprime(x0)
     k = 0
     N = len(x0)
@@ -221,7 +222,7 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
 #        amax = 50.
         famax = f(xk+amax*pk)
         if disp:
-            print 'amax:%10f   f(amax):%10g    barrier(amax):%d' % (amax,famax,barr(xk+amax*pk)), '  ' ,
+            print 'amax:%10f  f:%10g f(amax):%10g   barrier(amax):%d' % (amax,old_fval,famax,barr(xk+amax*pk)), '  ' ,
         if callback is not None:
             callback(xk)
 
@@ -266,8 +267,12 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
             if alpha_k is not None: gfkp1   = myfprime(xk + alpha_k*pk)
 
 #        debug_here()
-        alpha_k = minimum(alpha_k,amax)
-        if old_fval>famax and isfinite(famax): alpha_k = amax
+        if old_fval>famax and isfinite(famax):
+            alpha_k = amax
+            old_fval = famax
+            gfkp1   = myfprime(xk + amax*pk)
+        else:
+            alpha_k = minimum(alpha_k,amax)
 
         if (alpha_k is None) or (barr(xk + alpha_k * pk)):
             # This line search also failed to find a better solution.

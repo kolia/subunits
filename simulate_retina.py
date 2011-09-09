@@ -69,11 +69,12 @@ def LNLNP(
     sigma_spatial  = [2., 1.]     ,  # subunit & RGC connection width
     firing_rate     = 0.3          ,  # RGC firing rate
     N_timebins     = 100000       ,  # number of time samples
-    average_me     = {}           ):  # calculate STA, STC, stim. avg 
-                                     # and cov of these functions of the stimulus
+    average_me     = {}           ,  # calculate STA, STC, stim. avg 
+    picklable      = True         ): # and cov of these functions of the stimulus 
+                                     
 
     timebins = [minimum(N_timebins-i*50000,50000) for i,x in 
-                    enumerate(range(ceil(N_timebins/50000.)))]
+                    enumerate(range(int(ceil(N_timebins/50000.))))]
     for _ in timebins:  print '-',
     print
     result = LNLNP_chunk(sigma_stimulus, nonlinearity, N_cells, sigma_spatial, 
@@ -101,5 +102,10 @@ def LNLNP(
         result['stimulus']   = result['stimulus']   + [ll['stimulus']]
         result['N_spikes']   = result['N_spikes']   + ll['N_spikes']
         print '+',
-    result['stimulus']   = lambda : concatenate([ll['stimulus']() for ll in result['stimulus']])
+    if not picklable:
+        result['stimulus']   = lambda : \
+            concatenate([ll['stimulus']() for ll in result['stimulus']])
+    else:
+        del result['stimulus']
+        del result['nonlinearity']
     return result

@@ -35,13 +35,16 @@ class posterior:
         prior     = self.prior(U)                                      #
 
         post = (  Th.log(detM) \
-                - 0.01 / (Th.log(detM)-self.mindet) \
+#                - 0.01 / (Th.log(detM)-self.mindet) \
+                - 1./(Th.log(detM)+6)**2 \
                 - Th.sum(invMtheta*theta) \
                 + 2. * Th.sum( theta * STA ) \
                 + Th.sum( M * (STC + Th.outer(STA,STA)) )) / 2. \
-                + prior
+                #+ prior \
+                #+ Th.sum(0.001*Th.log(V1)) #+ Th.sum(0.001*Th.log(U))
         dpost_dM  = ( invM + invMtheta * invMtheta.T \
-                    + 0.01 * invM / ((Th.log(detM)-self.mindet)**2) \
+#                    + 0.01 * invM / ((Th.log(detM)-self.mindet)**2) \
+                    + 2. * invM / (Th.log(detM)+6)**3 \
                     ) / 2.
 
         def dpost(dX):
@@ -54,7 +57,7 @@ class posterior:
         self.posterior  = function( [    U,V2,V1,invM,detM,STA,STC],  post    ) #
         self.dpost_dU   = function( [    U,V2,V1,invM,detM,STA,STC], dpost(U) ) #
         self.dpost_dV1  = function( [    U,V2,V1,invM,detM,STA,STC], dpost(V1)) #
-        self.dpost_dV2  = function( [    U,V2,V1,invM,detM,STA,STC], dpost(V2)) #
+#        self.dpost_dV2  = function( [    U,V2,V1,invM,detM,STA,STC], dpost(V2)) #
 
         self.dpost_dM   = function( [    U,V2,V1,invM,detM,STA,STC], dpost_dM) #
 
@@ -62,6 +65,7 @@ class posterior:
 
     def barrier(self,params):
         (U,V2,V1) = self.params(params)
+        if min(V1)<0: return True
         for i in arange(V1.shape[0]):
             IM = eye(self.N)-self.M(U,V2,V1[i,:])
             s,ld = slogdet(IM)
@@ -95,7 +99,7 @@ class posterior:
 #            print 'det(IM) : ', detIM
             term = n * g(U,V2,V1[i,:], inv(IM), det(IM), sta, stc)
             if any(isnan(term.flatten())):
-                print 'oups'
+#                print 'oups'
                 term = None
 #                raise ArithmeticError('nan')
             if result is not None and term is not None:
@@ -115,6 +119,10 @@ class posterior:
                               self.data  (params))
 
     def df_dU (self, params):
+#        def concat(a,b): return concatenate((a,b))
+#        return self.sum_RGC( concat, self.dpost_dU,
+#                              self.params(params),
+#                              self.data  (params))
         return self.sum_RGC( add, self.dpost_dU ,
                               self.params(params),
                               self.data  (params))
@@ -125,10 +133,10 @@ class posterior:
                               self.params(params),
                               self.data  (params))
 
-    def df_dV2(self, params):
-        return self.sum_RGC( add, self.dpost_dV2,
-                              self.params(params),
-                              self.data  (params))
+#    def df_dV2(self, params):
+#        return self.sum_RGC( add, self.dpost_dV2,
+#                              self.params(params),
+#                              self.data  (params))
 
     def df(self, params):
         return concatenate((self.df_dU(params).flatten(),
@@ -190,7 +198,7 @@ class posterior_dU(posterior_single):
     def params(self,params):
         return ( self.U(params), self.DATA[0], self.DATA[1])
         
-    def df(self,params,data):
+    def df(self,params):
         return self.df_dU(params).flatten()
 
                     

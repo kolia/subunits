@@ -1,11 +1,19 @@
+import QuadPoiss
+reload(QuadPoiss)
+from   QuadPoiss import quadratic_Poisson, UVs , eig_barrier
+
+import kolia_theano
+reload(kolia_theano)
+
 import simulate_retina
 reload(simulate_retina)
+
+import optimize
+reload(optimize)
 
 import IRLS
 reload(IRLS)
 from   IRLS import IRLS
-
-from theano import config
 
 import numpy        as np
 import pylab        as p
@@ -13,10 +21,6 @@ from scipy.linalg   import schur
 import numpy.random as Rand
 
 import cPickle
-
-import LQuadLExP
-reload(LQuadLExP)
-from LQuadLExP import posterior_dU, posterior_dV2, posterior_dV1, posterior_dUV1
 
 from IPython.Debugger import Tracer; debug_here = Tracer()
 
@@ -71,11 +75,6 @@ def simulator(nonlinearity=NL, N_cells=N_cells , sigma_spatial=[10.,2.],
 simulate = memory.cache(simulator)
 R = simulate( nonlinearity=NL, N_cells=N_cells , sigma_spatial=[10.,2.],
               N_timebins = 100000 )
-
-#R = simulate_retina.LNLNP( nonlinearity=NL, N_cells=N_cells , sigma_spatial=[10.,2.],
-#              average_me={'features':lambda x: NL(np.dot(filters,x))},
-#              N_timebins = 100000 )
-
             
 total = float( np.sum([Nspikes for Nspikes in R['N_spikes']]) )
 
@@ -108,28 +107,40 @@ STC      = R['statistics']['stimulus']['STC']
 Nproj    = np.sum(keepers)
 U        = filters[keepers,:]
 V1       = V[keepers,:].T
-V2       = V2 * np.ones(Nproj)
+#V2       = V2 * np.ones(Nproj)
 
-#config.compute_test_value = 'warn'
-config.compute_test_value = 'off'
 
-#data     = [ V2, N_spikes , STA , STC ]
-#baye_ARD = posterior_dUV1( data, Nproj )
-#init_params = np.concatenate([ filters[keepers,:].flatten() , \
-#                        np.maximum(V1,0.001*np.ones_like(V1)).flatten() ])
-#params = baye_ARD.optimize(init_params,maxiter=5000)
+def callback( objective , params ):
+    print 'Obj: ' , objective.f(params) , '  barrier: ', objective.barrier(params)
 
-i=0
-Vs = {i: V1}
-Us = {i: U }
-baye_V1= posterior_dV1( [ U, V2, N_spikes , STA , STC], Nproj)
-V1 = baye_V1.optimize(0.01 * Rand.rand(V1.size), maxiter=2000)
-#    V1 = baye_V1.optimize(np.maximum(0.001,V1.flatten())/100., maxiter=5000)
-V1 = np.reshape(V1,(NRGC,Nproj))
-i += 1
-Vs[i] = V1
-plot_filters( V1[:12,:] )
-#baye_U = posterior_dU ( [V2, V1, N_spikes , STA , STC], Nproj)
-#U = baye_U.optimize(U.flatten(), maxiter=5000)
-#U = np.reshape( U, (Nproj,Ncones))
-#Us[i] = U
+
+#true = {'U' : R['U'] , 'V1': R['V'] }
+true = {'V1': V1 }
+data = {'STAs':np.vstack(STA) , 'STCs':np.vstack([stc[np.newaxis,:] for stc in STC]), 
+        'V2':V2*np.ones(Nproj) , 'U': U , 'N':NRGC , 'N_spikes':N_spikes }
+
+targets = { 'f':quadratic_Poisson, 'barrier':eig_barrier }
+
+targets = kolia_theano.reparameterize(targets,UVs(NRGC))
+
+objective = kolia_theano.Objective( init_params=true, differentiate=['f'], 
+                          callback=callback, **targets )
+
+optimizer = optimize.optimizer( objective.where(**data) )
+
+#trupar = true
+#for i in range(2):
+#    trupar = optimizer(init_params=trupar)
+#trupar = objective.unflat(trupar)
+
+
+#init_params = {'U' : 0.0001+0.05*Rand.random(size=R['U'].shape ) ,
+#               'V1': 0.0001+0.05*Rand.random(size=R['V'].shape) }
+
+init_params = {'V1': 0.01 * Rand.rand(*V1.shape) }
+
+params = init_params
+for i in range(10):
+    params = optimizer(init_params=params)
+params = objective.unflat(params)
+
