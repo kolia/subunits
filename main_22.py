@@ -137,10 +137,6 @@ optimizer = optimize.optimizer( objective.where(**data) )
 #init_params = {'U' : 0.0001+0.05*Rand.random(size=R['U'].shape ) ,
 #               'V1': 0.0001+0.05*Rand.random(size=R['V'].shape) }
 
-init_params = {'V1': 0.01 * Rand.rand(*V1.shape) }
-
-params = init_params
-for i in range(10):
-    params = optimizer(init_params=params)
+init_params = {'V1': 0.001 + 0.0001 * Rand.rand(*V1.shape) }
+params = optimizer(init_params=init_params)
 params = objective.unflat(params)
-

@@ -13,7 +13,7 @@ from kolia_theano import eig
 
 def quadratic_Poisson( theta = Th.dvector('theta'), M    = Th.dmatrix('M') ,
                        STA   = Th.dvector('STA')  , STC  = Th.dmatrix('STC'), 
-                       N_spike = Th.dscalar('N_spike'),  # logprior = 0 , 
+                       N_spike = Th.dscalar('N_spike'), logprior = 0 , 
                        **other):
     '''
     The actual quadratic-Poisson model, as a function of theta and M, 
@@ -22,8 +22,7 @@ def quadratic_Poisson( theta = Th.dvector('theta'), M    = Th.dmatrix('M') ,
     ImM = Th.identity_like(M)-(M+M.T)/2
     ldet = Th.log( det( ImM) )
     return -0.5 * N_spike *( 
-             ldet  \
-#             - 0.01 / (ldet+2) \
+             ldet + logprior \
              - 1./(ldet+6)**2 \
              - Th.sum(Th.dot(matrix_inverse(ImM),theta) * theta) \
              + 2. * Th.sum( theta * STA ) \
@@ -55,11 +54,12 @@ def UVs(N):
     def UV( U    = Th.dmatrix('U')   , V1  = Th.dmatrix('V1') , V2 = Th.dvector('V2') ,
             STAs = Th.dmatrix('STAs'), STCs = Th.dtensor3('STCs'), 
             N_spikes = Th.dvector('N_spikes'),  **other):
-        return [{'theta':   Th.dot( U.T , V1[i] ) ,
-                 'M'  :     Th.dot( V1[i] * U.T , (V2 * U.T).T ),
-                 'STA':     STAs[i,:],
-                 'STC':     STCs[i,:,:],
-                 'N_spike': N_spikes[i] } for i in range(N)]
+        return [{'theta':    Th.dot( U.T , V1[i,:] ) ,
+                 'M'  :      Th.dot( V1[i,:] * U.T , (V2 * U.T).T ),
+                 'STA':      STAs[i,:],
+                 'STC':      STCs[i,:,:],
+                 'N_spike':  N_spikes[i]/(Th.sum(N_spikes)) ,
+                 'logprior': Th.sum(0.001*Th.log(V1)) } for i in range(N)]
     return UV
 
 def lUVs(N):

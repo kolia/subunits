@@ -240,9 +240,11 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
                                   old_fval,old_old_fval,amax=amax)
         except: 
             if disp : print 'Warning: error in line_search_wolfe2..'
+            
         if alpha_k is not None:
             old_fval = old_fval2
             old_old_fval = old_old_fval2
+            print ' line_search_wolfe2 ',
         else:
             # line search failed: try different one.
             alpha_k, fc, gc, old_fval, old_old_fval, gfkp1 = \
@@ -255,7 +257,9 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
 #                     line_search_wolfe1(f,myfprime,xk,-pk,gfk,
 #                                        old_fval,old_old_fval,amax=amax)
             alpha_k = simple_search(f,xk,pk,amax)
-            if alpha_k is not None: gfkp1   = myfprime(xk + alpha_k*pk)
+            if alpha_k is not None: 
+                print ' simple_searched ',
+                gfkp1   = myfprime(xk + alpha_k*pk)
 
         if alpha_k is None:
 #            amax = backtrack(xk,-pk,barr)          # scipy.optimize.fmin_bfgs 
@@ -264,7 +268,9 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
 #                                        old_fval,old_old_fval,amax=amax)
             pk = -pk
             alpha_k = simple_search(f,xk,pk,amax)
-            if alpha_k is not None: gfkp1   = myfprime(xk + alpha_k*pk)
+            if alpha_k is not None:
+                print ' simple_searched2 ',
+                gfkp1   = myfprime(xk + alpha_k*pk)
 
 #        debug_here()
         if old_fval>famax and isfinite(famax):
@@ -273,6 +279,11 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
             gfkp1   = myfprime(xk + amax*pk)
         else:
             alpha_k = minimum(alpha_k,amax)
+
+#        if alpha_k is not None:
+#            old_fval= f(xk + alpha_k*pk) 
+#            gfkp1   = myfprime(xk + alpha_k*pk)
+        
 
         if (alpha_k is None) or (barr(xk + alpha_k * pk)):
             # This line search also failed to find a better solution.
