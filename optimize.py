@@ -222,14 +222,10 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
 #        amax = 50.
         famax = f(xk+amax*pk)
         if disp:
-            print 'amax:%10f  f:%10g f(amax):%10g   barrier(amax):%d' % (amax,old_fval,famax,barr(xk+amax*pk)), '  ' ,
+            print 'amax:%10f  f:%10g f(amax):%10g   barrier(amax):%d' \
+                % (amax,old_fval,famax,barr(xk+amax*pk)), '  ' ,
         if callback is not None:
             callback(xk)
-
-        if amax < 1e-15:
-            # This line search also failed to find a better solution.
-            warnflag = 2
-            break
 
 #        alpha_k = simple_line_search(f,xk,pk,barr)
 
@@ -244,7 +240,7 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
         if alpha_k is not None:
             old_fval = old_fval2
             old_old_fval = old_old_fval2
-            print ' line_search_wolfe2 ',
+            print 'wolfe2 ',
         else:
             # line search failed: try different one.
             alpha_k, fc, gc, old_fval, old_old_fval, gfkp1 = \
@@ -272,12 +268,14 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
                 print ' simple_searched2 ',
                 gfkp1   = myfprime(xk + alpha_k*pk)
 
-#        debug_here()
-        if old_fval>famax and isfinite(famax):
-            alpha_k = amax
-            old_fval = famax
-            gfkp1   = myfprime(xk + amax*pk)
-        else:
+##        debug_here()
+#        if old_fval>famax and isfinite(famax):
+#            alpha_k = amax
+#            old_fval = famax
+#            gfkp1   = myfprime(xk + amax*pk)
+#        else:
+#            alpha_k = minimum(alpha_k,amax)
+        if barrier(xk + alpha_k*pk):
             alpha_k = minimum(alpha_k,amax)
 
 #        if alpha_k is not None:
@@ -295,6 +293,11 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
             allvecs.append(xkp1)
         sk = xkp1 - xk
         xk = xkp1
+        
+        old_fval = f(xk)        
+        if not isfinite(old_fval):
+            debug_here()
+        
         if gfkp1 is None:
             gfkp1 = myfprime(xkp1)
 

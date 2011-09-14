@@ -104,14 +104,16 @@ def unflat(template,X):
     inverse operation of flat(X).'''    
     return __unflat(template,X)[0]
 
-def __reparameterize(func,reparam):
+def __reparameterize(func,reparam,reducer,zero):
     output = reparam()
     if isinstance(output,type([])):
         def c(**dummy):
-            result = Th.as_tensor_variable(0) 
+            result = zero
             for repar in reparam(**dummy):
                 repar.update(dummy)
-                result = func(**repar)+result
+                new = func(**repar)
+#                if result is None:  result = new*0
+                result = reducer( result, new )
             return result
     else:
         def c(**dummy):  return func(**dummy.update(reparam(**dummy)))
@@ -125,13 +127,13 @@ def __reparameterize(func,reparam):
     result.__name__ = func.__name__
     return result
 
-def reparameterize(funcs,reparam):
+def reparameterize(funcs,reparam,reducer=lambda r,x: r+x, zero=Th.as_tensor_variable(0.) ):
     '''Reparameterize a symbolic expression as a function of some new 
     variables.'''
     if isinstance(funcs,type([])):
-        return [__reparameterize(f,reparam) for f in funcs]
+        return [__reparameterize(f,reparam,reducer,zero) for f in funcs]
     elif isinstance(funcs,type({})):
-        return dict( (name,__reparameterize(f,reparam)) for name,f in funcs.items() )
+        return dict( (name,__reparameterize(f,reparam,reducer,zero)) for name,f in funcs.items() )
     else:
         return __reparameterize(funcs,reparam)
     
