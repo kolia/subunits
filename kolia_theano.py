@@ -169,7 +169,7 @@ class Objective:
     'd' + name; for example, the gradient of f will become objective.df
 
     Optionally, a callback function of the parameters'''
-    def __init__(self, init_params=None, differentiate=[], callback=None, **theano):
+    def __init__(self, init_params=None, differentiate=[], **theano):
         keydict = getargs( theano.itervalues().next() )
 #        self.defs          = [theano_defs]
         self.Args          = dict([(n,Th.as_tensor_variable(d,name=n)) for n,d in keydict.items()])
@@ -187,7 +187,7 @@ class Objective:
 
         self.theano = theano
         self.theano_functions = {}
-        self.callback = callback
+#        self.callback = callback
         self.differentiate = differentiate
 
         for name in self.differentiate:
@@ -206,9 +206,14 @@ class Objective:
             return packaged_function
         for name,gen in self.theano.items():
             setattr(t,name,package(self.theano_functions[name]))
-        if self.callback:
-            def callback(params): return self.callback(t,params)
+        def with_callback(callbk):
+            def callback(params): return callbk(t,params)
             t.callback = callback
+            return t
+        t.with_callback = with_callback
+#        if self.callback:
+#            def callback(params): return self.callback(t,params)
+#            t.callback = callback
         t.flat   = self.flat
         t.unflat = self.unflat
         return t

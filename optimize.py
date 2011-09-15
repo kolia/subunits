@@ -74,10 +74,10 @@ def backtrack(xk,pk,barrier):
         
     """
     # initial phase: find a point on other side of barrier by *1.5
-    a  = 1.
+    a  = 0.001
     while True:
-        if a>5000.:
-            return 5000.
+        if a>500.:
+            return 500.
         if barrier(xk + a*pk): break
         a = a * 1.5
 
@@ -99,9 +99,9 @@ def simple_search(f,xk,pk,amax):
     alpha  = min(amax,1)
     for i in range(20):
         current = f(xk+alpha*pk)        
-        if current<oldval: return alpha
+        if current<oldval: return alpha, current
         alpha = alpha/3.
-    return None
+    return None, None
 
 def vecnorm(x, ord=2):
     if ord == Inf:
@@ -222,51 +222,41 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
 #        amax = 50.
         famax = f(xk+amax*pk)
         if disp:
-            print 'amax:%10f  f:%10g f(amax):%10g   barrier(amax):%d' \
-                % (amax,old_fval,famax,barr(xk+amax*pk)), '  ' ,
+            print 'amax%d:%10f  f:%10g f(amax):%10g  #b:%d  #f:%d' \
+                % (amax,barr(xk+amax*pk),old_fval,famax,barr_calls[0],func_calls[0]),
         if callback is not None:
             callback(xk)
 
-#        alpha_k = simple_line_search(f,xk,pk,barr)
-
-        alpha_k = None
-        try:
-            alpha_k, fc, gc, old_fval2, old_old_fval2, gfkp1 = \
-               line_search_wolfe2(f,myfprime,xk,pk,gfk,
-                                  old_fval,old_old_fval,amax=amax)
-        except: 
-            if disp : print 'Warning: error in line_search_wolfe2..'
-            
-        if alpha_k is not None:
-            old_fval = old_fval2
-            old_old_fval = old_old_fval2
-            print 'wolfe2 ',
+        if famax < old_fval:
+            alpha_k  = amax
+            old_fval2 = famax
         else:
-            # line search failed: try different one.
-            alpha_k, fc, gc, old_fval, old_old_fval, gfkp1 = \
-                     line_search_wolfe1(f,myfprime,xk,pk,gfk,
-                                        old_fval,old_old_fval,amax=amax)
-
-        if alpha_k is None:
-#            amax = backtrack(xk,-pk,barr)          # scipy.optimize.fmin_bfgs 
-#            alpha_k, fc, gc, old_fval, old_old_fval, gfkp1 = \
-#                     line_search_wolfe1(f,myfprime,xk,-pk,gfk,
-#                                        old_fval,old_old_fval,amax=amax)
-            alpha_k = simple_search(f,xk,pk,amax)
-            if alpha_k is not None: 
-                print ' simple_searched ',
-                gfkp1   = myfprime(xk + alpha_k*pk)
-
-        if alpha_k is None:
-#            amax = backtrack(xk,-pk,barr)          # scipy.optimize.fmin_bfgs 
-#            alpha_k, fc, gc, old_fval, old_old_fval, gfkp1 = \
-#                     line_search_wolfe1(f,myfprime,xk,-pk,gfk,
-#                                        old_fval,old_old_fval,amax=amax)
-            pk = -pk
-            alpha_k = simple_search(f,xk,pk,amax)
+            alpha_k = None
+            try:
+                alpha_k, fc, gc, old_fval2, old_old_fval2, gfkp1 = \
+                   line_search_wolfe2(f,myfprime,xk,pk,gfk,
+                                      old_fval,old_old_fval,amax=amax)
+            except: 
+                if disp : print 'Warning: error in line_search_wolfe2..'
+                
             if alpha_k is not None:
-                print ' simple_searched2 ',
-                gfkp1   = myfprime(xk + alpha_k*pk)
+                print 'w2 ',
+            else:
+                # line search failed: try different one.
+                alpha_k, fc, gc, old_fval2, old_old_fval2, gfkp1 = \
+                         line_search_wolfe1(f,myfprime,xk,pk,gfk,
+                                            old_fval,old_old_fval,amax=amax)
+    
+            if alpha_k is None:
+                alpha_k , old_fval2 = simple_search(f,xk,pk,amax)
+                if alpha_k is not None: 
+                    print ' simple ',
+    
+            if alpha_k is None:
+                pk = -pk
+                alpha_k , old_fval2 = simple_search(f,xk,pk,amax)
+                if alpha_k is not None:
+                    print ' simple2 ',
 
 ##        debug_here()
 #        if old_fval>famax and isfinite(famax):
@@ -275,20 +265,20 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
 #            gfkp1   = myfprime(xk + amax*pk)
 #        else:
 #            alpha_k = minimum(alpha_k,amax)
-        if barrier(xk + alpha_k*pk):
-            alpha_k = minimum(alpha_k,amax)
+
+            if barr(xk + alpha_k*pk):
+                alpha_k = minimum(alpha_k,amax)
 
 #        if alpha_k is not None:
 #            old_fval= f(xk + alpha_k*pk) 
 #            gfkp1   = myfprime(xk + alpha_k*pk)
         
+        old_old_fval = old_fval
+        old_fval = old_fval2
 
-        if (alpha_k is None) or (barr(xk + alpha_k * pk)):
-            # This line search also failed to find a better solution.
-#            print 'alpha_k: ', alpha_k
-            warnflag = 2
-            break
         xkp1 = xk + alpha_k * pk
+        gfkp1 = myfprime(xk + alpha_k * pk)
+
         if retall:
             allvecs.append(xkp1)
         sk = xkp1 - xk

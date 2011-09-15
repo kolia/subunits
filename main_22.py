@@ -117,12 +117,11 @@ V2       = V2 * np.ones(Nproj)
 
 iterations = [0]
 def callback( objective , params ):
-    fval = objective.f(params)
-    fbar = objective.barrier(params)
-    print 'Obj: ' , fval , '  barrier: ', fbar
-    if np.remainder( iterations[0] , 30 ) == 0:
+#    fval = objective.f(params)
+    print ' Iter:', iterations[0] # ,' Obj: ' , fval
+    if np.remainder( iterations[0] , 100 ) == 0:
         result = objective.unflat(params)
-        if np.remainder( iterations[0] , 100 ) == 0: p.close('all')
+        if np.remainder( iterations[0] , 300 ) == 0: p.close('all')
         p.figure(1)
         plot_filters(result['V1'])
         p.title('V1 filters')
@@ -157,7 +156,8 @@ def objective_U():
 #    targets.update( list_targets )
     
     return    kolia_theano.Objective( init_params={'U': U }, differentiate=['f'], 
-                              callback=callback, **targets )    
+#                              callback=callback, 
+                              **targets )    
 #obj_U   = objective_U()
 #
 ##@memory.cache
@@ -175,7 +175,8 @@ def objective_U():
 def objective_UV1():
     targets = { 'f':quadratic_Poisson, 'barrier':eig_barrier }
     targets = kolia_theano.reparameterize(targets,UVs(NRGC))    
-    return kolia_theano.Objective( init_params={'V1': V1 , 'U': U }, differentiate=['f'], callback=callback, **targets )
+    return kolia_theano.Objective( init_params={'V1': V1 , 'U': U }, differentiate=['f'], **targets )
+#    return kolia_theano.Objective( init_params={'V1': V1 , 'U': U }, differentiate=['f'], callback=callback, **targets )
 obj_UV1  = objective_UV1()
 
 @memory.cache
@@ -183,12 +184,13 @@ def optimize_UV1( v1,u,V2=V2 ):
     data = {'STAs':np.vstack(R['statistics']['stimulus']['STA']) ,
             'STCs':np.vstack([stc[np.newaxis,:] for stc in R['statistics']['stimulus']['STC']]), 
             'V2':V2 , 'N':NRGC , 'N_spikes':R['N_spikes'] }
-    optimizer = optimize.optimizer( obj_UV1.where(**data) )    
-    params = optimizer(init_params={'V1': v1 , 'U': u },maxiter=3000,gtol=1.1e-7)
+    optimizer = optimize.optimizer( obj_UV1.where(**data).with_callback(callback) )
+    params = optimizer(init_params={'V1': v1 , 'U': u },maxiter=10000,gtol=1.1e-7)
     opt_U = obj_UV1.unflat(params)
     return opt_U
 
 print 'Optimizing U,V1'
+#opt_UV1 = optimize_UV1( np.abs(V1)+0.0001, U, V2=V2 )
 opt_UV1 = optimize_UV1( 0.001 + 0.001 * Rand.rand(*V1.shape), U, V2=V2 )
 #opt_UV1 = optimize_UV1( opt_UV1['V1'], opt_UV1['U'], V2=V2 )
 
@@ -202,17 +204,13 @@ opt_UV1 = optimize_UV1( 0.001 + 0.001 * Rand.rand(*V1.shape), U, V2=V2 )
 testdata = {'STAs':np.vstack(testR['statistics']['stimulus']['STA']) ,
             'STCs':np.vstack([stc[np.newaxis,:] for stc in testR['statistics']['stimulus']['STC']]), 
             'V2':V2 , 'N':NRGC , 'N_spikes':testR['N_spikes'] }
-test_objective = obj_UV1.where(**data)
+test_objective = obj_UV1.where(**testdata)
 
-print 'Unregularized ARD + alternating full model ll:', test_objective.f( {'V1': opt_V1 , 'U': opt_U } )
+print 'Unregularized ARD + alternating full model ll:', test_objective.f( {'V1': opt_UV1['V1'] , 'U': opt_UV1['V1U'] } )
 
 def objective_V1():
     targets = { 'f':quadratic_Poisson, 'barrier':eig_barrier }
     targets = kolia_theano.reparameterize(targets,UVs(NRGC))
-#    list_targets= kolia_theano.reparameterize({'eigsM':eigsM, 'invM':invM },UVs(NRGC),
-#                                               reducer=lambda r,x: r + [x], zero=[])
-#    targets.update( list_targets )
-    
     return    kolia_theano.Objective( init_params={'V1': V1 }, differentiate=['f'], 
                               callback=callback, **targets )    
 obj_V1  = objective_V1()
@@ -221,10 +219,10 @@ obj_V1  = objective_V1()
 def optimize_V1( u,V2=V2 ):
     data = {'STAs':np.vstack(R['statistics']['stimulus']['STA']) , 
             'STCs':np.vstack([stc[np.newaxis,:] for stc in R['statistics']['stimulus']['STC']]), 
-            'V2':V2*np.ones(Nproj) , 'U': u , 'N':NRGC , 'N_spikes':R['N_spikes'] }
-    optimizer = optimize.optimizer( obj_V1.where(**data) )    
-    init_params = {'V1': 0.001 + 0.001 * Rand.rand(*V1.shape) }
-    params = optimizer(init_params=init_params,maxiter=5000)
+            'V2':V2 , 'U': u , 'N':NRGC , 'N_spikes':R['N_spikes'] }
+    optimizer = optimize.optimizer( obj_UV1.where(**data).with_callback(callback) )
+    init_params = {'V1': 0.001 + 0.01 * Rand.rand(*V1.shape) }
+    params = optimizer(init_params=init_params,maxiter=1000)
     opt_V1 = obj_V1.unflat(params)
     return opt_V1['V1']
 
