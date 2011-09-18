@@ -221,13 +221,14 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
                                                 # and line_searches below!
 #        amax = 50.
         famax = f(xk+amax*pk)
+        bamax = barr(xk+amax*pk)
         if disp:
             print 'amax%d:%10f  f:%10g f(amax):%10g  #b:%d  #f:%d' \
-                % (amax,barr(xk+amax*pk),old_fval,famax,barr_calls[0],func_calls[0]),
+                % (amax,bamax,old_fval,famax,barr_calls[0],func_calls[0]),
         if callback is not None:
             callback(xk)
 
-        if famax < old_fval:
+        if (bamax == 0) and (famax < old_fval):
             alpha_k  = amax
             old_fval2 = famax
         else:
@@ -266,8 +267,15 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
 #        else:
 #            alpha_k = minimum(alpha_k,amax)
 
-            if barr(xk + alpha_k*pk):
-                alpha_k = minimum(alpha_k,amax)
+            if alpha_k is not None:
+                bval = barr(xk + alpha_k*pk)
+            else:
+                bval = 1
+            if bval:
+                if bamax:
+                    warnflag = 2
+                    break
+                alpha_k = amax
 
 #        if alpha_k is not None:
 #            old_fval= f(xk + alpha_k*pk) 
