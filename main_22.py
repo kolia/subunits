@@ -59,27 +59,26 @@ def load(name):
 
 N_cells=[40,20,12]
 
-V2 = 0.3
+V2 = 0.4
 def NL(x): return x + 0.5 * V2 * ( x ** 2 )
 
 # Quantities of interest
-N_filters = N_cells[1]*10
+N_filters = N_cells[1]*5
 filters = np.concatenate(
     [simulate_retina.weights(sigma=n, shape=(N_filters,N_cells[0]))
     for n in [10.]] )
 
 # Generate stimulus , spikes , and (STA,STC,mean,cov) of quantities of interest
-def simulator(nonlinearity=NL, N_cells=N_cells , sigma_spatial=[10.,2.],
-              N_timebins = 100000):
-    return simulate_retina.LNLNP( nonlinearity=NL, N_cells=N_cells , sigma_spatial=[10.,2.],
-              average_me={'features':lambda x: NL(np.dot(filters,x))},
-              N_timebins = 100000 )
+def simulator( nonlinearity, N_cells , sigma_spatial , N_timebins ):
+    return simulate_retina.LNLNP( nonlinearity=NL, N_cells=N_cells ,
+                          sigma_spatial=sigma_spatial, N_timebins=N_timebins,
+                          average_me={'features':lambda x: NL(np.dot(filters,x))} )
 simulate = memory.cache(simulator)
 R = simulate( nonlinearity=NL, N_cells=N_cells , sigma_spatial=[10.,2.],
-              N_timebins = 100000 )
+              N_timebins = 1000000 )
 
 testR = simulate( nonlinearity=NL, N_cells=N_cells , sigma_spatial=[10.,2.],
-                  N_timebins = 90000 )
+                  N_timebins = 900000 )
 
             
 total = float( np.sum([Nspikes for Nspikes in R['N_spikes']]) )
@@ -97,10 +96,16 @@ P   =  (Z[:,keep] * np.sqrt(DD[keep])).T
 y   =  np.dot ( (Z[:,keep] * 1/np.sqrt(DD[keep])).T , dSTA ) / 2
 
 irls = memory.cache(IRLS)
-V, iW = irls( y, P, x=0, disp_every=1000, lam=0.012, maxiter=1000000 , 
+V, iW = irls( y, P, x=0, disp_every=1000, lam=0.01, maxiter=1000000 , 
               ftol=1e-5, nonzero=1e-1)
 print 'V'
 print_coeffs( V, precision=1e-1 )
+
+#V_, iW_ = irls( y, P, x=0, disp_every=1000, lam=0.001, maxiter=1 , 
+#              ftol=1e-5, nonzero=1e-1)
+#print_coeffs( V_, precision=1e-1 )
+#p.figure(3)
+#plot_filters( V_ )
 
 keepers = np.array( [sum(abs(v))>1e-1 for v in V] )
 
@@ -121,7 +126,7 @@ def callback( objective , params ):
     print ' Iter:', iterations[0] # ,' Obj: ' , fval
     if np.remainder( iterations[0] , 100 ) == 0:
         result = objective.unflat(params)
-        if np.remainder( iterations[0] , 300 ) == 0: p.close('all')
+        if np.remainder( iterations[0] , 450 ) == 0: p.close('all')
         if result.has_key('V1'):
             p.figure(1)
             plot_filters(result['V1'])
@@ -175,7 +180,8 @@ def optimize_U( v1,init_U, v2  ):
 def objective_V1():
     targets = { 'f':quadratic_Poisson, 'barrier':eig_barrier }
     targets = kolia_theano.reparameterize(targets,UVs(NRGC))
-    return    kolia_theano.Objective( init_params={'V1': R['V'] }, differentiate=['f'], **targets )    
+    return    kolia_theano.Objective( init_params={'V1': V.T }, differentiate=['f'], **targets )    
+#    return    kolia_theano.Objective( init_params={'V1': R['V'] }, differentiate=['f'], **targets )    
 
 @memory.cache
 def optimize_V1( u,v2 ):
@@ -183,8 +189,8 @@ def optimize_V1( u,v2 ):
             'STCs':np.vstack([stc[np.newaxis,:] for stc in R['statistics']['stimulus']['STC']]), 
             'V2':v2 , 'U': u , 'N':NRGC , 'N_spikes':R['N_spikes'] }
     optimizer = optimize.optimizer( obj_V1.where(**data).with_callback(callback) )
-    init_params = {'V1': 0.001 + 0.01 * Rand.rand(*V1.shape) }
-    params = optimizer(init_params=init_params,maxiter=2000,gtol=1.1e-6)
+    init_params = {'V1': 0.001 + 0.001 * Rand.rand(*V.T.shape) }
+    params = optimizer(init_params=init_params,maxiter=2000,gtol=1.1e-7)
     opt_V1 = obj_V1.unflat(params)
     return opt_V1['V1']
 
@@ -213,6 +219,9 @@ def optimize_UV1( v1,u,v2 ):
 
 obj_UV1  = objective_UV1()
 opt_UV1 = optimize_UV1( R['V'], R['U'], V2*np.ones(Nsub) )
+
+#obj_V1 = objective_V1()
+#opt_V1 = optimize_V1( filters, V2 * np.ones(N_filters) )
 
 #obj_V1 = objective_V1()
 #opt_V1 = optimize_V1( R['U'], V2 * np.ones(Nsub) )

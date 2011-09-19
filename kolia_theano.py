@@ -20,7 +20,7 @@ class LogDet(Op):
     def perform(self, node, (x,), (z, )):
         try:
             s,ldet = numpy.linalg.slogdet(x)
-            z[0] = asarray(s   , dtype=x.dtype)
+            z[0] = asarray(ldet  , dtype=x.dtype)
         except:
             print 'Failed to compute determinant',
             raise

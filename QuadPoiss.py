@@ -8,8 +8,9 @@ some desired quantity, as a function of the symbolic arguments.
 """
 import theano.tensor  as Th
 from theano.sandbox.linalg import matrix_inverse, det
-from kolia_theano import eig
+from kolia_theano import eig, logdet
 
+from numpy import fromfunction
 
 def quadratic_Poisson( theta = Th.dvector('theta'), M    = Th.dmatrix('M') ,
                        STA   = Th.dvector('STA')  , STC  = Th.dmatrix('STC'), 
@@ -20,13 +21,26 @@ def quadratic_Poisson( theta = Th.dvector('theta'), M    = Th.dmatrix('M') ,
     with a barrier on the log-det term.
     '''
     ImM = Th.identity_like(M)-(M+M.T)/2
-    ldet = Th.log( det( ImM) )
+    ldet = Th.log( det( ImM) )  # logdet(ImM)
     return -0.5 * N_spike *( 
              ldet + logprior \
-             - 1./(ldet+6)**2 \
+             - 1./(ldet+250)**2 \
              - Th.sum(Th.dot(matrix_inverse(ImM),theta) * theta) \
              + 2. * Th.sum( theta * STA ) \
              + Th.sum( M * (STC + Th.outer(STA,STA)) ))
+
+def eig_pos_barrier( theta = Th.dvector('theta'), M    = Th.dmatrix('M') ,
+                 STA   = Th.dvector('STA'), STC  = Th.dmatrix('STC'), 
+                 U = Th.dmatrix('U') , V1 = Th.dvector('V1'), **other):
+     '''
+     A barrier enforcing that the log-det of M should be > exp(-6), 
+     and all the eigenvalues of M > 0.  Returns true if barrier is violated.
+     '''
+     ImM = Th.identity_like(M)-(M+M.T)/2
+     w,v = eig( ImM )
+     return 1-(Th.sum(Th.log(w))>-250)*(Th.min(w)>0)* \
+            (Th.min(V1.flatten())>0)*(Th.min(U.flatten())>0)
+
 
 def eig_barrier( theta = Th.dvector('theta'), M    = Th.dmatrix('M') ,
                  STA   = Th.dvector('STA'), STC  = Th.dmatrix('STC'), 
@@ -37,8 +51,7 @@ def eig_barrier( theta = Th.dvector('theta'), M    = Th.dmatrix('M') ,
      '''
      ImM = Th.identity_like(M)-(M+M.T)/2
      w,v = eig( ImM )
-     return 1-(Th.sum(Th.log(w))>-6)*(Th.min(w)>0)* \
-            (Th.min(V1.flatten())>0)*(Th.min(U.flatten())>0)
+     return 1-(Th.sum(Th.log(w))>-250)*(Th.min(w)>0)
 
 
 def eigsM( M     = Th.dmatrix('M') , **result): 
@@ -65,6 +78,7 @@ def UVs(N):
     '''
     def UV( U    = Th.dmatrix('U')   , V1  = Th.dmatrix('V1') , V2 = Th.dvector('V2') ,
             STAs = Th.dmatrix('STAs'), STCs = Th.dtensor3('STCs'), 
+#            centers= Th.dmatrix('centers'), indices = Th.dmatrix('indices'), lam=Th.dscalar('lam'),
             N_spikes = Th.dvector('N_spikes'),  **other):
         return [{'theta':    Th.dot( U.T , V1[i,:] ) ,
                  'M'  :      Th.dot( V1[i,:] * U.T , (V2 * U.T).T ),
@@ -72,8 +86,9 @@ def UVs(N):
                  'STC':      STCs[i,:,:],
                  'N_spike':  N_spikes[i]/(Th.sum(N_spikes)) ,
                   'U' :      U,
-#                 'logprior': 0. } for i in range(N)]
-                 'logprior': Th.sum(0.001*Th.log(U)) + Th.sum(0.001*Th.log(V1)) } for i in range(N)]
+                 'logprior': 0. } for i in range(N)]
+#                 'logprior': -lam * Th.sum( Th.cos(indices-centers) * U**2. ) } for i in range(N)]
+#                 'logprior': Th.sum(0.001*Th.log(U)) + Th.sum(0.001*Th.log(V1)) } for i in range(N)]
     return UV
 
 def lUVs(N):

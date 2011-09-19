@@ -7,6 +7,8 @@ from numpy  import dot,sin,cos,exp,sum,newaxis,sqrt,cov,ceil,minimum
 from numpy  import arange,transpose,fromfunction,pi,mean,concatenate
 import numpy.random   as R
 
+from IPython.Debugger import Tracer; debug_here = Tracer()
+
 def weights(shape=(10,10), sigma=1):
     U = fromfunction( lambda i,j: \
         exp(sigma * cos((j-(shape[1]*i/shape[0]))*2*pi/shape[1]) ), shape)
@@ -72,9 +74,9 @@ def LNLNP(
     average_me     = {}           ,  # calculate STA, STC, stim. avg 
     picklable      = True         ): # and cov of these functions of the stimulus 
                                      
-
-    timebins = [minimum(N_timebins-i*50000,50000) for i,x in 
-                    enumerate(range(int(ceil(N_timebins/50000.))))]
+    chunksize = 50000.
+    timebins = [minimum(N_timebins-i*chunksize, chunksize) for i,x in 
+                    enumerate(range(int(ceil(N_timebins/chunksize))))]
     for _ in timebins:  print '-',
     print
     result = LNLNP_chunk(sigma_stimulus, nonlinearity, N_cells, sigma_spatial, 
