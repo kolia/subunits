@@ -5,7 +5,7 @@ import numpy.random   as R
 from time import time
 from IPython.Debugger import Tracer; debug_here = Tracer()
 
-def IRLS_step(y,P,x,iw,lam):
+def IRLS_step(y,P,iw,lam):
     P_iW = P*iw
     P_iW_P = dot(P,P_iW.T)
     C = la.pinv( lam*eye(y.shape[0]) + P_iW_P)
@@ -19,7 +19,7 @@ def IRLS(y,P,x=0,disp_every=0,lam=0,maxiter=1000,ftol=1e-6,iw=1e-1,nonzero=1e-3)
         iw = iw * ones(P.shape[1])
     for i in range(maxiter):
         old_x = x
-        x,iw = IRLS_step(y,P,x,iw,lam)
+        x,iw = IRLS_step(y,P,iw,lam)
         if disp_every and not i%disp_every:
             print 'Iteration ',i,'  nonzero weights:',sum(iw>nonzero),'  dL1(x): ',sum(abs(x-old_x))
         if sum(abs(x-old_x))<ftol: break

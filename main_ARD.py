@@ -1,0 +1,114 @@
+import QuadPoiss
+reload(QuadPoiss)
+from   QuadPoiss import quadratic_Poisson, UVs , eig_barrier, eigsM, invM
+
+import kolia_theano
+reload(kolia_theano)
+
+import simulate_retina
+reload(simulate_retina)
+
+import optimize
+reload(optimize)
+
+import IRLS
+reload(IRLS)
+from   IRLS import IRLS
+
+import numpy        as np
+from scipy.linalg   import schur
+import numpy.random as Rand
+
+import pylab        as p
+from   matplotlib.ticker import *
+
+import cPickle
+
+from IPython.Debugger import Tracer; debug_here = Tracer()
+
+# Memoizing results using joblib;  makes life easier
+from joblib import Memory
+memory = Memory(cachedir='/Users/kolia/Documents/joblibcache', verbose=0)
+
+def print_coeffs(V,precision=1e-2):
+    lasti = -10
+    for i,v in enumerate(V):
+        if lasti == i-2: print
+        if np.sum(np.abs(v))>precision:
+            print i,' : ', v
+            lasti = i
+
+def plot_filters(X,same_scale=True):
+    for i in range(X.shape[0]-1,-1,-1):
+        ax = p.subplot(X.shape[0]*2,1,i*2+1)
+        p.plot(np.arange(X.shape[1]),X[i,:])
+        ax.yaxis.set_major_locator( MaxNLocator(nbins=1) )
+
+#def save(result,name):
+#    savefile = open("../../../Desktop/%s.pyckle" % name,'w')
+#    cPickle.dump(result,savefile)
+#    savefile.close()
+#
+#def load(name):
+#    savefile = open('../../../Desktop/%s.pyckle' % name,'r')
+#    return cPickle.load(savefile)
+    
+
+############################
+# Setting up simulated data
+
+N_cells=[40,20,12]
+
+V2 = 0.5
+def NL(x): return x + 0.5 * V2 * ( x ** 2 )
+
+# Quantities of interest
+N_filters = N_cells[1]*10
+filters = np.concatenate(
+    [simulate_retina.weights(sigma=n, shape=(N_filters,N_cells[0]))
+    for n in [10.]] )
+
+# Generate stimulus , spikes , and (STA,STC,mean,cov) of quantities of interest
+def simulator( v2, nonlinearity, N_cells , sigma_spatial , N_timebins ):
+    return simulate_retina.LNLNP( nonlinearity=NL, N_cells=N_cells ,
+                          sigma_spatial=sigma_spatial, N_timebins=N_timebins,
+                          average_me={'features':lambda x: NL(np.dot(filters,x))} )
+simulate = memory.cache(simulator)
+R = simulate( V2, nonlinearity=NL, N_cells=N_cells , sigma_spatial=[10.,3.],
+              N_timebins = 1000000 )
+
+#testR = simulate( nonlinearity=NL, N_cells=N_cells , sigma_spatial=[10.,3.],
+#                  N_timebins = 900000 )
+
+total = float( np.sum([Nspikes for Nspikes in R['N_spikes']]) )
+
+Nspikes = R['N_spikes']/total
+
+dSTA  = np.concatenate(
+        [STA[:,np.newaxis]-R['statistics']['features']['mean'][:,np.newaxis]
+        for STA in R['statistics']['features']['STA']], axis=1)
+
+Cin = R['statistics']['features']['cov']/2
+
+#lam2 = 10.
+#prior = np.fromfunction( lambda i,j: (np.abs(i-j)>0)*(np.abs(i-j)<5) , Cin.shape)
+##prior = np.dot( filters , filters.T )
+##prior = (prior - np.diag(np.diag(prior)))
+##prior = prior / np.sqrt( np.sum( prior**2. ) )
+#Cin = Cin + lam2 * prior
+
+D,Z = schur(Cin)
+DD  = np.diag(D)
+keep= DD>1e-10
+P   =  (Z[:,keep] * np.sqrt(DD[keep])).T
+y   =  np.dot ( (Z[:,keep] * 1/np.sqrt(DD[keep])).T , dSTA ) / 2
+
+irls = memory.cache(IRLS)
+V, iW = irls( y, P, x=0, disp_every=1000, lam=0.05, maxiter=10000 , 
+              ftol=1e-5, nonzero=1e-1)
+print 'V'
+print_coeffs( V, precision=1e0 )
+
+keepers = np.array( [sum(abs(v))>1e-1 for v in V] )
+U        = filters[keepers,:]
+V1       = V[keepers,:].T

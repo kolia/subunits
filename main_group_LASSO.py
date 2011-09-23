@@ -22,6 +22,9 @@ import cPickle
 
 from IPython.Debugger import Tracer; debug_here = Tracer()
 
+from joblib import Memory
+memory = Memory(cachedir='/Users/kolia/Documents/joblibcache', verbose=0)
+
 def save():
     savefile = open('../../../Desktop/stimulus_stats.pyckle','w')
     del R['stimulus']
