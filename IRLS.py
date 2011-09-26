@@ -1,11 +1,12 @@
 from   numpy        import dot, eye, sum, ones, sqrt, zeros, arange, abs
+from   numpy        import tensordot, reshape, prod
 from   numpy.linalg import slogdet
 import scipy.linalg as la
 import numpy.random   as R
 from time import time
 from IPython.Debugger import Tracer; debug_here = Tracer()
 
-def IRLS_step(y,P,iw,lam):
+def IRLS_step_matrix(y,P,iw,lam):
     P_iW = P*iw
     P_iW_P = dot(P,P_iW.T)
     C = la.pinv( lam*eye(y.shape[0]) + P_iW_P)
@@ -14,14 +15,29 @@ def IRLS_step(y,P,iw,lam):
     iw = sum(x**2,axis=1) + iw - sum( dot( P_iW.T , C ) * P_iW.T , axis=1)
     return x,iw
 
+#def tensorinv(P):
+#    N  = prod(P.shape[:P.ndim/2])
+#    fP = reshape(P,(N,-1))
+#    invfP = la.pinv(fP)
+#    return reshape(invfP,P.shape)
+#
+#def IRLS_step_tensor(y,P,iw,lam):               # y:      45 by 12,  P: 45 by 12 by 200
+#    P_iW = P*iw                                 # P_iW:   45 by 12 by 200
+#    P_iW_P = tensordot(P,P_iW.T,axes=1)         # P_iW_P: 45 by 12 by 12 by 45
+#    C  = tensorinv( lam*reshape(eye(y.size),y.shape) + P_iW_P)
+#    x  = tensordot( P_iW.T , tensordot( C , y ))
+#    iw = sum(x**2,axis=1) + iw - sum( dot( P_iW.T , C ) * P_iW.T , axis=1)
+#    return x,iw
+
 def IRLS(y,P,x=0,disp_every=0,lam=0,maxiter=1000,ftol=1e-6,iw=1e-1,nonzero=1e-3):
     if isinstance( iw , type(float)):
         iw = iw * ones(P.shape[1])
     for i in range(maxiter):
         old_x = x
-        x,iw = IRLS_step(y,P,iw,lam)
+        x,iw = IRLS_step_matrix(y,P,iw,lam)
         if disp_every and not i%disp_every:
-            print 'Iteration ',i,'  nonzero weights:',sum(iw>nonzero),'  dL1(x): ',sum(abs(x-old_x))
+            print 'Iteration ',i,'  nonzero weights:',sum(iw>nonzero), \
+                  '  dL1(x): ',sum(abs(x-old_x))
         if sum(abs(x-old_x))<ftol: break
     return x,iw
 

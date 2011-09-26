@@ -1,40 +1,22 @@
-import QuadPoiss
-reload(QuadPoiss)
-from   QuadPoiss import quadratic_Poisson, UVs , eig_barrier, eigsM, invM
-
-import kolia_theano
-reload(kolia_theano)
+from   time  import time
 
 import simulate_retina
 reload(simulate_retina)
 
-import optimize
-reload(optimize)
-
-import IRLS
-reload(IRLS)
-from   IRLS import IRLS
-
-import numpy        as np
-from scipy.linalg   import schur
 import numpy.random as Rand
 
-import pylab        as p
+import sparse_group_lasso as sgl
+reload(sgl)
+
+import numpy as np
+import pylab as p
+from scipy.linalg import schur, block_diag
 from   matplotlib.ticker import *
 
 from IPython.Debugger import Tracer; debug_here = Tracer()
 
-# Memoizing results using joblib;  makes life easier
 from joblib import Memory
 memory = Memory(cachedir='/Users/kolia/Documents/joblibcache', verbose=0)
-
-def print_coeffs(V,precision=1e-2):
-    lasti = -10
-    for i,v in enumerate(V):
-        if lasti == i-2: print
-        if np.sum(np.abs(v))>precision:
-            print i,' : ', v
-            lasti = i
 
 def plot_filters(X,same_scale=True):
     for i in range(X.shape[0]-1,-1,-1):
@@ -43,6 +25,13 @@ def plot_filters(X,same_scale=True):
         ax.yaxis.set_major_locator( MaxNLocator(nbins=1) )
         ax.xaxis.set_major_locator( IndexLocator(10,0) )
 
+def print_coeffs(V,precision=1e-2):
+    lasti = -10
+    for i,v in enumerate(V):
+        if lasti == i-2: print
+        if np.sum(np.abs(v))>precision:    
+            print i,' : ', v
+            lasti = i    
 
 ############################
 # Setting up simulated data
@@ -67,8 +56,6 @@ simulate = memory.cache(simulator)
 R = simulate( V2, nonlinearity=NL, N_cells=N_cells , sigma_spatial=[10.,3.],
               N_timebins = 1000000 )
 
-#testR = simulate( nonlinearity=NL, N_cells=N_cells , sigma_spatial=[10.,3.],
-#                  N_timebins = 900000 )
 
 total = float( np.sum([Nspikes for Nspikes in R['N_spikes']]) )
 
@@ -78,27 +65,28 @@ dSTA  = np.concatenate(
         [STA[:,np.newaxis]-R['statistics']['features']['mean'][:,np.newaxis]
         for STA in R['statistics']['features']['STA']], axis=1)
 
-Cin = R['statistics']['features']['cov']/2
-
-#lam2 = 200.
-#prior = np.fromfunction( lambda i,j: (i-j>0)*(i-j<6) , Cin.shape)
-##prior = np.dot( filters , filters.T )
-##prior = (prior - np.diag(np.diag(prior)))
-##prior = prior / np.sqrt( np.sum( prior**2. ) )
-#Cin = Cin + lam2 * prior
-
-D,Z = schur(Cin)
+D,Z = schur(R['statistics']['features']['cov']/2)
 DD  = np.diag(D)
 keep= DD>1e-10
 P   =  (Z[:,keep] * np.sqrt(DD[keep])).T
 y   =  np.dot ( (Z[:,keep] * 1/np.sqrt(DD[keep])).T , dSTA ) / 2
 
-irls = memory.cache(IRLS)
-V, iW = irls( y, P, x=0, disp_every=1000, lam=0.03, maxiter=10000 , 
-              ftol=1e-6, nonzero=1e-1)
-print 'V'
-print_coeffs( V, precision=1e-1 )
+predictors    = [ block_diag(*[column*np.sqrt(Nspke) for Nspke in Nspikes]).T
+                  for column in P.T]
 
-keepers = np.array( [sum(abs(v))>1e-1 for v in V] )
-U        = filters[keepers,:]
-V1       = V[keepers,:].T
+
+start = time()
+
+group_weights = [0.05 for _ in predictors]
+weights       = [0.01*np.ones(pp.shape[1]) for pp in predictors]
+
+r,coeffs  = sgl.initialize_group_lasso(predictors, (np.sqrt(Nspikes)*y).T.flatten())
+print r
+iterations = sgl.sparse_group_lasso(predictors, group_weights, weights, 
+                                    r, coeffs, maxiter=10000, disp_every=100, ftol=1e-8)
+finish = time()
+print iterations,'Iterations of sparse group LASSO in ',finish-start,' seconds for n: ',n
+print 'infered x '
+#print np.concatenate( [sgl.inflate(coeffs), np.arange(vv.shape[0])[:,np.newaxis]], axis=1)
+print 'coeffs:'
+print_coeffs(sgl.inflate(coeffs),precision=1e-1)

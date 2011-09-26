@@ -36,11 +36,6 @@ def optimize_coeffs(predictor,group_weight,weight,rr,coeff):
                 counter += 1
                 if abs(dc)<1e-10 or counter>20: 
                     break
-#            if counter>20:
-#                print 'problem with newton'
-#            obj = objective(old_c,coeffL2[0],z,w,c)
-#            if obj>old_obj:
-#                print 'OBJECTIVE INCREASED!'
             c = c.squeeze()
         coeffL2[0] = coeffL2[0] + c**2
         rr[0] += (old_c-c)*z
