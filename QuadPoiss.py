@@ -38,8 +38,8 @@ def eig_pos_barrier( theta = Th.dvector('theta'), M    = Th.dmatrix('M') ,
      '''
      ImM = Th.identity_like(M)-(M+M.T)/2
      w,v = eig( ImM )
-     return 1-(Th.sum(Th.log(w))>-250)*(Th.min(w)>0)* \
-            (Th.min(V1.flatten())>0)*(Th.min(U.flatten())>0)
+     return 1-(Th.sum(Th.log(w))>-250)*(Th.min(w)>0)*(Th.min(V1.flatten())>0) \
+#            (Th.min(V1.flatten())>0)*(Th.min(U.flatten())>0)
 
 
 def eig_barrier( theta = Th.dvector('theta'), M    = Th.dmatrix('M') ,
@@ -79,6 +79,7 @@ def UVs(N):
     def UV( U    = Th.dmatrix('U')   , V1  = Th.dmatrix('V1') , V2 = Th.dvector('V2') ,
             STAs = Th.dmatrix('STAs'), STCs = Th.dtensor3('STCs'), 
             centers= Th.dvector('centers'), indices = Th.dmatrix('indices'), lam=Th.dscalar('lam'),
+            lambdas= Th.dvector('lambdas') ,
             N_spikes = Th.dvector('N_spikes'),  Ncones = Th.dscalar('Ncones'), **other):
         return [{'theta':    Th.dot( U.T , V1[i,:] ) ,
                  'M'  :      Th.dot( V1[i,:] * U.T , (V2 * U.T).T ),
@@ -86,8 +87,12 @@ def UVs(N):
                  'STC':      STCs[i,:,:],
                  'N_spike':  N_spikes[i]/(Th.sum(N_spikes)) ,
                  'U' :       U,
+                 'logprior': - Th.sum( Th.sqrt(Th.sum(V1**2.,axis=0) + 0.000001) * lambdas) } for i in range(N)]
+#                 'logprior': Th.sum(0.001*Th.log(V1)) - Th.sum( Th.sqrt(Th.sum(V1**2.,axis=0)) * lambdas) } for i in range(N)]
+#                 'logprior': Th.sum(0.001*Th.log(V1)) } for i in range(N)]
 #                 'logprior': 0. } for i in range(N)]
-                 'logprior': lam * Th.sum( (1-Th.cos((indices.T-centers)*2.*pi/Ncones).T) * U**2. ) } for i in range(N)]
+#                 'logprior': Th.sum(0.001*Th.log(U)) - lam * Th.sum( (0.5-Th.cos((indices.T-centers)*2.*pi/Ncones).T)*4. * U**2. ) } for i in range(N)]
+#                 'logprior': lam * Th.sum( (1-Th.cos((indices.T-centers)*2.*pi/Ncones).T) * U**2. ) } for i in range(N)]
 #                 'logprior': Th.sum(0.001*Th.log(V1)) + lam * Th.sum( (1-Th.cos((indices.T-centers)*2.*pi/Ncones).T) * U**2. ) } for i in range(N)]
 #                 'logprior': Th.sum(0.001*Th.log(U)) + Th.sum(0.001*Th.log(V1)) } for i in range(N)]
     return UV

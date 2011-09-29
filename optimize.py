@@ -275,7 +275,11 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
                 if bamax:
                     warnflag = 2
                     break
-                alpha_k = amax
+                if famax<old_fval:
+                    alpha_k = amax
+                else:
+                    alpha_k , old_fval = simple_search(f,xk,pk,amax)
+                    print ' simple3 ',
 
 #        if alpha_k is not None:
 #            old_fval= f(xk + alpha_k*pk) 
@@ -292,7 +296,7 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
         sk = xkp1 - xk
         xk = xkp1
         
-        old_fval = f(xk)        
+        old_fval = f(xk)    
         if not isfinite(old_fval):
             debug_here()
         

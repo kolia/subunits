@@ -8,7 +8,7 @@ import theano.tensor  as Th
 from theano.gof import Op, Apply
 from theano.sandbox.linalg import matrix_inverse
 
-#from IPython.Debugger import Tracer; debug_here = Tracer()
+from IPython.Debugger import Tracer; debug_here = Tracer()
 
 
 class LogDet(Op):
@@ -53,6 +53,9 @@ class Eig(Op):
         return "Eig"
 eig = Eig()
 
+def Hessian_along( cost , wrt , direction, consider_constant ):
+    grad = Th.grad( cost=cost             , wrt=wrt , consider_constant=consider_constant )
+    return Th.grad( Th.sum(grad*direction), wrt=wrt , consider_constant=consider_constant )
 
 def shapely_tensor( name , x , dtype='float64'):
     '''Return SYMBOLIC tensor with the same dimensions and size as input.'''
@@ -169,7 +172,7 @@ class Objective:
     'd' + name; for example, the gradient of f will become objective.df
 
     Optionally, a callback function of the parameters'''
-    def __init__(self, init_params=None, differentiate=[], **theano):
+    def __init__(self, init_params=None, differentiate=[], mode=None, **theano):
         keydict = getargs( theano.itervalues().next() )
 #        self.defs          = [theano_defs]
         self.Args          = dict([(n,Th.as_tensor_variable(d,name=n)) for n,d in keydict.items()])
@@ -195,8 +198,16 @@ class Objective:
                 self.theano['d'+name] = self.__differentiate(self.theano[name])
 
         self.arglist = [self.Params_Out[name] for name in sorted(self.Args.keys())]
+
+#        for name in self.hessian:
+#            if ('H'+name) not in self.theano_functions and name in self.theano:
+#                gen = self.theano[name]
+#                direction = 
+#                self.theano_functions['H'+name] = function( [self.flatParam]+self.arglist) ,
+#                    Hessian_along( gen(self.theano[name]) ,  )
+
         for name,gen in self.theano.items():
-            self.theano_functions[name] = function([self.flatParam]+self.arglist,gen(**self.Params_Out))
+            self.theano_functions[name] = function([self.flatParam]+self.arglist,gen(**self.Params_Out),mode=mode)
 
     def where(self,**args):
         t = Base()

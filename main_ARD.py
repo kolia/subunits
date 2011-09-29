@@ -94,8 +94,8 @@ P   =  (Z[:,keep] * np.sqrt(DD[keep])).T
 y   =  np.dot ( (Z[:,keep] * 1/np.sqrt(DD[keep])).T , dSTA ) / 2
 
 irls = memory.cache(IRLS)
-V, iW = irls( y, P, x=0, disp_every=1000, lam=0.03, maxiter=10000 , 
-              ftol=1e-6, nonzero=1e-1)
+V, iW = irls( y, P, x=0, disp_every=1000, lam=0.005, maxiter=1000000 , 
+              ftol=1e-5, nonzero=1e-1)
 print 'V'
 print_coeffs( V, precision=1e-1 )
 

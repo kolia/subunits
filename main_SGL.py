@@ -77,13 +77,13 @@ predictors    = [ block_diag(*[column*np.sqrt(Nspke) for Nspke in Nspikes]).T
 
 start = time()
 
-group_weights = [0.05 for _ in predictors]
-weights       = [0.01*np.ones(pp.shape[1]) for pp in predictors]
+group_weights = [0.1 for _ in predictors]
+weights       = [0.05*np.ones(pp.shape[1]) for pp in predictors]
 
 r,coeffs  = sgl.initialize_group_lasso(predictors, (np.sqrt(Nspikes)*y).T.flatten())
 print r
 iterations = sgl.sparse_group_lasso(predictors, group_weights, weights, 
-                                    r, coeffs, maxiter=10000, disp_every=100, ftol=1e-8)
+                                    r, coeffs, maxiter=10000, disp_every=100, ftol=1e-10)
 finish = time()
 print iterations,'Iterations of sparse group LASSO in ',finish-start,' seconds for n: ',n
 print 'infered x '
