@@ -2,9 +2,10 @@
 Generate simulated data.
 @author: kolia
 """
-
+import kolia_base as kb
 from numpy  import dot,sin,cos,exp,sum,newaxis,sqrt,cov,ceil,minimum
-from numpy  import arange,transpose,fromfunction,pi,mean,concatenate
+from numpy  import arange,transpose,fromfunction,pi,concatenate
+#from numpy.linalg import pinv
 import numpy.random   as R
 
 from IPython.Debugger import Tracer; debug_here = Tracer()
@@ -14,45 +15,81 @@ def weights(shape=(10,10), sigma=1):
         exp(sigma * cos((j-(shape[1]*i/shape[0]))*2*pi/shape[1]) ), shape)
     return U / sqrt(sum(U*U,axis=1))[:,newaxis]
 
-
-def LNLNP_chunk(
-    sigma_stimulus = 1.           ,  # stimulus standard deviation
+def LNLNP_ring_model(
     nonlinearity   = sin          ,  # subunit nonlinearity
     N_cells        = [10,5,3]     ,  # number of cones, subunits & RGCs
-    sigma_spatial  = [2., 1.]     ,  # subunit & RGC connection width
+    sigma_spatial  = [2., 1.]     ): # subunit & RGC connection width
+    """Linear-Nonlinear-Linear-Exponential-Poisson model on a ring.
+    """
+    U = weights(sigma=sigma_spatial[0],shape=(N_cells[1],N_cells[0]))
+    V = weights(sigma=sigma_spatial[1],shape=(N_cells[2],N_cells[1]))
+    return locals()
+
+class Stimulus(object):
+    """Stimulus generator that keeps a list of the seeds and N_timebins used at 
+    each invocation, so that the same stimulus can be generated without 
+    storing the generated stimulus.  Instances should be picklable."""
+    def __init__( self, generator ):
+        self.N_timebin_list = []
+        self.seed_list      = []
+        self.generator      = generator
+    
+    def generate( self, *args, **kwargs ):
+        if kwargs.has_key('seed'):  R.set_state(kwargs['seed'])
+        kwargs = kb.format_kwargs(self.generator,kwargs)
+        if not kwargs.has_key('N_timebins'):
+            raise NameError('stimulus generator requires an N_timebins argument!')
+        self.N_timebin_list += [kwargs['N_timebins']]
+        self.seed_list      += [R.get_state()]
+        return self.generator( *args, **kwargs )
+
+def white_gaussian( sigma=1., dimension=1, N_timebins = 100000 ):
+    """Independent zero mean sigma std gaussian.
+    """
+    return sigma*R.randn(dimension,N_timebins)
+    
+
+def very_nonlinear_LN_stimulus( model , output_sigma = 1. , 
+                                weight_matrix = 'U' ):
+    iU    = model['U'].T
+#    iU    = pinv( (model['U'].T / sqrt(sum( model['U']**2 , axis=1 ))).T )
+    iU    = output_sigma * iU / sqrt(sum( iU**2 , axis=0 ))
+    N_timebin_list = []
+    seed_list      = []
+    def generate( N_timebins = 100000 , seed  = R.get_state() ,
+                  N_timebin_list = N_timebin_list , seed_list = seed_list ):
+        R.set_state(seed)
+        N_timebin_list += [N_timebins]
+        seed_list      += [seed]
+        return dot( iU , R.randn(iU.shape[1],N_timebins) )
+    return locals()    
+
+def run_LNLNP_chunk( model , stimulus ,
+    N_timebins     = 10000        ,  # number of stimulus time samples
     firing_rate     = 0.1          ,  # RGC firing rate
-    N_timebins     = 100000       ,  # number of time samples
-    average_me     = {}           ):  # calculate STA, STC, stim. avg 
+    average_me     = {}           ): # calculate STA, STC, stim. avg 
                                      # and cov of these functions of the stimulus
     """Simulate spiking data for a Linear-Nonlinear-Linear-Nonlinear-Poisson model.
     """
-    seed     = R.get_state()
-    def stimulus():
-        R.set_state(seed)
-        return sigma_stimulus*R.randn(N_cells[0],N_timebins)
-    X        = stimulus()                   # cone activations
-
-    U = weights(sigma=sigma_spatial[0],shape=(N_cells[1],N_cells[0]))
-    V = weights(sigma=sigma_spatial[1],shape=(N_cells[2],N_cells[1]))
-
-    b        = nonlinearity(dot(U,X))      # subunit activations
-    spikes   = exp(dot(V,b))               # RGC activations
-    spikes   = spikes * N_cells[2] * N_timebins * firing_rate / sum(spikes)
+    X        = stimulus.generate( N_timebins=N_timebins, dimension=model['N_cells'][0] )
+    b        = model['nonlinearity'](dot(model['U'],X))  # subunit activations
+    spikes   = exp(dot(model['V'],b))                                # RGC activations
+    spikes   = spikes * model['N_cells'][2] * N_timebins * firing_rate / sum(spikes)
     
     spikes = R.poisson(spikes)
     N_spikes = sum(spikes,1)
 
     average_me['stimulus'] = lambda x : x
-    average_me['subunits'] = lambda x : nonlinearity(dot(U,x))
+    average_me['subunits'] = lambda x : model['nonlinearity'](dot(model['U'],x))
 
     def statistics(x):
         d = {}
         d['mean'] = sum(x,axis=1)/N_timebins
         d['cov']  = cov(x)
-        d['STA']  = [ sum(x*spikes[i,:],1) / N_spikes[i] for i in arange(N_cells[2]) ]
+        d['STA']  = [ sum(x*spikes[i,:],1) / N_spikes[i] for i in arange(model['N_cells'][2]) ]
         d['STC']  = \
             [ dot( x-d['STA'][i][:,newaxis], transpose((x-d['STA'][i][:,newaxis])*spikes[i,:])) \
-            / N_spikes[i]               for i in arange(N_cells[2]) ]
+            / N_spikes[i]               for i in arange(model['N_cells'][2]) ]
         return d
     statistics = dict( (name,statistics(average_me[name](X))) for name in average_me.keys())
 
@@ -60,31 +97,27 @@ def LNLNP_chunk(
     del result['X']
     del result['spikes']
     del result['b']
-    del result['seed']
     del result['average_me']
     return result
 
-def LNLNP(
+def run_LNLNP( model , stimulus ,
     sigma_stimulus = 1.           ,  # stimulus standard deviation
-    nonlinearity   = sin          ,  # subunit nonlinearity
-    N_cells        = [10,5,3]     ,  # number of cones, subunits & RGCs
-    sigma_spatial  = [2., 1.]     ,  # subunit & RGC connection width
     firing_rate     = 0.3          ,  # RGC firing rate
     N_timebins     = 100000       ,  # number of time samples
-    average_me     = {}           ,  # calculate STA, STC, stim. avg 
-    picklable      = True         ): # and cov of these functions of the stimulus 
+    average_me     = {}           ): # calculate STA, STC, stim. avg 
+#    picklable      = True         ): # and cov of these functions of the stimulus 
                                      
     chunksize = 50000.
     timebins = [minimum(N_timebins-i*chunksize, chunksize) for i,x in 
                     enumerate(range(int(ceil(N_timebins/chunksize))))]
     for _ in timebins:  print '-',
     print
-    result = LNLNP_chunk(sigma_stimulus, nonlinearity, N_cells, sigma_spatial, 
-                         firing_rate, N_timebins=timebins[0], average_me=average_me)
+    result = run_LNLNP_chunk( model , stimulus , N_timebins=timebins[0], 
+                              firing_rate=firing_rate, average_me=average_me)
     result['stimulus'] = [result['stimulus']]
     for Nt in timebins[1:]:
-        ll = LNLNP_chunk(sigma_stimulus, nonlinearity, N_cells, sigma_spatial, 
-                         firing_rate, N_timebins=Nt, average_me=average_me)
+        ll = run_LNLNP_chunk( model , stimulus, N_timebins=Nt, 
+                              firing_rate=firing_rate, average_me=average_me)
     #        result['spikes']   = concatenate([l['spikes'] for l in lnp], axis=1)
     
         for topname,topd in result['statistics'].items():
@@ -104,10 +137,9 @@ def LNLNP(
         result['stimulus']   = result['stimulus']   + [ll['stimulus']]
         result['N_spikes']   = result['N_spikes']   + ll['N_spikes']
         print '+',
-    if not picklable:
-        result['stimulus']   = lambda : \
-            concatenate([ll['stimulus']() for ll in result['stimulus']])
-    else:
-        del result['stimulus']
-        del result['nonlinearity']
+#    if not picklable:
+#        result['stimulus']   = lambda : \
+#            concatenate([ll['stimulus']() for ll in result['stimulus']])
+#    else:
+#        del result['stimulus']
     return result

@@ -6,7 +6,7 @@ import numpy
 from numpy import asarray, sqrt, Inf, isinf, minimum, isfinite
 from scipy.optimize.linesearch import line_search_wolfe1, line_search_wolfe2
 
-from kolia_theano import flat
+from kolia_base import flat
 
 from IPython.Debugger import Tracer; debug_here = Tracer()
 
