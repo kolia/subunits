@@ -29,6 +29,22 @@ def quadratic_Poisson( theta = Th.dvector('theta'), M    = Th.dmatrix('M') ,
              + 2. * Th.sum( theta * STA ) \
              + Th.sum( M * (STC + Th.outer(STA,STA)) ))
 
+def LNLEP( theta = Th.dvector('theta'), M    = Th.dmatrix('M') ,
+                       STA   = Th.dvector('STA')  , STC  = Th.dmatrix('STC'), 
+                       N_spike = Th.dscalar('N_spike'), **other):
+    '''
+    The actual quadratic-Poisson model, as a function of theta and M, 
+    with a barrier on the log-det term.
+    '''
+    ImM = Th.identity_like(M)-(M+M.T)/2
+    ldet = Th.log( det( ImM) )  # logdet(ImM)
+    return -0.5 * N_spike *( 
+             ldet \
+             - Th.sum(Th.dot(matrix_inverse(ImM),theta) * theta) \
+             + 2. * Th.sum( theta * STA ) \
+             + Th.sum( M * (STC + Th.outer(STA,STA)) ))
+
+
 def eig_pos_barrier( theta = Th.dvector('theta'), M    = Th.dmatrix('M') ,
                  STA   = Th.dvector('STA'), STC  = Th.dmatrix('STC'), 
                  U = Th.dmatrix('U') , V1 = Th.dvector('V1'), **other):
@@ -72,6 +88,23 @@ def UV( U  = Th.dmatrix('U') , V1   = Th.dvector('V1') , V2 = Th.dvector('V2') ,
     return result
 
 def UVs(N):
+    '''
+    Reparameterize a list of N (theta,M) parameters as a function of a 
+    common U,V2 and a matrix of N rows containing V1.
+    '''
+    def UV( U    = Th.dmatrix('U')   , V1  = Th.dmatrix('V1') , V2 = Th.dvector('V2') ,
+            STAs = Th.dmatrix('STAs'), STCs = Th.dtensor3('STCs'),
+            N_spikes = Th.dvector('N_spikes'), **other):
+        return [{'theta':    Th.dot( U.T , V1[i,:] ) ,
+                 'M'  :      Th.dot( V1[i,:] * U.T , (V2 * U.T).T ),
+                 'STA':      STAs[i,:],
+                 'STC':      STCs[i,:,:],
+                 'N_spike':  N_spikes[i]/(Th.sum(N_spikes)) ,
+                 'U' :       U,
+                 'logprior': 0. } for i in range(N)]
+    return UV
+
+def UVs_old(N):
     '''
     Reparameterize a list of N (theta,M) parameters as a function of a 
     common U,V2 and a matrix of N rows containing V1.

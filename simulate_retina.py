@@ -4,15 +4,16 @@ Generate simulated data.
 """
 import kolia_base as kb
 from numpy  import dot,sin,cos,exp,sum,newaxis,sqrt,cov,ceil,minimum
-from numpy  import arange,transpose,fromfunction,pi,concatenate
+from numpy  import arange,transpose,fromfunction,pi,log
 #from numpy.linalg import pinv
 import numpy.random   as R
+import sets
 
 from IPython.Debugger import Tracer; debug_here = Tracer()
 
-def weights(shape=(10,10), sigma=1):
+def ring_weights(shape=(10,10), sigma=1, offset_in=0., offset_out=0.):
     U = fromfunction( lambda i,j: \
-        exp(sigma * cos((j-(shape[1]*i/shape[0]))*2*pi/shape[1]) ), shape)
+        exp(sigma * cos((j+offset_in-(shape[1]*(i++offset_out)/shape[0]))*2*pi/shape[1]) ), shape)
     return U / sqrt(sum(U*U,axis=1))[:,newaxis]
 
 def LNLNP_ring_model(
@@ -21,14 +22,14 @@ def LNLNP_ring_model(
     sigma_spatial  = [2., 1.]     ): # subunit & RGC connection width
     """Linear-Nonlinear-Linear-Exponential-Poisson model on a ring.
     """
-    U = weights(sigma=sigma_spatial[0],shape=(N_cells[1],N_cells[0]))
-    V = weights(sigma=sigma_spatial[1],shape=(N_cells[2],N_cells[1]))
+    U = ring_weights(sigma=sigma_spatial[0],shape=(N_cells[1],N_cells[0]))
+    V = ring_weights(sigma=sigma_spatial[1],shape=(N_cells[2],N_cells[1]))
     return locals()
 
 class Stimulus(object):
-    """Stimulus generator that keeps a list of the seeds and N_timebins used at 
-    each invocation, so that the same stimulus can be generated without 
-    storing the generated stimulus.  Instances should be picklable."""
+    """Stimulus generator that keeps a list of the seeds and N_timebins 
+    used at each invocation, so that the same stimulus can be generated 
+    without storing the generated stimulus. Instances should be picklable."""
     def __init__( self, generator ):
         self.N_timebin_list = []
         self.seed_list      = []
@@ -67,16 +68,18 @@ def very_nonlinear_LN_stimulus( model , output_sigma = 1. ,
 def run_LNLNP_chunk( model , stimulus ,
     N_timebins     = 10000        ,  # number of stimulus time samples
     firing_rate     = 0.1          ,  # RGC firing rate
+    keep           = frozenset([]),  # keep ['X', 'b', 'intensity', 'spikes']?
     average_me     = {}           ): # calculate STA, STC, stim. avg 
                                      # and cov of these functions of the stimulus
     """Simulate spiking data for a Linear-Nonlinear-Linear-Nonlinear-Poisson model.
     """
-    X        = stimulus.generate( N_timebins=N_timebins, dimension=model['N_cells'][0] )
-    b        = model['nonlinearity'](dot(model['U'],X))  # subunit activations
-    spikes   = exp(dot(model['V'],b))                                # RGC activations
-    spikes   = spikes * model['N_cells'][2] * N_timebins * firing_rate / sum(spikes)
+    X         = stimulus.generate( N_timebins=N_timebins, dimension=model['N_cells'][0] )
+    b         = model['nonlinearity'](dot(model['U'],X))  # subunit activations
+    intensity = exp(dot(model['V'],b))                                # RGC activations
+    constant  = log( model['N_cells'][2] * N_timebins * firing_rate / sum(intensity) )
+    intensity = intensity * exp(constant)
     
-    spikes = R.poisson(spikes)
+    spikes = R.poisson(intensity)
     N_spikes = sum(spikes,1)
 
     average_me['stimulus'] = lambda x : x
@@ -94,16 +97,16 @@ def run_LNLNP_chunk( model , stimulus ,
     statistics = dict( (name,statistics(average_me[name](X))) for name in average_me.keys())
 
     result = locals()
-    del result['X']
-    del result['spikes']
-    del result['b']
+    for thing in frozenset(['X','b','intensity','spikes']).difference(keep):
+        del result[thing]
     del result['average_me']
     return result
 
 def run_LNLNP( model , stimulus ,
     sigma_stimulus = 1.           ,  # stimulus standard deviation
-    firing_rate     = 0.3          ,  # RGC firing rate
+    firing_rate     = 0.1          ,  # RGC firing rate
     N_timebins     = 100000       ,  # number of time samples
+    keep           = frozenset([]),  # keep ['X', 'b', 'intensity', 'spikes']?
     average_me     = {}           ): # calculate STA, STC, stim. avg 
 #    picklable      = True         ): # and cov of these functions of the stimulus 
                                      
@@ -112,11 +115,11 @@ def run_LNLNP( model , stimulus ,
                     enumerate(range(int(ceil(N_timebins/chunksize))))]
     for _ in timebins:  print '-',
     print
-    result = run_LNLNP_chunk( model , stimulus , N_timebins=timebins[0], 
+    result = run_LNLNP_chunk( model , stimulus , N_timebins=timebins[0], keep=keep,
                               firing_rate=firing_rate, average_me=average_me)
     result['stimulus'] = [result['stimulus']]
     for Nt in timebins[1:]:
-        ll = run_LNLNP_chunk( model , stimulus, N_timebins=Nt, 
+        ll = run_LNLNP_chunk( model , stimulus, N_timebins=Nt, keep=keep,
                               firing_rate=firing_rate, average_me=average_me)
     #        result['spikes']   = concatenate([l['spikes'] for l in lnp], axis=1)
     

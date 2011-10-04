@@ -24,43 +24,15 @@ from   IRLS import IRLS
 import numpy        as np
 from scipy.linalg   import schur
 import numpy.random as Rand
- 
-import pylab        as p
-from   matplotlib.ticker import *
- 
-import cPickle
- 
+  
+import pylab as p
+
 from IPython.Debugger import Tracer; debug_here = Tracer()
  
 # Memoizing results using joblib;  makes life easier
 from joblib import Memory
 memory = Memory(cachedir='/Users/kolia/Documents/joblibcache', verbose=0)
  
-def print_coeffs(V,precision=1e-2):
-    lasti = -10
-    for i,v in enumerate(V):
-        if lasti == i-2: print
-        if np.sum(np.abs(v))>precision:
-            print i,' : ', v
-            lasti = i
-
-def plot_filters(X,same_scale=True):
-    for i in range(X.shape[0]-1,-1,-1):
-        ax = p.subplot(X.shape[0]*2,1,i*2+1)
-        p.plot(np.arange(X.shape[1]),X[i,:])
-        ax.autoscale(enable=True, axis='both', tight=True)
-        ax.yaxis.set_major_locator( LinearLocator(numticks=2) )
-        ax.xaxis.set_major_locator( IndexLocator(overcompleteness,0) )
- 
-def save(result,name):
-    savefile = open("../../../Desktop/%s.pyckle" % name,'w')
-    cPickle.dump(result,savefile)
-    savefile.close()
- 
-def load(name):
-    savefile = open('../../../Desktop/%s.pyckle' % name,'r')
-    return cPickle.load(savefile)
-     
  
 ############################
 # Setting up simulated data
@@ -117,7 +89,7 @@ irls = memory.cache(IRLS)
 V, iW = irls( y, P, x=0, disp_every=1000, lam=0.02, maxiter=1000000 , 
               ftol=1e-5, nonzero=1e-1)
 print 'V'
-print_coeffs( V, precision=1e-1 )
+kb.print_sparse_rows( V, precision=1e-1 )
  
 keepers = np.array( [sum(abs(v))>1e-1 for v in V] )
  
@@ -144,13 +116,13 @@ def callback( objective , params ):
         if np.remainder( iterations[0] , 6 ) == 0: p.close('all')
         if result.has_key('V1'):
             p.figure(1, figsize=(10,12))
-            plot_filters(result['V1'])
+            kb.plot_filters(result['V1'])
             p.title('V1 filters')
             p.savefig('/Users/kolia/Desktop/V1_initrue.svg',format='svg')
             p.savefig('/Users/kolia/Desktop/V1_initrue.pdf',format='pdf')
         if result.has_key('U'):
             p.figure(2, figsize=(10,12))
-            plot_filters(result['U'][:10,:])
+            kb.plot_filters(result['U'][:10,:])
             p.title('1st ten U filters')
             p.savefig('/Users/kolia/Desktop/U_initrue.svg',format='svg')
             p.savefig('/Users/kolia/Desktop/U_initrue.pdf',format='pdf')
@@ -202,14 +174,14 @@ def objective_U():
 #obj_U   = objective_U()
  
 @memory.cache
-def optimize_U( v1,init_U, v2  ):
+def optimize_U( objective, v1,init_U, v2  ):
     data = {'STAs':np.vstack(R['statistics']['stimulus']['STA']) ,
             'STCs':np.vstack([stc[np.newaxis,:] for stc in R['statistics']['stimulus']['STC']]), 
             'V2':v2 , 'V1': v1 , 'N':NRGC , 'N_spikes':R['N_spikes'] }
      
-    optimizer = optimize.optimizer( obj_U.where(**data).with_callback(callback) )
+    optimizer = optimize.optimizer( objective.where(**data).with_callback(callback) )
     params = optimizer(init_params={'U': init_U },maxiter=2000,gtol=1.1e-6)
-    opt_U = obj_U.unflat(params)
+    opt_U = objective.unflat(params)
     return opt_U['U']
  
  
@@ -222,20 +194,20 @@ def objective_V1( v1 = R['model']['V'] ):
 iterations[0] = 0
 lam     = 20.
 @memory.cache
-def optimize_V1( u,v2, lambdas=None , init=None , gtol=1e-4 , maxiter=100):
+def optimize_V1( objective, u,v2, lambdas=None , init=None , gtol=1e-4 , maxiter=100):
     if lambdas is None:
         lambdas = np.zeros(v2.size)
     data = {'STAs':np.vstack(R['statistics']['stimulus']['STA']) , 
             'STCs':np.vstack([stc[np.newaxis,:] for stc in R['statistics']['stimulus']['STC']]), 
             'V2':v2 , 'U': u , 'N':NRGC , 'N_spikes':R['N_spikes'] ,
             'Ncones':Ncones , 'centers':centers , 'indices':indices , 'lam':lam , 'lambdas':lambdas }
-    optimizer = optimize.optimizer( obj_V1.where(**data).with_callback(callback) )
+    optimizer = optimize.optimizer( objective.where(**data).with_callback(callback) )
     if init is None:
         init_params = {'V1': 0.001 + 0.01 * Rand.rand(NRGC,u.shape[0]) }
     else:
         init_params = {'V1': init }
     params = optimizer(init_params=init_params,maxiter=maxiter,gtol=gtol)
-    opt_V1 = obj_V1.unflat(params)
+    opt_V1 = objective.unflat(params)
     return opt_V1['V1']
  
  
@@ -249,14 +221,14 @@ def objective_UV1():
 iterations[0] = 0
 lam     = 20.
 @memory.cache
-def optimize_UV1( v1,u,v2 ):
+def optimize_UV1( objective, v1,u,v2 ):
     data = {'STAs':np.vstack(R['statistics']['stimulus']['STA']) ,
             'STCs':np.vstack([stc[np.newaxis,:] for stc in R['statistics']['stimulus']['STC']]), 
             'V2':v2 , 'N':NRGC , 'N_spikes':R['N_spikes'] , 
             'Ncones':Ncones , 'centers':centers , 'indices':indices , 'lam':lam }
-    optimizer = optimize.optimizer( obj_UV1.where(**data).with_callback(callback) )
+    optimizer = optimize.optimizer( objective.where(**data).with_callback(callback) )
     params = optimizer(init_params={'V1': v1 , 'U': u },maxiter=10000,gtol=1.1e-7)
-    opt_U = obj_UV1.unflat(params)
+    opt_U = objective.unflat(params)
     return opt_U
  
 #print 'Optimizing U,V1'
@@ -275,32 +247,32 @@ iterations[0] = -1
 
 #FALMopt( obj_V1 , filters , V2 * np.ones(filters.shape[0] ) )
 
-opt_V1_lam0 = optimize_V1( filters , V2 * np.ones(filters.shape[0] ))
+opt_V1_lam0 = optimize_V1( obj_V1, filters , V2 * np.ones(filters.shape[0] ))
 
-opt_V1 = optimize_V1( filters , V2 * np.ones(filters.shape[0] ), gtol=1e-4 ,
+opt_V1 = optimize_V1( obj_V1, filters , V2 * np.ones(filters.shape[0] ), gtol=1e-4 ,
                       lambdas= 0.01 * np.ones(filters.shape[0]), maxiter=700)
 
 ############
 
-#opt_V1 = optimize_V1( filters , V2 * np.ones(filters.shape[0] ))
+#opt_V1 = optimize_V1( obj_V1, filters , V2 * np.ones(filters.shape[0] ))
 #
 #eps=0.03
 #iterations[0] = -1
-#opt_V1 = optimize_V1( filters , V2 * np.ones(filters.shape[0] ), gtol=1e-3 ,
+#opt_V1 = optimize_V1( obj_V1, filters , V2 * np.ones(filters.shape[0] ), gtol=1e-3 ,
 #                      lambdas=0.01/(np.sqrt(np.sum(opt_V1**2.,axis=0)+eps)),
 #                      init=opt_V1**2., maxiter=80)
 #
 #eps=0.01
 #iterations[0] = 0
-#opt_V1 = optimize_V1( filters , V2 * np.ones(filters.shape[0] ), gtol=1e-3 ,
+#opt_V1 = optimize_V1( obj_V1, filters , V2 * np.ones(filters.shape[0] ), gtol=1e-3 ,
 #                      lambdas=0.01/(np.sqrt(np.sum(opt_V1**2.,axis=0)+eps)),
 #                      init=opt_V1, maxiter=80)
 
 
-#opt_V1 = optimize_V1( R['U'], V2 * np.ones(Nsub) )
+#opt_V1 = optimize_V1( obj_V1, R['U'], V2 * np.ones(Nsub) )
 
 #obj_UV1  = objective_UV1()
-#opt_UV1 = optimize_UV1( opt_V1, R['U'], V2* np.ones(Nsub) )
+#opt_UV1 = optimize_UV1( obj_UV1, opt_V1, R['U'], V2* np.ones(Nsub) )
  
 #opt_U = U
 #for i in range(5):

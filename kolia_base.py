@@ -4,6 +4,40 @@ Created on Fri Sep 30 16:40:03 2011
 
 @author: - kolia
 """
+import numpy as np
+import pylab as p
+from   matplotlib.ticker import *
+import cPickle
+def print_sparse_rows(V,precision=1e-2):
+    lasti = -10
+    for i,v in enumerate(V):
+        if lasti == i-2: print
+        if np.sum(np.abs(v))>precision:
+            print i,' : ', v
+            lasti = i
+
+def plot_filters(X,same_scale=True):
+    for i in range(X.shape[0]-1,-1,-1):
+        ax = p.subplot(X.shape[0]*2,1,i*2+1)
+        p.plot(np.arange(X.shape[1]),X[i,:])
+        ax.autoscale(enable=True, axis='both', tight=True)
+        ax.yaxis.set_major_locator( LinearLocator(numticks=2) )
+        ax.xaxis.set_major_locator( IndexLocator(overcompleteness,0) )
+ 
+def save(result,name,where='~/Desktop'):
+    savefile = open("%s/%s.pyckle" % (where,name),'w')
+    cPickle.dump(result,savefile)
+    savefile.close()
+ 
+def load(name,where='~/Desktop'):
+    savefile = open('%s/%s.pyckle' % (where,name),'r')
+    result = cPickle.load(savefile)
+    savefile.close()
+    return result
+     
+
+
+
 from inspect   import getargspec
 def getkwargs(func):
     '''Get the named arguments of a function or partial, with 
