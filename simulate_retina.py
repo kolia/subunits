@@ -4,19 +4,19 @@ Generate simulated data.
 """
 import kolia_base as kb
 from numpy  import dot,sin,cos,exp,sum,newaxis,sqrt,cov,ceil,minimum
-from numpy  import arange,transpose,fromfunction,pi,log
+from numpy  import arange,transpose,fromfunction,pi,log,vstack,array
 #from numpy.linalg import pinv
 import numpy.random   as R
 import sets
 
 from IPython.Debugger import Tracer; debug_here = Tracer()
 
-def ring_weights(shape=(10,10), sigma=1, offset_in=0., offset_out=0.):
+def ring_weights(shape=(10,10), sigma=1., offset_in=0., offset_out=0.):
     U = fromfunction( lambda i,j: \
         exp(sigma * cos((j+offset_in-(shape[1]*(i++offset_out)/shape[0]))*2*pi/shape[1]) ), shape)
     return U / sqrt(sum(U*U,axis=1))[:,newaxis]
 
-def LNLNP_ring_model(
+def LNLEP_ring_model(
     nonlinearity   = sin          ,  # subunit nonlinearity
     N_cells        = [10,5,3]     ,  # number of cones, subunits & RGCs
     sigma_spatial  = [2., 1.]     ): # subunit & RGC connection width
@@ -24,6 +24,34 @@ def LNLNP_ring_model(
     """
     U = ring_weights(sigma=sigma_spatial[0],shape=(N_cells[1],N_cells[0]))
     V = ring_weights(sigma=sigma_spatial[1],shape=(N_cells[2],N_cells[1]))
+    return locals()
+
+def hexagonal_2Dgrid( spacing=1. , field_size_x=10. , field_size_y=10. ):
+    x1 = arange( spacing/2., field_size_x, spacing )
+    x2 = arange( spacing   , field_size_x, spacing )
+    d  = spacing*sqrt(3.)
+    return sum([[(x,y) for x in x1] for y in arange(spacing/2.     , field_size_y, d)]) \
+         + sum([[(x,y) for x in x2] for y in arange(spacing/2.+d/2., field_size_y, d)])
+
+def gaussian2D_weights( centers_in , centers_out , sigma=1. ):
+    def make_filter( x, y, sigma , centers_in ):
+        f = array( [exp(-0.5*((i-x)**2.+(j-y)**2.)/sigma) for (i,j) in centers_in] )
+        return f / sqrt(sum(f**2.))
+    return vstack( [make_filter( x, y, sigma , centers_in ) for (x,y) in centers_out] )
+    
+def LNLEP_gaussian2D_model(
+    # list of cone    location coordinates
+    cones    = hexagonal_2Dgrid( spacing=1. , field_size_x=10. , field_size_y=10. ) ,
+    # list of subunit location coordinates
+    subunits = hexagonal_2Dgrid( spacing=2. , field_size_x=10. , field_size_y=10. ) ,
+    # list of RGC     location coordinates
+    RGCs     = hexagonal_2Dgrid( spacing=4. , field_size_x=10. , field_size_y=10. ) ,
+    nonlinearity   = sin          ,  # subunit nonlinearity
+    sigma_spatial  = [2., 4.]     ): # subunit & RGC connection widths
+    """Linear-Nonlinear-Linear-Exponential-Poisson model on a ring.
+    """
+    U = gaussian2D_weights( cones    , subunits , sigma=sigma_spatial[0] )
+    V = gaussian2D_weights( subunits , RGCs     , sigma=sigma_spatial[1] )
     return locals()
 
 class Stimulus(object):
@@ -65,7 +93,7 @@ def very_nonlinear_LN_stimulus( model , output_sigma = 1. ,
         return dot( iU , R.randn(iU.shape[1],N_timebins) )
     return locals()    
 
-def run_LNLNP_chunk( model , stimulus ,
+def run_LNLEP_chunk( model , stimulus ,
     N_timebins     = 10000        ,  # number of stimulus time samples
     firing_rate     = 0.1          ,  # RGC firing rate
     keep           = frozenset([]),  # keep ['X', 'b', 'intensity', 'spikes']?
@@ -102,7 +130,7 @@ def run_LNLNP_chunk( model , stimulus ,
     del result['average_me']
     return result
 
-def run_LNLNP( model , stimulus ,
+def run_LNLEP( model , stimulus ,
     sigma_stimulus = 1.           ,  # stimulus standard deviation
     firing_rate     = 0.1          ,  # RGC firing rate
     N_timebins     = 100000       ,  # number of time samples
@@ -115,11 +143,11 @@ def run_LNLNP( model , stimulus ,
                     enumerate(range(int(ceil(N_timebins/chunksize))))]
     for _ in timebins:  print '-',
     print
-    result = run_LNLNP_chunk( model , stimulus , N_timebins=timebins[0], keep=keep,
+    result = run_LNLEP_chunk( model , stimulus , N_timebins=timebins[0], keep=keep,
                               firing_rate=firing_rate, average_me=average_me)
     result['stimulus'] = [result['stimulus']]
     for Nt in timebins[1:]:
-        ll = run_LNLNP_chunk( model , stimulus, N_timebins=Nt, keep=keep,
+        ll = run_LNLEP_chunk( model , stimulus, N_timebins=Nt, keep=keep,
                               firing_rate=firing_rate, average_me=average_me)
     #        result['spikes']   = concatenate([l['spikes'] for l in lnp], axis=1)
     

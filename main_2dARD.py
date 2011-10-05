@@ -1,6 +1,5 @@
-import QuadPoiss
-reload(QuadPoiss)
-from   QuadPoiss import quadratic_Poisson, UVs , eig_barrier, eigsM, invM
+import kolia_base as kb
+reload(kb)
 
 import kolia_theano
 reload(kolia_theano)
@@ -17,31 +16,14 @@ from   IRLS import IRLS
 
 import numpy        as np
 from scipy.linalg   import schur
-import numpy.random as Rand
 
 import pylab        as p
-from   matplotlib.ticker import *
 
 from IPython.Debugger import Tracer; debug_here = Tracer()
 
 # Memoizing results using joblib;  makes life easier
 from joblib import Memory
 memory = Memory(cachedir='/Users/kolia/Documents/joblibcache', verbose=0)
-
-def print_coeffs(V,precision=1e-2):
-    lasti = -10
-    for i,v in enumerate(V):
-        if lasti == i-2: print
-        if np.sum(np.abs(v))>precision:
-            print i,' : ', v
-            lasti = i
-
-def plot_filters(X,same_scale=True):
-    for i in range(X.shape[0]-1,-1,-1):
-        ax = p.subplot(X.shape[0]*2,1,i*2+1)
-        p.plot(np.arange(X.shape[1]),X[i,:])
-        ax.yaxis.set_major_locator( MaxNLocator(nbins=1) )
-        ax.xaxis.set_major_locator( IndexLocator(10,0) )
 
 ############################
 # Setting up simulated data
@@ -107,7 +89,7 @@ irls = memory.cache(IRLS)
 V, iW = irls( y, P, x=0, disp_every=1000, lam=0.005, maxiter=1000000 , 
               ftol=1e-5, nonzero=1e-1)
 print 'V'
-print_coeffs( V, precision=1e-1 )
+kb.print_sparse_rows( V, precision=1e-1 )
 
 keepers = np.array( [sum(abs(v))>1e-1 for v in V] )
 U        = filters[keepers,:]

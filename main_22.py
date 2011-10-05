@@ -54,13 +54,13 @@ filters = np.concatenate(
 
 # Generate stimulus , spikes , and (STA,STC,mean,cov) of quantities of interest
 def simulator( v2, N_filters, nonlinearity, N_cells , sigma_spatial , N_timebins ):
-    retina = simulate_retina.LNLNP_ring_model( nonlinearity = nonlinearity , 
+    retina = simulate_retina.LNLEP_ring_model( nonlinearity = nonlinearity , 
                                                N_cells = N_cells , 
                                                sigma_spatial = sigma_spatial )
 #    stimulus = simulate_retina.white_gaussian_stimulus( dimension  = N_cells[0] , 
 #                                                         sigma = 1. )
     stimulus = simulate_retina.Stimulus( simulate_retina.white_gaussian )
-    return simulate_retina.run_LNLNP( retina , stimulus = stimulus , 
+    return simulate_retina.run_LNLEP( retina , stimulus = stimulus , 
                    N_timebins = N_timebins ,
                    average_me = {'features':lambda x: NL(np.dot(filters,x))} )
 simulate = memory.cache(simulator)
