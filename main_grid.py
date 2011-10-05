@@ -109,3 +109,21 @@ for sigma_spatial in [[ 20., 3. ] , [ 10., 3. ] , [ 5., 3. ] , [ 2., 3. ] , [1.,
     obj_V1 = LL_V1( true_model['V'] )
     
     phaseout( obj_V1, true_run , stimulus , V2 , 0.5 )
+    
+    
+# candidate 'saturating' nonlinearities:
+# exp(2.*x+1.) - exp(3.*(x-0.5)) + exp(3.5*(x-1.045))
+# x = arange(-2.,3.1,0.1) ; plot( x, exp(3.*(x+1.)) - exp(3.001*(x+0.999)) + exp(4.*(x-1.718)))
+
+import numpy as np
+import pylab as p
+# based on the taylor expansion of 1/(1+exp(x)) wrt exp(x) at exp(x0) 
+taylor = lambda x0,N,shift,constant,scale : lambda x : \
+         scale*( 1. - constant - np.sum( (-1)**(np.arange(N)[:,np.newaxis])   * \
+                 (1.+np.exp(x0))**(-np.arange(N)[:,np.newaxis]-1.) * \
+                 (np.exp(x-shift) - np.exp(x0))**np.arange(N)[:,np.newaxis] , axis=0 ))
+# works well with x0=1 and N=5, once shifted by -1 and reset to zero.
+constant = taylor(1.,5,0.,0.,1.)(-10)
+sigmoid  = taylor(1.,5,1.,constant,1.6)
+p.close('all') ; start = 1. ; x = np.arange(-3.,3.,0.01)
+p.plot( x, 1./(1+np.exp(-x)) ) ; p.plot( x, sigmoid(x) )
