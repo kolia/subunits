@@ -44,7 +44,7 @@ model = LNLEP_gaussian2D_model(
     subunits = subunits,
     RGCs     = hexagonal_2Dgrid( spacing=2. , field_size_x=S , field_size_y=S ) ,
     nonlinearity   = NL           ,  # subunit nonlinearity
-    sigma_spatial  = [1., 3.]     , V2=V2 )
+    sigma_spatial  = [1.1, 3.]     , V2=V2 )
 
 filters = gaussian2D_weights( model['cones'] , possible_subunits , 
                              sigma=model['sigma_spatial'][0] )
@@ -98,13 +98,6 @@ dSTA  = np.concatenate(
 
 Cin = R['statistics']['features']['cov']/2
 
-#lam2 = 200.
-#prior = np.fromfunction( lambda i,j: (i-j>0)*(i-j<6) , Cin.shape)
-##prior = np.dot( filters , filters.T )
-##prior = (prior - np.diag(np.diag(prior)))
-##prior = prior / np.sqrt( np.sum( prior**2. ) )
-#Cin = Cin + lam2 * prior
-
 D,Z = schur(Cin)
 DD  = np.diag(D)
 keep= DD>1e-10
@@ -112,7 +105,7 @@ P   =  (Z[:,keep] * np.sqrt(DD[keep])).T
 y   =  np.dot ( (Z[:,keep] * 1/np.sqrt(DD[keep])).T , dSTA ) / 2
 
 irls = memory.cache(IRLS)
-V, iW = irls( y, P, x=0, disp_every=1000, lam=0.1, maxiter=1000000 , 
+V, iW = irls( y, P, x=0, disp_every=1000, lam=0.2, maxiter=1000000 , 
               ftol=1e-5, nonzero=1e-1)
 print 'V'
 kb.print_sparse_rows( V, precision=1e-1 )
