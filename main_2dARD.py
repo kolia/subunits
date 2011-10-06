@@ -33,42 +33,43 @@ V2 = 0.5
 def NL(x): return x + 0.5 * V2 * ( x ** 2 )
  
 # Quantities of interest
-S = 12.
+S = 10.
 
 possible_subunits = hexagonal_2Dgrid( spacing=1. , field_size_x=S , field_size_y=S )
-overcompleteness  = 5
+overcompleteness  = 6
 subunits          = possible_subunits[::overcompleteness]
 
 model = LNLEP_gaussian2D_model(
     cones    = hexagonal_2Dgrid( spacing=1. , field_size_x=S , field_size_y=S ) ,
     subunits = subunits,
-    RGCs     = hexagonal_2Dgrid( spacing=5. , field_size_x=S , field_size_y=S ) ,
+    RGCs     = hexagonal_2Dgrid( spacing=2. , field_size_x=S , field_size_y=S ) ,
     nonlinearity   = NL           ,  # subunit nonlinearity
-    sigma_spatial  = [2.5, 5.]     , V2=V2 )
+    sigma_spatial  = [1., 3.]     , V2=V2 )
 
 filters = gaussian2D_weights( model['cones'] , possible_subunits , 
                              sigma=model['sigma_spatial'][0] )
-    
+
 print 'N cones   : ', len(model['cones'   ])
 print 'N filters :  ', len(possible_subunits)
 print 'N subunits: ', len(model['subunits'])
 print 'N RGCs    : ', len(model['RGCs'    ])
 
+pylab.close('all')
 pylab.figure(1)
 ax = pylab.subplot(1,4,1)
-kb.plot_circles( sizes=1., offsets=model['cones'],
+kb.plot_circles( sizes=0.1, offsets=model['cones'],
                  facecolors=(0.,0.,0.,0.1), edgecolors=(0.,0.,0.,0.3))
 pylab.title('Cones')
 pylab.subplot(1,4,2)
-ax = kb.plot_circles( sizes=model['sigma_spatial'][0], offsets=possible_subunits,
+ax = kb.plot_circles( sizes=3*model['sigma_spatial'][0], offsets=possible_subunits,
                  facecolors=(0.,0.,0.,0.1), edgecolors=(0.,0.,0.,0.3))
 pylab.title('Filters')
 ax = pylab.subplot(1,4,3)
-kb.plot_circles( sizes=model['sigma_spatial'][0], offsets=model['subunits'],
+kb.plot_circles( sizes=3*model['sigma_spatial'][0], offsets=model['subunits'],
                  facecolors=(0.,0.,0.,0.1), edgecolors=(0.,0.,0.,0.3))
 pylab.title('Subunits')
 ax = pylab.subplot(1,4,4)
-kb.plot_circles( sizes=model['sigma_spatial'][1], offsets=model['RGCs'],
+kb.plot_circles( sizes=3*model['sigma_spatial'][1], offsets=model['RGCs'],
                  facecolors=(0.,0.,0.,0.1), edgecolors=(0.,0.,0.,0.3))
 pylab.title('RGCs')
 pylab.savefig('/Users/kolia/Desktop/retina.pdf',format='pdf')
@@ -84,7 +85,7 @@ def simulator( model , N_timebins , candidate_subunits ):
                    average_me = {'features':lambda x: 
                        model['nonlinearity'](np.dot(bigU,x))} )
 simulate = memory.cache(simulator)
-R = simulate( model , 100000 , possible_subunits )
+R = simulate( model , 1000000 , possible_subunits )
  
 
 total = float( np.sum([Nspikes for Nspikes in R['N_spikes']]) )
@@ -111,7 +112,7 @@ P   =  (Z[:,keep] * np.sqrt(DD[keep])).T
 y   =  np.dot ( (Z[:,keep] * 1/np.sqrt(DD[keep])).T , dSTA ) / 2
 
 irls = memory.cache(IRLS)
-V, iW = irls( y, P, x=0, disp_every=1000, lam=0.15, maxiter=1000000 , 
+V, iW = irls( y, P, x=0, disp_every=1000, lam=0.1, maxiter=1000000 , 
               ftol=1e-5, nonzero=1e-1)
 print 'V'
 kb.print_sparse_rows( V, precision=1e-1 )
@@ -124,9 +125,9 @@ inferred_locations = [possible_subunits[i] for i in np.nonzero(keepers)[0]]
 sum_V1   = kb.values_to_alpha( np.sum( V1 , axis=0  ) , (0.5,0.,0.) )
 
 pylab.figure(2)
-kb.plot_circles( sizes=model['sigma_spatial'][0], offsets=inferred_locations,
+kb.plot_circles( sizes=model['sigma_spatial'][0]*2., offsets=inferred_locations,
                  facecolors=sum_V1, edgecolors=(0.,0.,0.,0.))
-kb.plot_circles( sizes=model['sigma_spatial'][0], offsets=model['subunits'],
+kb.plot_circles( sizes=model['sigma_spatial'][0]*2., offsets=model['subunits'],
                  facecolors=(0.,0.,0.,0.), edgecolors=(0.,0.,0.,0.2))
 pylab.title('True and inferred subunit locations')
 pylab.savefig('/Users/kolia/Desktop/subunits&inferred.pdf',format='pdf')
