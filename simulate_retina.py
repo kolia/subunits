@@ -9,9 +9,7 @@ import numpy
 #from numpy.linalg import pinv
 import numpy.random   as R
 
-import pylab
-
-from IPython.Debugger import Tracer; debug_here = Tracer()
+#from IPython.Debugger import Tracer; debug_here = Tracer()
 
 def ring_weights(shape=(10,10), sigma=1., offset_in=0., offset_out=0.):
     U = numpy.fromfunction( lambda i,j: \
@@ -84,20 +82,19 @@ def white_gaussian( sigma=1., dimension=1, N_timebins = 100000 ):
     """
     return sigma*R.randn(dimension,N_timebins)
     
-
-def very_nonlinear_LN_stimulus( model , output_sigma = 1. , weight_matrix = 'U' ):
-    iU    = model['U'].T
-#    iU    = pinv( (model['U'].T / numpy.sqrt(numpy.sum( model['U']**2 , axis=1 ))).T )
-    iU    = output_sigma * iU / numpy.sqrt(numpy.sum( iU**2 , axis=0 ))
-    N_timebin_list = []
-    seed_list      = []
-    def generate( N_timebins = 100000 , seed  = R.get_state() ,
-                  N_timebin_list = N_timebin_list , seed_list = seed_list ):
-        R.set_state(seed)
-        N_timebin_list += [N_timebins]
-        seed_list      += [seed]
-        return numpy.dot( iU , R.randn(iU.shape[1],N_timebins) )
-    return locals()    
+#def very_nonlinear_LN_stimulus( model , output_sigma = 1. , weight_matrix = 'U' ):
+#    iU    = model['U'].T
+##    iU    = pinv( (model['U'].T / numpy.sqrt(numpy.sum( model['U']**2 , axis=1 ))).T )
+#    iU    = output_sigma * iU / numpy.sqrt(numpy.sum( iU**2 , axis=0 ))
+#    N_timebin_list = []
+#    seed_list      = []
+#    def generate( N_timebins = 100000 , seed  = R.get_state() ,
+#                  N_timebin_list = N_timebin_list , seed_list = seed_list ):
+#        R.set_state(seed)
+#        N_timebin_list += [N_timebins]
+#        seed_list      += [seed]
+#        return numpy.dot( iU , R.randn(iU.shape[1],N_timebins) )
+#    return locals()    
 
 def run_LNLEP_chunk( model , stimulus ,
     N_timebins     = 10000        ,  # number of stimulus time samples

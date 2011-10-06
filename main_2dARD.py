@@ -121,7 +121,7 @@ U        = filters[keepers,:]
 V1       = V[keepers,:].T
 
 inferred_locations = [possible_subunits[i] for i in np.nonzero(keepers)[0]]
-sum_V1   = kb.values_to_alpha( sum( V1 , axis=0  ) , (0.5,0.,0.) )
+sum_V1   = kb.values_to_alpha( np.sum( V1 , axis=0  ) , (0.5,0.,0.) )
 
 pylab.figure(2)
 kb.plot_circles( sizes=model['sigma_spatial'][0], offsets=inferred_locations,
