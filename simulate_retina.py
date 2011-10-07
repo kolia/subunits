@@ -27,6 +27,12 @@ def LNLEP_ring_model(
     V = ring_weights(sigma=sigma_spatial[1],shape=(N_cells[2],N_cells[1]))
     return locals()
 
+def place_cells( centers_in , centers_out , shapes ):
+    return numpy.fromfunction( lambda i,j,k:
+        shapes[k](centers_out[i][0]-centers_in[i][0],
+                  centers_out[i][1]-centers_in[i][1])
+        (len(centers_out),len(centers_in),len(shapes)))
+
 import itertools
 def hexagonal_2Dgrid( spacing=1. , field_size_x=10. , field_size_y=10. ):
     x1 = numpy.arange( spacing/2., field_size_x, spacing )
@@ -43,7 +49,7 @@ def gaussian2D_weights( centers_in , centers_out , sigma=1. ):
         return f / numpy.sqrt(numpy.sum(f**2.))
     return numpy.vstack( [make_filter( x, y, sigma , centers_in ) 
                             for (x,y) in centers_out] )
-    
+
 def LNLEP_gaussian2D_model(
     # list of cone    location coordinates
     cones    = hexagonal_2Dgrid( spacing=1. , field_size_x=10. , field_size_y=10. ) ,

@@ -104,6 +104,9 @@ def UVs(N):
                  'logprior': 0. } for i in range(N)]
     return UV
 
+def linear_reparameterization( T , u = Th.dvector('u') , name='U' ):
+    return {name : Th.dot(T,u)}
+
 def UVs_old(N):
     '''
     Reparameterize a list of N (theta,M) parameters as a function of a 
