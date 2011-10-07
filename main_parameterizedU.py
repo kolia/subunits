@@ -29,7 +29,7 @@ memory = Memory(cachedir='/Users/kolia/Documents/joblibcache', verbose=0)
 ############################
 # Setting up simulated data
  
-V2 = 1.
+V2 = 0.1
 def NL(x): return x + 0.5 * V2 * ( x ** 2 )
  
 # Quantities of interest
@@ -44,7 +44,7 @@ model = LNLEP_gaussian2D_model(
     subunits = subunits,
     RGCs     = hexagonal_2Dgrid( spacing=2. , field_size_x=S , field_size_y=S ) ,
     nonlinearity   = NL           ,  # subunit nonlinearity
-    sigma_spatial  = [1.2, 3.]     , V2=V2 )
+    sigma_spatial  = [0.8, 3.]     , V2=V2 )
 
 filters = gaussian2D_weights( model['cones'] , possible_subunits , 
                              sigma=model['sigma_spatial'][0] )
