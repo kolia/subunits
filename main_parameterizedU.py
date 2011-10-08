@@ -177,24 +177,27 @@ def callback( objective , params ):
     print ' Iter:', iterations[0] # ,' Obj: ' , fval
     if np.remainder( iterations[0] , 5 ) == 0:
         result = objective.unflat(params)
-        if np.remainder( iterations[0] , 6 ) == 0: p.close('all')
-        p.figure(1, figsize=(10,12))
+        if np.remainder( iterations[0] , 6 ) == 0: pylab.close('all')
+        pylab.figure(1, figsize=(10,12))
         kb.plot_filters(result['u'])
-        p.title('u params')
+        pylab.title('u params')
 #        p.savefig('/Users/kolia/Desktop/u.svg',format='svg')
-        p.savefig('/Users/kolia/Desktop/u.pdf',format='pdf')
+        pylab.savefig('/Users/kolia/Desktop/u.pdf',format='pdf')
     iterations[0] = iterations[0] + 1
 
-#@memory.cache
+@memory.cache
 def optimize_u( v1, init_u, v2 , gtol=1e-4 , maxiter=100):
     data = {'STAs':np.vstack(R['statistics']['stimulus']['STA']) ,
             'STCs':np.vstack([stc[np.newaxis,:] for stc in R['statistics']['stimulus']['STC']]), 
             'V2':v2 , 'V1': v1 , 'N':NRGC , 'N_spikes':R['N_spikes'] , 'T': T}     
     optimizer = optimize.optimizer( obj_u.where(**data).with_callback(callback) )
-    debug_here()
     params = optimizer(init_params={'u': init_u },maxiter=maxiter,gtol=gtol)
     opt_u = objective.unflat(params)
     return opt_u['u']
-    
+
+
+#debug_here()
 iterations[0] = -2
-optimize_u( obj_u, V1, init_u, V2 )
+optimize_u( V1, init_u, V2*np.ones(V1.shape[1]) )
+
+['N_spikes', 'STAs', 'STCs', 'T', 'V1', 'V2']
