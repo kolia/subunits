@@ -90,7 +90,7 @@ def simulator( model , N_timebins , candidate_subunits ):
                    average_me = {'features':lambda x: 
                        model['nonlinearity'](np.dot(bigU,x))} )
 simulate = memory.cache(simulator)
-R = simulate( model , 100000 , possible_subunits )
+R = simulate( model , 1000000 , possible_subunits )
  
 
 total = float( np.sum([Nspikes for Nspikes in R['N_spikes']]) )
@@ -152,12 +152,15 @@ def radial_piecewise_linear( nodes=[] , values=[] , default=0.):
         else: return default
     return f
 
-nodes        = numpy.arange(0.,5.,0.2)
+#nodes        = numpy.arange(0.,4.,0.05)
+nodes = numpy.array([ 0. ,  1.  ,  1.5,  2. ,  2.5 ,  3. ,  3.5 ,  4.5])
+
 value_matrix = numpy.eye(len(nodes))
 shapes = [ radial_piecewise_linear(nodes,values) for values in value_matrix]
 
 T = place_cells( model['cones'] , model['subunits'] , shapes )
 init_u = numpy.exp(-0.5*(nodes**2))
+#init_u = numpy.ones(nodes.shape)
 init_u = init_u/numpy.sqrt(numpy.sum(init_u**2.))
 
 def objective_u( u=init_u ):
@@ -175,29 +178,27 @@ iterations = [0]
 def callback( objective , params ):
 #    fval = objective.f(params)
     print ' Iter:', iterations[0] # ,' Obj: ' , fval
-    if np.remainder( iterations[0] , 5 ) == 0:
+    if np.remainder( iterations[0] , 3 ) == 0:
         result = objective.unflat(params)
-        if np.remainder( iterations[0] , 6 ) == 0: pylab.close('all')
+        if np.remainder( iterations[0] , 7 ) == 0: pylab.close('all')
         pylab.figure(1, figsize=(10,12))
-        kb.plot_filters(result['u'])
+        pylab.plot(nodes,result['u'])
         pylab.title('u params')
 #        p.savefig('/Users/kolia/Desktop/u.svg',format='svg')
         pylab.savefig('/Users/kolia/Desktop/u.pdf',format='pdf')
     iterations[0] = iterations[0] + 1
 
 @memory.cache
-def optimize_u( v1, init_u, v2 , gtol=1e-4 , maxiter=100):
+def optimize_u( v1, init_u, v2 , gtol=1e-7 , maxiter=500):
     data = {'STAs':np.vstack(R['statistics']['stimulus']['STA']) ,
             'STCs':np.vstack([stc[np.newaxis,:] for stc in R['statistics']['stimulus']['STC']]), 
             'V2':v2 , 'V1': v1 , 'N':NRGC , 'N_spikes':R['N_spikes'] , 'T': T}     
     optimizer = optimize.optimizer( obj_u.where(**data).with_callback(callback) )
     params = optimizer(init_params={'u': init_u },maxiter=maxiter,gtol=gtol)
-    opt_u = objective.unflat(params)
+    opt_u = obj_u.unflat(params)
     return opt_u['u']
 
 
 #debug_here()
-iterations[0] = -2
-optimize_u( V1, init_u, V2*np.ones(V1.shape[1]) )
-
-['N_spikes', 'STAs', 'STCs', 'T', 'V1', 'V2']
+iterations[0] = -1
+opt_u = optimize_u( V1, init_u, V2*np.ones(V1.shape[1]) )

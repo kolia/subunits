@@ -223,7 +223,7 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
         famax = f(xk+amax*pk)
         bamax = barr(xk+amax*pk)
         if disp:
-            print 'amax%d:%g  f:%10g f(amax):%10g  #b:%d  #f:%d' \
+            print 'amax%d:%15g  f:%10g f(amax):%10g  #b:%d  #f:%d' \
                 % (amax,bamax,old_fval,famax,barr_calls[0],func_calls[0]),
         if callback is not None:
             callback(xk)
