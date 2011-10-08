@@ -8,9 +8,9 @@ some desired quantity, as a function of the symbolic arguments.
 """
 import theano.tensor  as Th
 from theano.sandbox.linalg import matrix_inverse, det
-from kolia_theano import eig, logdet
+from kolia_theano import eig
 
-from numpy import pi
+from IPython.Debugger import Tracer; debug_here = Tracer()
 
 def quadratic_Poisson( theta = Th.dvector('theta'), M    = Th.dmatrix('M') ,
                        STA   = Th.dvector('STA')  , STC  = Th.dmatrix('STC'), 
@@ -58,9 +58,11 @@ def eig_pos_barrier( theta = Th.dvector('theta'), M    = Th.dmatrix('M') ,
 #            (Th.min(V1.flatten())>0)*(Th.min(U.flatten())>0)
 
 
-def eig_barrier( theta = Th.dvector('theta'), M    = Th.dmatrix('M') ,
-                 STA   = Th.dvector('STA'), STC  = Th.dmatrix('STC'), 
-                 U = Th.dmatrix('U') , V1 = Th.dvector('V1'), **other):
+def eig_barrier(  M    = Th.dmatrix('M') ,
+#                 theta = Th.dvector('theta'),
+#                 STA   = Th.dvector('STA'), STC  = Th.dmatrix('STC'), 
+#                 U = Th.dmatrix('U') , V1 = Th.dvector('V1'), 
+                 **other):
      '''
      A barrier enforcing that the log-det of M should be > exp(-6), 
      and all the eigenvalues of M > 0.  Returns true if barrier is violated.
@@ -95,7 +97,7 @@ def UVs(N):
     def UV( U    = Th.dmatrix('U')   , V1  = Th.dmatrix('V1') , V2 = Th.dvector('V2') ,
             STAs = Th.dmatrix('STAs'), STCs = Th.dtensor3('STCs'),
             N_spikes = Th.dvector('N_spikes'), **other):
-        return [{'theta':    Th.dot( U.T , V1[i,:] ) ,
+       return [{'theta':    Th.dot( U.T , V1[i,:] ) ,
                  'M'  :      Th.dot( V1[i,:] * U.T , (V2 * U.T).T ),
                  'STA':      STAs[i,:],
                  'STC':      STCs[i,:,:],
@@ -104,8 +106,14 @@ def UVs(N):
                  'logprior': 0. } for i in range(N)]
     return UV
 
-def linear_reparameterization( T , u = Th.dvector('u') , name='U' ):
-    return {name : Th.dot(T,u)}
+def linear_reparameterization( T  = Th.dtensor3('T') , u  = Th.dvector('u') , 
+#                               V1 = Th.dmatrix('V1') , V2 = Th.dvector('V2') ,
+#                            STAs = Th.dmatrix('STAs'), STCs = Th.dtensor3('STCs'),
+#                            N_spikes = Th.dvector('N_spikes'), 
+                            **other):
+    other['U'] = Th.sum( T*u , axis=2 )
+#    other[name] = Th.tensordot(T,u,axes=0)
+    return other
 
 def UVs_old(N):
     '''

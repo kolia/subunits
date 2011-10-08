@@ -4,6 +4,10 @@ reload(kb)
 import kolia_theano
 reload(kolia_theano)
 
+import QuadPoiss
+reload(QuadPoiss)
+from   QuadPoiss import quadratic_Poisson, UVs , eig_barrier , linear_reparameterization
+
 import simulate_retina
 reload(simulate_retina)
 from simulate_retina import *
@@ -49,10 +53,11 @@ model = LNLEP_gaussian2D_model(
 filters = gaussian2D_weights( model['cones'] , possible_subunits , 
                              sigma=model['sigma_spatial'][0] )
 
+NRGC = len(model['RGCs'])
 print 'N cones   : ', len(model['cones'   ])
 print 'N filters :  ', len(possible_subunits)
 print 'N subunits: ', len(model['subunits'])
-print 'N RGCs    : ', len(model['RGCs'    ])
+print 'N RGCs    : ', NRGC
 
 pylab.close('all')
 pylab.figure(1)
@@ -85,7 +90,7 @@ def simulator( model , N_timebins , candidate_subunits ):
                    average_me = {'features':lambda x: 
                        model['nonlinearity'](np.dot(bigU,x))} )
 simulate = memory.cache(simulator)
-R = simulate( model , 1000000 , possible_subunits )
+R = simulate( model , 100000 , possible_subunits )
  
 
 total = float( np.sum([Nspikes for Nspikes in R['N_spikes']]) )
@@ -126,3 +131,70 @@ pylab.title('True and inferred subunit locations')
 pylab.savefig('/Users/kolia/Desktop/subunits&inferred.pdf',format='pdf')
 
 pylab.close('all')
+
+
+
+
+def index( sequence = [] , f = lambda _: True ):
+    """Return the index of the first item in seq where f(item) == True."""
+    return next((i for i in xrange(len(sequence)) if f(sequence[i])), None)
+
+def radial_piecewise_linear( nodes=[] , values=[] , default=0.):
+    '''Returns a function which does linear interpolation between a sequence of nodes. 
+    nodes is an increasing sequence of n floats, 
+    values is a list of n values at nodes.'''
+    def f(dx,dy):
+        x = numpy.sqrt(dx**2.+dy**2.)
+        first = index( nodes , lambda node: node>x )
+        if first is not None and first>0:
+            return (values[first-1]*(nodes[first]-x)+values[first]*(x-nodes[first-1]))/ \
+                   (nodes[first]-nodes[first-1])
+        else: return default
+    return f
+
+nodes        = numpy.arange(0.,5.,0.2)
+value_matrix = numpy.eye(len(nodes))
+shapes = [ radial_piecewise_linear(nodes,values) for values in value_matrix]
+
+T = place_cells( model['cones'] , model['subunits'] , shapes )
+init_u = numpy.exp(-0.5*(nodes**2))
+init_u = init_u/numpy.sqrt(numpy.sum(init_u**2.))
+
+def objective_u( u=init_u ):
+    targets = { 'f':quadratic_Poisson, 'barrier':eig_barrier }
+    targets = kb.reparameterize(targets,UVs(NRGC))
+    targets = kb.reparameterize(targets,linear_reparameterization)
+#    list_targets= kb.reparameterize({'eigsM':eigsM, 'invM':invM },UVs(NRGC),
+#                                               reducer=lambda r,x: r + [x], zero=[])
+#    targets.update( list_targets )     
+    return    kolia_theano.Objective( init_params={'u': u }, differentiate=['f'],
+                                       mode='FAST_COMPILE' , **targets )
+obj_u   = objective_u()
+
+iterations = [0]
+def callback( objective , params ):
+#    fval = objective.f(params)
+    print ' Iter:', iterations[0] # ,' Obj: ' , fval
+    if np.remainder( iterations[0] , 5 ) == 0:
+        result = objective.unflat(params)
+        if np.remainder( iterations[0] , 6 ) == 0: p.close('all')
+        p.figure(1, figsize=(10,12))
+        kb.plot_filters(result['u'])
+        p.title('u params')
+#        p.savefig('/Users/kolia/Desktop/u.svg',format='svg')
+        p.savefig('/Users/kolia/Desktop/u.pdf',format='pdf')
+    iterations[0] = iterations[0] + 1
+
+#@memory.cache
+def optimize_u( v1, init_u, v2 , gtol=1e-4 , maxiter=100):
+    data = {'STAs':np.vstack(R['statistics']['stimulus']['STA']) ,
+            'STCs':np.vstack([stc[np.newaxis,:] for stc in R['statistics']['stimulus']['STC']]), 
+            'V2':v2 , 'V1': v1 , 'N':NRGC , 'N_spikes':R['N_spikes'] , 'T': T}     
+    optimizer = optimize.optimizer( obj_u.where(**data).with_callback(callback) )
+    debug_here()
+    params = optimizer(init_params={'u': init_u },maxiter=maxiter,gtol=gtol)
+    opt_u = objective.unflat(params)
+    return opt_u['u']
+    
+iterations[0] = -2
+optimize_u( obj_u, V1, init_u, V2 )

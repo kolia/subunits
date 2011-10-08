@@ -28,10 +28,21 @@ def LNLEP_ring_model(
     return locals()
 
 def place_cells( centers_in , centers_out , shapes ):
-    return numpy.fromfunction( lambda i,j,k:
-        shapes[k](centers_out[i][0]-centers_in[i][0],
-                  centers_out[i][1]-centers_in[i][1])
-        (len(centers_out),len(centers_in),len(shapes)))
+    r = numpy.zeros((len(centers_out),len(centers_in),len(shapes)))
+    for i in numpy.arange(r.shape[0]):
+        for j in numpy.arange(r.shape[1]):
+            for k in numpy.arange(r.shape[2]):
+                r[i,j,k] = shapes[k](centers_out[i][0]-centers_in[j][0], 
+                                     centers_out[i][1]-centers_in[j][1])
+    return r
+#    return numpy.fromfunction( (lambda i,j,k: 
+#        shapes[k](centers_out[i][0]-centers_in[j][0], 
+#                  centers_out[i][1]-centers_in[j][1])), 
+#        (len(centers_out),len(centers_in),len(shapes)))
+#    return numpy.hstack( [numpy.fromfunction( lambda i,j: 
+#            shape(centers_out[i][0]-centers_in[j][0], 
+#                  centers_out[i][1]-centers_in[j][1]), (len(centers_out),len(centers_in)) )
+#            for shape in shapes])
 
 import itertools
 def hexagonal_2Dgrid( spacing=1. , field_size_x=10. , field_size_y=10. ):
