@@ -55,7 +55,7 @@ def hexagonal_2Dgrid( spacing=1. , field_size_x=10. , field_size_y=10. ):
 
 def gaussian2D_weights( centers_in , centers_out , sigma=1. ):
     def make_filter( x, y, sigma , centers_in ):
-        f = numpy.array( [numpy.exp(-0.5*((i-x)**2.+(j-y)**2.)/sigma) 
+        f = numpy.array( [numpy.exp(-0.5*((i-x)**2.+(j-y)**2.)/sigma**2.) 
                             for (i,j) in centers_in] )
         return f / numpy.sqrt(numpy.sum(f**2.))
     return numpy.vstack( [make_filter( x, y, sigma , centers_in ) 

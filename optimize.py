@@ -89,7 +89,7 @@ def backtrack(xk,pk,barrier):
             right = (right+left)/2.
         else:
             left  = (right+left)/2.
-        if left>0 or right<1e-250: break
+        if left>0 or right<1e-300: break
 #    print 'amax : ', left
     return left
 
@@ -224,7 +224,7 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
         bamax = barr(xk+amax*pk)
         if disp:
             print 'amax%d:%15g  f:%10g f(amax):%10g  #b:%d  #f:%d' \
-                % (amax,bamax,old_fval,famax,barr_calls[0],func_calls[0]),
+                % (bamax,amax,old_fval,famax,barr_calls[0],func_calls[0]),
         if callback is not None:
             callback(xk)
 

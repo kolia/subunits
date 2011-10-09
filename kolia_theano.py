@@ -1,6 +1,6 @@
 import kolia_base as kb
 from copy      import copy
-from numpy     import size, array, asarray
+import numpy
 import numpy.linalg
 from theano  import function
 import theano.tensor  as Th
@@ -9,29 +9,30 @@ from theano.sandbox.linalg import matrix_inverse
 
 from IPython.Debugger import Tracer; debug_here = Tracer()
 
+from theano.scalar.basic import identity
 
 class LogDet(Op):
-    """SYMBOLIC log-determinant, with gradient."""
+    """matrix determinant
+    TODO: move this op to another file that request scipy.
+    """
     def make_node(self, x):
-        x  = Th.as_tensor_variable(x)
-        o  = Th.scalar(dtype=x.dtype)
+        x = Th.as_tensor_variable(x)
+        o = Th.scalar(dtype=x.dtype)
         return Apply(self, [x], [o])
     def perform(self, node, (x,), (z, )):
         try:
             s,ldet = numpy.linalg.slogdet(x)
-            z[0] = asarray(ldet  , dtype=x.dtype)
-        except:
-            print 'Failed to compute determinant',
+            z[0] = numpy.asarray(ldet, dtype=x.dtype)
+        except Exception:
+            print 'Failed to compute determinant', x
             raise
     def grad(self, inputs, g_outputs):
-        gz = g_outputs
+        gz, = g_outputs
         x, = inputs
-#        debug_here()
         return [gz * matrix_inverse(x).T]
     def __str__(self):
-        return "LogDet"
+        return "Det"
 logdet = LogDet()
-
 
 class Eig(Op):
     """SYMBOLIC matrix eigenvalues and eigenvectors, without gradient."""
@@ -43,8 +44,8 @@ class Eig(Op):
     def perform(self, node, (x,), (z1,z2, )):
         try:
             w,v = numpy.linalg.eig(x)
-            z1[0] = asarray(w, dtype=x.dtype)
-            z2[0] = asarray(v, dtype=x.dtype)
+            z1[0] = numpy.asarray(w, dtype=x.dtype)
+            z2[0] = numpy.asarray(v, dtype=x.dtype)
         except:
             print 'Failed to compute eig', x
             raise
@@ -60,7 +61,7 @@ def shapely_tensor( name , x , dtype='float64'):
     '''Return SYMBOLIC tensor with the same dimensions and size as input.'''
     if isinstance(x,type(0)):
         return Th.dscalar(name)
-    if isinstance(x,type(array([]))):
+    if isinstance(x,type(numpy.array([]))):
         dtensor_x = Th.TensorType(dtype, (False,)*x.ndim)
         return Th.specify_shape(dtensor_x(name),x.shape)
     raise TypeError('shapely_tensor expects a scalar or numpy ndarray')
@@ -128,6 +129,8 @@ class Objective:
     def where(self,**args):
         t = Base()
         t.args = [args[n] for n in sorted(self.Args.keys())]
+        print 'Objective.where: the following arguments have been fixed:'
+        print [(n,args[n].shape) for n in sorted(self.Args.keys())]
         def package(some_function):
             def packaged_function(params): return some_function(kb.flat(params),*t.args)
             return packaged_function
@@ -149,8 +152,8 @@ class Objective:
         Params_Out = copy(Args)
         n = 0
         for name,template in sorted(self.init_params.items()):
-            Params_Out[name] = Th.reshape( flatParam[n:n+size(template)], template.shape)
-            n = n + size(template)
+            Params_Out[name] = Th.reshape( flatParam[n:n+numpy.size(template)], template.shape)
+            n = n + numpy.size(template)
         return Params_Out
 
     def flat(self,X): return kb.flat(X)

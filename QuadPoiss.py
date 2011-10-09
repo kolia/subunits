@@ -8,7 +8,7 @@ some desired quantity, as a function of the symbolic arguments.
 """
 import theano.tensor  as Th
 from theano.sandbox.linalg import matrix_inverse, det
-from kolia_theano import eig
+from kolia_theano import eig, logdet
 
 from IPython.Debugger import Tracer; debug_here = Tracer()
 
@@ -21,10 +21,10 @@ def quadratic_Poisson( theta = Th.dvector('theta'), M    = Th.dmatrix('M') ,
     with a barrier on the log-det term.
     '''
     ImM = Th.identity_like(M)-(M+M.T)/2
-    ldet = Th.log( det( ImM) )  # logdet(ImM)
-    return -0.5 * N_spike *( 
+    ldet = logdet(ImM)    # Th.log( det( ImM) )  # logdet(ImM)
+    return -0.5 * N_spike *(
              ldet + logprior \
-             - 1./(ldet+250)**2 \
+             - 1./(ldet+250.)**2. \
              - Th.sum(Th.dot(matrix_inverse(ImM),theta) * theta) \
              + 2. * Th.sum( theta * STA ) \
              + Th.sum( M * (STC + Th.outer(STA,STA)) ))
@@ -37,7 +37,7 @@ def LNLEP( theta = Th.dvector('theta'), M    = Th.dmatrix('M') ,
     with a barrier on the log-det term.
     '''
     ImM = Th.identity_like(M)-(M+M.T)/2
-    ldet = Th.log( det( ImM) )  # logdet(ImM)
+    ldet = logdet(ImM) # Th.log( det( ImM) )  # logdet(ImM)
     return -0.5 * N_spike *( 
              ldet \
              - Th.sum(Th.dot(matrix_inverse(ImM),theta) * theta) \
@@ -77,6 +77,10 @@ def eigsM( M     = Th.dmatrix('M') , **result):
     return w
 def invM( M     = Th.dmatrix('M') , **result): 
     return matrix_inverse( Th.identity_like(M)-(M+M.T)/2 )
+def logdetIM( M     = Th.dmatrix('M') , **result):
+    return logdet( Th.identity_like(M)-(M+M.T)/2 )
+def log_detIM( M     = Th.dmatrix('M') , **result):
+    return Th.log( det( Th.identity_like(M)-(M+M.T)/2 ) )
 def M(     M     = Th.dmatrix('M') , **result): return M
 def theta( theta = Th.dvector('M') , **result): return theta
 

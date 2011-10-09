@@ -6,7 +6,7 @@ reload(kolia_theano)
 
 import QuadPoiss
 reload(QuadPoiss)
-from   QuadPoiss import quadratic_Poisson, UVs , eig_barrier , linear_reparameterization
+from   QuadPoiss import quadratic_Poisson, UVs , eig_barrier , linear_reparameterization, eigsM, invM, logdetIM, log_detIM
 
 import simulate_retina
 reload(simulate_retina)
@@ -32,10 +32,10 @@ memory = Memory(cachedir='/Users/kolia/Documents/joblibcache', verbose=0)
 
 ############################
 # Setting up simulated data
- 
+
 V2 = 0.1
 def NL(x): return x + 0.5 * V2 * ( x ** 2 )
- 
+
 # Quantities of interest
 S = 10.
 
@@ -48,8 +48,8 @@ model = LNLEP_gaussian2D_model(
     subunits = subunits,
     RGCs     = hexagonal_2Dgrid( spacing=2. , field_size_x=S , field_size_y=S ) ,
     nonlinearity   = NL           ,  # subunit nonlinearity
-    sigma_spatial  = [0.8, 3.]     , V2=V2 )
-
+    sigma_spatial  = [1.4, 2.]     , V2=V2 )
+ 
 filters = gaussian2D_weights( model['cones'] , possible_subunits , 
                              sigma=model['sigma_spatial'][0] )
 
@@ -60,20 +60,23 @@ print 'N subunits: ', len(model['subunits'])
 print 'N RGCs    : ', NRGC
 
 pylab.close('all')
-pylab.figure(1)
-ax = pylab.subplot(1,4,1)
+fig = pylab.figure(1)
+fig.frameon = False
+fig.figurePatch.set_alpha(0.0)
+ax  = pylab.subplot(1,3,1)
+#ax  = fig.add_axes((0,0,1,1))
 kb.plot_circles( sizes=0.1, offsets=model['cones'],
                  facecolors=(0.,0.,0.,0.1), edgecolors=(0.,0.,0.,0.3))
 pylab.title('Cones')
-pylab.subplot(1,4,2)
-ax = kb.plot_circles( sizes=3*model['sigma_spatial'][0], offsets=possible_subunits,
-                 facecolors=(0.,0.,0.,0.1), edgecolors=(0.,0.,0.,0.3))
-pylab.title('Filters')
-ax = pylab.subplot(1,4,3)
+#pylab.subplot(1,3,2)
+#ax = kb.plot_circles( sizes=3*model['sigma_spatial'][0], offsets=possible_subunits,
+#                 facecolors=(0.,0.,0.,0.1), edgecolors=(0.,0.,0.,0.3))
+#pylab.title('Filters')
+ax = pylab.subplot(1,3,2)
 kb.plot_circles( sizes=3*model['sigma_spatial'][0], offsets=model['subunits'],
                  facecolors=(0.,0.,0.,0.1), edgecolors=(0.,0.,0.,0.3))
 pylab.title('Subunits')
-ax = pylab.subplot(1,4,4)
+ax = pylab.subplot(1,3,3)
 kb.plot_circles( sizes=3*model['sigma_spatial'][1], offsets=model['RGCs'],
                  facecolors=(0.,0.,0.,0.1), edgecolors=(0.,0.,0.,0.3))
 pylab.title('RGCs')
@@ -115,7 +118,7 @@ V, iW = irls( y, P, x=0, disp_every=1000, lam=0.2, maxiter=1000000 ,
 print 'V'
 kb.print_sparse_rows( V, precision=1e-1 )
 
-keepers = np.array( [sum(abs(v))>3e-1 for v in V] )
+keepers = np.array( [sum(abs(v))>3.e-1 for v in V] )
 U        = filters[keepers,:]
 V1       = V[keepers,:].T
 
@@ -158,7 +161,6 @@ nodes = numpy.array([ 0. ,  1.  ,  1.5,  2. ,  2.5 ,  3. ,  3.5 ,  4.5])
 value_matrix = numpy.eye(len(nodes))
 shapes = [ radial_piecewise_linear(nodes,values) for values in value_matrix]
 
-T = place_cells( model['cones'] , model['subunits'] , shapes )
 init_u = numpy.exp(-0.5*(nodes**2))
 #init_u = numpy.ones(nodes.shape)
 init_u = init_u/numpy.sqrt(numpy.sum(init_u**2.))
@@ -166,10 +168,10 @@ init_u = init_u/numpy.sqrt(numpy.sum(init_u**2.))
 def objective_u( u=init_u ):
     targets = { 'f':quadratic_Poisson, 'barrier':eig_barrier }
     targets = kb.reparameterize(targets,UVs(NRGC))
+    list_targets= kb.reparameterize({'eigsM':eigsM, 'invM':invM, 'logdetIM':logdetIM, 'log_detIM':log_detIM },UVs(NRGC),
+                                               reducer=lambda r,x: r + [x], zero=[])
+    targets.update( list_targets )
     targets = kb.reparameterize(targets,linear_reparameterization)
-#    list_targets= kb.reparameterize({'eigsM':eigsM, 'invM':invM },UVs(NRGC),
-#                                               reducer=lambda r,x: r + [x], zero=[])
-#    targets.update( list_targets )     
     return    kolia_theano.Objective( init_params={'u': u }, differentiate=['f'],
                                        mode='FAST_COMPILE' , **targets )
 obj_u   = objective_u()
@@ -189,16 +191,19 @@ def callback( objective , params ):
     iterations[0] = iterations[0] + 1
 
 @memory.cache
-def optimize_u( v1, init_u, v2 , gtol=1e-7 , maxiter=500):
+def optimize_u( v1, init_u, v2 , T, gtol=1e-7 , maxiter=500):
     data = {'STAs':np.vstack(R['statistics']['stimulus']['STA']) ,
             'STCs':np.vstack([stc[np.newaxis,:] for stc in R['statistics']['stimulus']['STC']]), 
-            'V2':v2 , 'V1': v1 , 'N':NRGC , 'N_spikes':R['N_spikes'] , 'T': T}     
-    optimizer = optimize.optimizer( obj_u.where(**data).with_callback(callback) )
+            'V2':v2 , 'V1': v1 , 'N':NRGC , 'N_spikes':R['N_spikes'] , 'T': T}
+    obj = obj_u.where(**data).with_callback(callback)
+    optimizer = optimize.optimizer( obj )
+    # debug_here()
     params = optimizer(init_params={'u': init_u },maxiter=maxiter,gtol=gtol)
     opt_u = obj_u.unflat(params)
     return opt_u['u']
 
 
-#debug_here()
 iterations[0] = -1
-opt_u = optimize_u( V1, init_u, V2*np.ones(V1.shape[1]) )
+
+T = place_cells( model['cones'] , inferred_locations , shapes )
+opt_u = optimize_u( V1, init_u, V2*np.ones(V1.shape[1]) , T=T , gtol=1e-6)
