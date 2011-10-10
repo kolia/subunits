@@ -18,7 +18,7 @@ def quadratic_Poisson( theta = Th.dvector('theta'), M    = Th.dmatrix('M') ,
                        **other):
     '''
     The actual quadratic-Poisson model, as a function of theta and M, 
-    with a barrier on the log-det term.
+    with a barrier on the log-det term and a prior.
     '''
     ImM = Th.identity_like(M)-(M+M.T)/2
     ldet = logdet(ImM)    # Th.log( det( ImM) )  # logdet(ImM)
@@ -34,7 +34,7 @@ def LNLEP( theta = Th.dvector('theta'), M    = Th.dmatrix('M') ,
                        N_spike = Th.dscalar('N_spike'), **other):
     '''
     The actual quadratic-Poisson model, as a function of theta and M, 
-    with a barrier on the log-det term.
+    without any barriers or priors.
     '''
     ImM = Th.identity_like(M)-(M+M.T)/2
     ldet = logdet(ImM) # Th.log( det( ImM) )  # logdet(ImM)
