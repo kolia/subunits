@@ -76,6 +76,38 @@ def LNLEP_gaussian2D_model(
     V = gaussian2D_weights( subunits , RGCs     , sigma=sigma_spatial[1] )
     return locals()
 
+def mean_LQuad_from_STA_STC( U , V2 , STAs , STCs ):
+    def meanLQuad( sta , stc ):
+        Usta = numpy.dot(U,sta)
+        return Usta + 0.5*V2*( numpy.diag(numpy.dot(numpy.dot(U,stc),U.T)) + 
+                               numpy.sum( Usta**2 , axis=1 ) )
+    return [meanLQuad( sta, stc ) for sta,stc in zip(STAs,STCs)]
+
+#def cov_LQuad_from_STA_STC( U , V2 , STAs , STCs ):
+#    def covLQuad( sta , stc ):
+#        Usta = numpy.dot(U,sta)
+#        return Usta + 0.5*V2*( numpy.diag(numpy.dot(numpy.dot(U,stc),U.T)) + 
+#                               numpy.sum( Usta**2 , axis=1 ) )
+#    return [covLQuad( sta, stc ) for sta,stc in zip(STAs,STCs)]
+
+def data_run( 
+    # list of cone    location coordinates
+    cones      = hexagonal_2Dgrid( spacing=1. , field_size_x=10. , field_size_y=10. ) ,
+    # list of subunit location coordinates
+    subunits   = hexagonal_2Dgrid( spacing=2. , field_size_x=10. , field_size_y=10. ) ,
+    # list of RGC     location coordinates
+    sigma      = 1.    , 
+    V2         = 0.5   , 
+    cones_mean = None  , 
+    cones_cov  = None  , 
+    STAs       = None  ,
+    STCs       = None  ):
+    U = gaussian2D_weights( cones , subunits , sigma=sigma )
+    statistics = {'features': {'STA' : mean_LQuad_from_STA_STC( U, V2, STAs, STCs) , 
+                               'mean': numpy.dot( U, cones_mean ) ,
+                               'cov' : cov_LQuad_from_STA_STC( U, V2, cones_mean, cones_cov) }}
+
+
 class Stimulus(object):
     """Stimulus generator that keeps a list of the seeds and N_timebins 
     used at each invocation, so that the same stimulus can be generated 

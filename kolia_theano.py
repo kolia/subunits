@@ -7,7 +7,7 @@ import theano.tensor  as Th
 from theano.gof import Op, Apply
 from theano.sandbox.linalg import matrix_inverse
 
-from IPython.Debugger import Tracer; debug_here = Tracer()
+#from IPython.Debugger import Tracer; debug_here = Tracer()
 
 from theano.scalar.basic import identity
 
@@ -67,6 +67,16 @@ def shapely_tensor( name , x , dtype='float64'):
     raise TypeError('shapely_tensor expects a scalar or numpy ndarray')
 
 
+def differentiated(Obj=None,target=None,**Params):
+    flatParam   = Th.concatenate([Th.flatten(Params[n]) for n in sorted(Obj.init_params.keys())])
+#            flatParam   = Th.dvector()
+    Params_Out = Obj.gen_Params_Out(flatParam,Params)
+    arglist    = [Params_Out[name] for name in sorted(Obj.Args.keys())]
+    return Th.grad( cost              = target(**Params_Out) ,
+                    wrt               = flatParam ,
+                    consider_constant = arglist)
+
+import functools
 class Base: pass
 
 class Objective:
@@ -112,7 +122,7 @@ class Objective:
 
         for name in self.differentiate:
             if ('d'+name) not in self.theano:
-                self.theano['d'+name] = self.__differentiate(self.theano[name])
+                self.theano['d'+name] = functools.partial(differentiated,Obj=self,target=self.theano[name])
 
         self.arglist = [self.Params_Out[name] for name in sorted(self.Args.keys())]
 
@@ -123,10 +133,21 @@ class Objective:
 #                self.theano_functions['H'+name] = function( [self.flatParam]+self.arglist) ,
 #                    Hessian_along( gen(self.theano[name]) ,  )
 
-        for name,gen in self.theano.items():
+        for name, gen in self.theano.items():
             self.theano_functions[name] = function([self.flatParam]+self.arglist,gen(**self.Params_Out),mode=mode)
 
-    def where(self,**args):
+    def __get_state__(self):
+        return (Args)
+#        return (Args, theano_functions)
+
+    def __set_state__(self,state):
+        (Args) = state
+#        (Args, theano_functions) = state
+        self.Args             = Args
+#        self.theano_functions = theano_functions
+#        self.theano           = theano
+
+    def where(self,**args):  #targets=self.theano,
         t = Base()
         t.args = [args[n] for n in sorted(self.Args.keys())]
         print 'Objective.where: the following arguments have been fixed:'
@@ -159,16 +180,16 @@ class Objective:
     def flat(self,X): return kb.flat(X)
     def unflat(self,X): return kb.unflat(self.init_params,X)
 
-    def __differentiate(self,target):
-        def gen_differential(**Params):
-            flatParam   = Th.concatenate([Th.flatten(Params[n]) for n in sorted(self.init_params.keys())])
-#            flatParam   = Th.dvector()
-            Params_Out = self.gen_Params_Out(flatParam,Params)
-            arglist    = [Params_Out[name] for name in sorted(self.Args.keys())]
-            return Th.grad( cost              = target(**Params_Out) ,
-                            wrt               = flatParam ,
-                            consider_constant = arglist)
-        return gen_differential
+#    def __differentiate(self,target):
+#        def gen_differential(**Params):
+#            flatParam   = Th.concatenate([Th.flatten(Params[n]) for n in sorted(self.init_params.keys())])
+##            flatParam   = Th.dvector()
+#            Params_Out = self.gen_Params_Out(flatParam,Params)
+#            arglist    = [Params_Out[name] for name in sorted(self.Args.keys())]
+#            return Th.grad( cost              = target(**Params_Out) ,
+#                            wrt               = flatParam ,
+#                            consider_constant = arglist)
+#        return gen_differential
 
     def __intersect_dicts(self,names,d):
         out = {}

@@ -10,7 +10,8 @@ import theano.tensor  as Th
 from theano.sandbox.linalg import matrix_inverse, det
 from kolia_theano import eig, logdet
 
-from IPython.Debugger import Tracer; debug_here = Tracer()
+#from IPython.Debugger import Tracer; debug_here = Tracer()
+
 
 def quadratic_Poisson( theta = Th.dvector('theta'), M    = Th.dmatrix('M') ,
                        STA   = Th.dvector('STA')  , STC  = Th.dmatrix('STC'), 
@@ -28,6 +29,7 @@ def quadratic_Poisson( theta = Th.dvector('theta'), M    = Th.dmatrix('M') ,
              - Th.sum(Th.dot(matrix_inverse(ImM),theta) * theta) \
              + 2. * Th.sum( theta * STA ) \
              + Th.sum( M * (STC + Th.outer(STA,STA)) ))
+
 
 def LNLEP( theta = Th.dvector('theta'), M    = Th.dmatrix('M') ,
                        STA   = Th.dvector('STA')  , STC  = Th.dmatrix('STC'), 

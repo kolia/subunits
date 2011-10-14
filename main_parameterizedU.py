@@ -6,7 +6,8 @@ reload(kolia_theano)
 
 import QuadPoiss
 reload(QuadPoiss)
-from   QuadPoiss import quadratic_Poisson, UVs , eig_barrier , linear_reparameterization, eigsM, invM, logdetIM, log_detIM
+from   QuadPoiss import quadratic_Poisson, UVs , eig_barrier , LNLEP, \
+                 linear_reparameterization #, eigsM, invM, logdetIM, log_detIM
 
 import simulate_retina
 reload(simulate_retina)
@@ -20,11 +21,13 @@ reload(IRLS)
 from   IRLS import IRLS
 
 import numpy        as np
+import numpy.random as Rand
 from scipy.linalg   import schur
 
 import pylab
 
-from IPython.Debugger import Tracer; debug_here = Tracer()
+#from pdb import set_trace
+#from IPython.Debugger import Tracer; debug_here = Tracer()
 
 # Memoizing results using joblib;  makes life easier
 from joblib import Memory
@@ -53,8 +56,9 @@ model = LNLEP_gaussian2D_model(
 filters = gaussian2D_weights( model['cones'] , possible_subunits , 
                              sigma=model['sigma_spatial'][0] )
 
-NRGC = len(model['RGCs'])
-print 'N cones   : ', len(model['cones'   ])
+NRGC    = len(model['RGCs' ])
+Ncones  = len(model['cones'])
+print 'N cones   : ', Ncones
 print 'N filters :  ', len(possible_subunits)
 print 'N subunits: ', len(model['subunits'])
 print 'N RGCs    : ', NRGC
@@ -93,8 +97,8 @@ def simulator( model , N_timebins , candidate_subunits ):
                    average_me = {'features':lambda x: 
                        model['nonlinearity'](np.dot(bigU,x))} )
 simulate = memory.cache(simulator)
-R = simulate( model , 1000000 , possible_subunits )
- 
+R     = simulate( model , 1000000 , possible_subunits )
+testR = simulate( model , 1000000 ,          subunits )
 
 total = float( np.sum([Nspikes for Nspikes in R['N_spikes']]) )
 
@@ -113,7 +117,7 @@ P   =  (Z[:,keep] * np.sqrt(DD[keep])).T
 y   =  np.dot ( (Z[:,keep] * 1/np.sqrt(DD[keep])).T , dSTA ) / 2
 
 irls = memory.cache(IRLS)
-V, iW = irls( y, P, x=0, disp_every=1000, lam=0.2, maxiter=1000000 , 
+V, iW = irls( y, P, x=0, disp_every=1000, lam=0.015, maxiter=1000000 , 
               ftol=1e-5, nonzero=1e-1)
 print 'V'
 kb.print_sparse_rows( V, precision=1e-1 )
@@ -165,15 +169,23 @@ init_u = numpy.exp(-0.5*(nodes**2))
 #init_u = numpy.ones(nodes.shape)
 init_u = init_u/numpy.sqrt(numpy.sum(init_u**2.))
 
+#import sys
+#sys.setrecursionlimit(10000)
+#import cPickle
+#f = file('obj_tu.pyckle','wb')
+#cPickle.dump(obj_tu, f, protocol=cPickle.HIGHEST_PROTOCOL)
+
+@memory.cache
 def objective_u( u=init_u ):
     targets = { 'f':quadratic_Poisson, 'barrier':eig_barrier }
     targets = kb.reparameterize(targets,UVs(NRGC))
-    list_targets= kb.reparameterize({'eigsM':eigsM, 'invM':invM, 'logdetIM':logdetIM, 'log_detIM':log_detIM },UVs(NRGC),
-                                               reducer=lambda r,x: r + [x], zero=[])
-    targets.update( list_targets )
+#    list_targets= kb.reparameterize({'eigsM':eigsM, 'invM':invM, 
+#                                     'logdetIM':logdetIM, 'log_detIM':log_detIM },UVs(NRGC),
+#                                               reducer=lambda r,x: r + [x], zero=[])
+#    targets.update( list_targets )
     targets = kb.reparameterize(targets,linear_reparameterization)
     return    kolia_theano.Objective( init_params={'u': u }, differentiate=['f'],
-                                       mode='FAST_COMPILE' , **targets )
+                                       mode='FAST_RUN' , **targets )
 obj_u   = objective_u()
 
 iterations = [0]
@@ -182,28 +194,94 @@ def callback( objective , params ):
     print ' Iter:', iterations[0] # ,' Obj: ' , fval
     if np.remainder( iterations[0] , 3 ) == 0:
         result = objective.unflat(params)
-        if np.remainder( iterations[0] , 7 ) == 0: pylab.close('all')
-        pylab.figure(1, figsize=(10,12))
-        pylab.plot(nodes,result['u'])
-        pylab.title('u params')
-#        p.savefig('/Users/kolia/Desktop/u.svg',format='svg')
-        pylab.savefig('/Users/kolia/Desktop/u.pdf',format='pdf')
-    iterations[0] = iterations[0] + 1
+        if result.has_key('u'):
+            if np.remainder( iterations[0] , 7 ) == 0: pylab.close('all')
+            pylab.figure(1, figsize=(10,12))
+            pylab.plot(nodes,result['u'])
+            pylab.title('u params')
+#            p.savefig('/Users/kolia/Desktop/u.svg',format='svg')
+            pylab.savefig('/Users/kolia/Desktop/u.pdf',format='pdf')
+
+iterations[0] = iterations[0] + 1
+
+def objU_data( run , v1 , v2 , T ):
+   data = {'STAs':np.vstack(run['statistics']['stimulus']['STA']) ,
+           'STCs':np.vstack([stc[np.newaxis,:] for stc in run['statistics']['stimulus']['STC']]), 
+           'V2':v2 , 'V1': v1 , 'N':NRGC , 'N_spikes':run['N_spikes'] , 'T': T}
+   return obj_u.where(**data).with_callback(callback)
+
 
 @memory.cache
 def optimize_u( v1, init_u, v2 , T, gtol=1e-7 , maxiter=500):
-    data = {'STAs':np.vstack(R['statistics']['stimulus']['STA']) ,
-            'STCs':np.vstack([stc[np.newaxis,:] for stc in R['statistics']['stimulus']['STC']]), 
-            'V2':v2 , 'V1': v1 , 'N':NRGC , 'N_spikes':R['N_spikes'] , 'T': T}
-    obj = obj_u.where(**data).with_callback(callback)
-    optimizer = optimize.optimizer( obj )
-    # debug_here()
-    params = optimizer(init_params={'u': init_u },maxiter=maxiter,gtol=gtol)
-    opt_u = obj_u.unflat(params)
-    return opt_u['u']
+   optimizer = optimize.optimizer( objU_data( R , v1 , v2 , T ) )
+   # debug_here()
+   params = optimizer(init_params={'u': init_u },maxiter=maxiter,gtol=gtol)
+   opt_u = obj_u.unflat(params)
+   return opt_u['u']
+
+@memory.cache
+def objective_V1( v1 = np.zeros( (NRGC,Ncones) ) ):
+   targets = { 'f':quadratic_Poisson, 'barrier':eig_barrier , 'LL':LNLEP }
+   targets = kb.reparameterize(targets,UVs(NRGC))
+   return    kolia_theano.Objective( init_params={'V1': v1 }, differentiate=['f'], 
+                                      mode='FAST_RUN' , **targets )
+obj_V1 = objective_V1()
+
+@memory.cache
+def objective_V1u( v1 = V1 ):
+   targets = { 'f':quadratic_Poisson, 'barrier':eig_barrier , 'LL':LNLEP }
+   targets = kb.reparameterize(targets,UVs(NRGC))
+   targets = kb.reparameterize(targets,linear_reparameterization)
+   return    kolia_theano.Objective( init_params={'V1': v1 }, differentiate=['f'], 
+                                      mode='FAST_RUN' , **targets )
+obj_V1u = objective_V1u()
+
+def objV1u_data( run , objective , v2=None , u=None, T=None):
+   data = {'STAs':np.vstack(run['statistics']['stimulus']['STA']) , 
+           'STCs':np.vstack([stc[np.newaxis,:] for stc in run['statistics']['stimulus']['STC']]), 
+           'V2':v2 , 'u': u , 'T':T, 'N':NRGC, 'N_spikes':run['N_spikes'] }
+   return objective.where(**data).with_callback(callback)
+
+
+def objV1_data( run , objective , v2=None , u=None):
+   data = {'STAs':np.vstack(run['statistics']['stimulus']['STA']) , 
+           'STCs':np.vstack([stc[np.newaxis,:] for stc in run['statistics']['stimulus']['STC']]), 
+           'V2':v2 , 'U': u , 'N':NRGC, 'N_spikes':run['N_spikes'] }
+   return objective.where(**data).with_callback(callback)
+
+@memory.cache
+def optimize_V1( u,v2, T, init=V1 , gtol=1e-4 , maxiter=100):
+   data = {'STAs':np.vstack(R['statistics']['stimulus']['STA']) , 
+           'STCs':np.vstack([stc[np.newaxis,:] for stc in R['statistics']['stimulus']['STC']]), 
+           'V2':v2 , 'u': u , 'T':T, 'N':NRGC , 'N_spikes':R['N_spikes'] }
+   objective = obj_V1u.where(**data).with_callback(callback)
+   optimizer = optimize.optimizer( objective )
+   init_params = {'V1': init }
+   params = optimizer(init_params=init_params,maxiter=maxiter,gtol=gtol)
+   opt_V1 = objective.unflat(params)
+   return opt_V1['V1']
+
+@memory.cache
+def optimize_GLM( gtol=1e-6 , maxiter=500):
+   objective = objV1_data( R , obj_V1, v2=np.zeros(Ncones) , u=np.eye(Ncones) )
+   optimizer = optimize.optimizer( objective )
+   init_params = {'V1': np.vstack( R['statistics']['stimulus']['STA'] ) }
+   params = optimizer(init_params=init_params,maxiter=maxiter,gtol=gtol)
+   opt_V1 = objective.unflat(params)
+   return opt_V1['V1']
 
 
 iterations[0] = -1
 
 T = place_cells( model['cones'] , inferred_locations , shapes )
-opt_u = optimize_u( V1, init_u, V2*np.ones(V1.shape[1]) , T=T , gtol=1e-6)
+opt_u  = optimize_u( V1, init_u, V2*np.ones(V1.shape[1]) , T , gtol=1e-6)
+
+glm_params = optimize_GLM()
+test_glm   = objV1_data( testR , obj_V1, v2=np.zeros(Ncones) , u=np.eye(Ncones) )
+
+opt_v1     = optimize_V1( opt_u, V2*np.ones(V1.shape[1]), T, init=V1)
+test_model = objV1u_data( testR , obj_V1u, v2= V2*np.ones(V1.shape[1]) , u=opt_u , T=T)
+test_model = objU_data( testR , V1, V2*np.ones(V1.shape[1]) , T )
+
+print 'GLM   LL: ', test_glm.LL( glm_params )
+print 'LQLEP LL: ', test_model.LL( opt_v1 )

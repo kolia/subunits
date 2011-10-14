@@ -32,13 +32,28 @@ STCs = [numpy.zeros((N_cones,N_cones)) for _ in Nspikes]
 for stc, values, indice in zip( STCs, datarun['cone_stcs'][0][0][0], indices):
     stc[numpy.ix_(indice,indice)] = numpy.squeeze( values )
 
-cov_stimulus = numpy.zeros((N_cones,N_cones))    # <--  missing most pairs here !!
+cones_cov = numpy.zeros((N_cones,N_cones))    # <--  missing most pairs here !!
 for values, indice in zip( datarun['stim_cov'][0][0][0], indices):
-    cov_stimulus[numpy.ix_(indice,indice)] = numpy.squeeze( values )
+    cones_cov[numpy.ix_(indice,indice)] = numpy.squeeze( values )
 
-mean_stimulus = [numpy.zeros(N_cones) for _ in Nspikes]
-for mean, values, indice in zip( mean_stimulus, datarun['stim_mean'][0][0][0], indices):
+cones_mean = [numpy.zeros(N_cones) for _ in Nspikes]
+for mean, values, indice in zip( cones_mean, datarun['stim_mean'][0][0][0], indices):
     mean[indice] = values
 
 # center of mass of the ith RGC's receptive field
 RGC_center_of_mass = [numpy.squeeze(com) for com in datarun['rf_coms'][0][0][0]]
+
+
+
+import simulate_retina
+reload(simulate_retina)
+from simulate_retina import *
+V2 = 0.1
+def NL(x): return x + 0.5 * V2 * ( x ** 2 )
+
+possible_subunits = hexagonal_2Dgrid( spacing=1. , field_size_x=S , field_size_y=S ) 
+
+
+
+filters = gaussian2D_weights( model['cones'] , possible_subunits , 
+                             sigma=model['sigma_spatial'][0] )

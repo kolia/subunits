@@ -27,7 +27,7 @@ import numpy.random as Rand
   
 import pylab as p
 
-from IPython.Debugger import Tracer; debug_here = Tracer()
+#from IPython.Debugger import Tracer; debug_here = Tracer()
  
 # Memoizing results using joblib;  makes life easier
 from joblib import Memory

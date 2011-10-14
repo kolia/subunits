@@ -4,7 +4,7 @@ from   numpy.linalg import slogdet
 import scipy.linalg as la
 import numpy.random   as R
 from time import time
-from IPython.Debugger import Tracer; debug_here = Tracer()
+#from IPython.Debugger import Tracer; debug_here = Tracer()
 
 def IRLS_step_matrix(y,P,iw,lam):
     P_iW = P*iw

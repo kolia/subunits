@@ -8,7 +8,7 @@ from scipy.optimize.linesearch import line_search_wolfe1, line_search_wolfe2
 
 from kolia_base import flat
 
-from IPython.Debugger import Tracer; debug_here = Tracer()
+#from IPython.Debugger import Tracer; debug_here = Tracer()
 
 _epsilon = sqrt(numpy.finfo(float).eps)
 
@@ -74,10 +74,10 @@ def backtrack(xk,pk,barrier):
         
     """
     # initial phase: find a point on other side of barrier by *1.5
-    a  = 0.001
+    a  = 1000.
     while True:
-        if a>500.:
-            return 500.
+        if a>5000.:
+            return 5000.
         if barrier(xk + a*pk): break
         a = a * 1.5
 
@@ -298,7 +298,8 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
         
         old_fval = f(xk)    
         if not isfinite(old_fval):
-            debug_here()
+            pass
+#            debug_here()
         
         if gfkp1 is None:
             gfkp1 = myfprime(xkp1)
