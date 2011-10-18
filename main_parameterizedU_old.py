@@ -6,7 +6,8 @@ reload(kolia_theano)
 
 import QuadPoiss
 reload(QuadPoiss)
-from   QuadPoiss import LQLEP_wBarrier, LQLEP, UV12, UVs , linear_reparameterization
+from   QuadPoiss import quadratic_Poisson, UVs , eig_barrier , LNLEP, \
+                 linear_reparameterization #, eigsM, invM, logdetIM, log_detIM
 
 import simulate_retina
 reload(simulate_retina)
@@ -23,7 +24,7 @@ import numpy        as np
 import numpy.random as Rand
 from scipy.linalg   import schur
 
-#import pylab
+import pylab
 
 #from pdb import set_trace
 #from IPython.Debugger import Tracer; debug_here = Tracer()
@@ -62,28 +63,28 @@ print 'N filters :  ', len(possible_subunits)
 print 'N subunits: ', len(model['subunits'])
 print 'N RGCs    : ', NRGC
 
-#pylab.close('all')
-#fig = pylab.figure(1)
-#fig.frameon = False
-#fig.figurePatch.set_alpha(0.0)
-#ax  = pylab.subplot(1,3,1)
-##ax  = fig.add_axes((0,0,1,1))
-#kb.plot_circles( sizes=0.1, offsets=model['cones'],
+pylab.close('all')
+fig = pylab.figure(1)
+fig.frameon = False
+fig.figurePatch.set_alpha(0.0)
+ax  = pylab.subplot(1,3,1)
+#ax  = fig.add_axes((0,0,1,1))
+kb.plot_circles( sizes=0.1, offsets=model['cones'],
+                 facecolors=(0.,0.,0.,0.1), edgecolors=(0.,0.,0.,0.3))
+pylab.title('Cones')
+#pylab.subplot(1,3,2)
+#ax = kb.plot_circles( sizes=3*model['sigma_spatial'][0], offsets=possible_subunits,
 #                 facecolors=(0.,0.,0.,0.1), edgecolors=(0.,0.,0.,0.3))
-#pylab.title('Cones')
-##pylab.subplot(1,3,2)
-##ax = kb.plot_circles( sizes=3*model['sigma_spatial'][0], offsets=possible_subunits,
-##                 facecolors=(0.,0.,0.,0.1), edgecolors=(0.,0.,0.,0.3))
-##pylab.title('Filters')
-#ax = pylab.subplot(1,3,2)
-#kb.plot_circles( sizes=3*model['sigma_spatial'][0], offsets=model['subunits'],
-#                 facecolors=(0.,0.,0.,0.1), edgecolors=(0.,0.,0.,0.3))
-#pylab.title('Subunits')
-#ax = pylab.subplot(1,3,3)
-#kb.plot_circles( sizes=3*model['sigma_spatial'][1], offsets=model['RGCs'],
-#                 facecolors=(0.,0.,0.,0.1), edgecolors=(0.,0.,0.,0.3))
-#pylab.title('RGCs')
-#pylab.savefig('/Users/kolia/Desktop/retina.pdf',format='pdf')
+#pylab.title('Filters')
+ax = pylab.subplot(1,3,2)
+kb.plot_circles( sizes=3*model['sigma_spatial'][0], offsets=model['subunits'],
+                 facecolors=(0.,0.,0.,0.1), edgecolors=(0.,0.,0.,0.3))
+pylab.title('Subunits')
+ax = pylab.subplot(1,3,3)
+kb.plot_circles( sizes=3*model['sigma_spatial'][1], offsets=model['RGCs'],
+                 facecolors=(0.,0.,0.,0.1), edgecolors=(0.,0.,0.,0.3))
+pylab.title('RGCs')
+pylab.savefig('/Users/kolia/Desktop/retina.pdf',format='pdf')
 
 
 # Generate stimulus , spikes , and (STA,STC,mean,cov) of quantities of interest
@@ -128,15 +129,15 @@ V1       = V[keepers,:].T
 inferred_locations = [possible_subunits[i] for i in np.nonzero(keepers)[0]]
 sum_V1   = kb.values_to_alpha( np.sum( V1 , axis=0  ) , (0.5,0.,0.) )
 
-#pylab.figure(2)
-#kb.plot_circles( sizes=model['sigma_spatial'][0]*2., offsets=inferred_locations,
-#                 facecolors=sum_V1, edgecolors=(0.,0.,0.,0.))
-#kb.plot_circles( sizes=model['sigma_spatial'][0]*2., offsets=model['subunits'],
-#                 facecolors=(0.,0.,0.,0.), edgecolors=(0.,0.,0.,0.2))
-#pylab.title('True and inferred subunit locations')
-#pylab.savefig('/Users/kolia/Desktop/subunits&inferred.pdf',format='pdf')
-#
-#pylab.close('all')
+pylab.figure(2)
+kb.plot_circles( sizes=model['sigma_spatial'][0]*2., offsets=inferred_locations,
+                 facecolors=sum_V1, edgecolors=(0.,0.,0.,0.))
+kb.plot_circles( sizes=model['sigma_spatial'][0]*2., offsets=model['subunits'],
+                 facecolors=(0.,0.,0.,0.), edgecolors=(0.,0.,0.,0.2))
+pylab.title('True and inferred subunit locations')
+pylab.savefig('/Users/kolia/Desktop/subunits&inferred.pdf',format='pdf')
+
+pylab.close('all')
 
 
 
@@ -158,6 +159,7 @@ def radial_piecewise_linear( nodes=[] , values=[] , default=0.):
         else: return default
     return f
 
+#nodes        = numpy.arange(0.,4.,0.05)
 nodes = numpy.array([ 0. ,  1.  ,  1.5,  2. ,  2.5 ,  3. ,  3.5 ,  4.5])
 
 value_matrix = numpy.eye(len(nodes))
@@ -167,25 +169,23 @@ init_u = numpy.exp(-0.5*(nodes**2))
 #init_u = numpy.ones(nodes.shape)
 init_u = init_u/numpy.sqrt(numpy.sum(init_u**2.))
 
-import sys
-sys.setrecursionlimit(10000)
+#import sys
+#sys.setrecursionlimit(10000)
 #import cPickle
 #f = file('obj_tu.pyckle','wb')
 #cPickle.dump(obj_tu, f, protocol=cPickle.HIGHEST_PROTOCOL)
 
-def extract(d, keys):
-    return dict((k, d[k]) for k in keys if k in d)
-
 @memory.cache
 def objective_u( u=init_u ):
-    inputs  = UV12( **linear_reparameterization() )
-    env     = [LQLEP_wBarrier( **LQLEP( **uv ) ) for uv in UVs(NRGC)(**inputs)]    
-    outputs = { 'f'      :sum([d['LQLEP'  ] for d in env]),
-                'barrier':sum([d['barrier'] for d in env]) }
-    params = extract( inputs, ['u'])
-    args   = extract( inputs, ['STAs','STCs','V2','V1','N','N_spikes','T'])
-    return kolia_theano.Objective( params, {'u': u }, args, outputs, 
-                                   differentiate=['f'], mode='FAST_RUN' )
+    targets = { 'f':quadratic_Poisson, 'barrier':eig_barrier }
+    targets = kb.reparameterize(targets,UVs(NRGC))
+#    list_targets= kb.reparameterize({'eigsM':eigsM, 'invM':invM, 
+#                                     'logdetIM':logdetIM, 'log_detIM':log_detIM },UVs(NRGC),
+#                                               reducer=lambda r,x: r + [x], zero=[])
+#    targets.update( list_targets )
+    targets = kb.reparameterize(targets,linear_reparameterization)
+    return    kolia_theano.Objective( init_params={'u': u }, differentiate=['f'],
+                                       mode='FAST_RUN' , **targets )
 obj_u   = objective_u()
 
 iterations = [0]
@@ -194,13 +194,13 @@ def callback( objective , params ):
     print ' Iter:', iterations[0] # ,' Obj: ' , fval
     if np.remainder( iterations[0] , 3 ) == 0:
         result = objective.unflat(params)
-#        if result.has_key('u'):
-#            if np.remainder( iterations[0] , 7 ) == 0: pylab.close('all')
-#            pylab.figure(1, figsize=(10,12))
-#            pylab.plot(nodes,result['u'])
-#            pylab.title('u params')
-##            p.savefig('/Users/kolia/Desktop/u.svg',format='svg')
-#            pylab.savefig('/Users/kolia/Desktop/u.pdf',format='pdf')
+        if result.has_key('u'):
+            if np.remainder( iterations[0] , 7 ) == 0: pylab.close('all')
+            pylab.figure(1, figsize=(10,12))
+            pylab.plot(nodes,result['u'])
+            pylab.title('u params')
+#            p.savefig('/Users/kolia/Desktop/u.svg',format='svg')
+            pylab.savefig('/Users/kolia/Desktop/u.pdf',format='pdf')
 
 iterations[0] = iterations[0] + 1
 
@@ -210,6 +210,7 @@ def objU_data( run , v1 , v2 , T ):
            'V2':v2 , 'V1': v1 , 'N':NRGC , 'N_spikes':run['N_spikes'] , 'T': T}
    return obj_u.where(**data).with_callback(callback)
 
+
 @memory.cache
 def optimize_u( v1, init_u, v2 , T, gtol=1e-7 , maxiter=500):
    optimizer = optimize.optimizer( objU_data( R , v1 , v2 , T ) )
@@ -218,56 +219,56 @@ def optimize_u( v1, init_u, v2 , T, gtol=1e-7 , maxiter=500):
    opt_u = obj_u.unflat(params)
    return opt_u['u']
 
-#@memory.cache
-#def objective_V1( v1 = np.zeros( (NRGC,Ncones) ) ):
-#   targets = { 'f':quadratic_Poisson, 'barrier':eig_barrier , 'LL':LNLEP }
-#   targets = kb.reparameterize(targets,UVs(NRGC))
-#   return    kolia_theano.Objective( init_params={'V1': v1 }, differentiate=['f'], 
-#                                      mode='FAST_RUN' , **targets )
-#obj_V1 = objective_V1()
-#
-#@memory.cache
-#def objective_V1u( v1 = V1 ):
-#   targets = { 'f':quadratic_Poisson, 'barrier':eig_barrier , 'LL':LNLEP }
-#   targets = kb.reparameterize(targets,UVs(NRGC))
-#   targets = kb.reparameterize(targets,linear_reparameterization)
-#   return    kolia_theano.Objective( init_params={'V1': v1 }, differentiate=['f'], 
-#                                      mode='FAST_RUN' , **targets )
-#obj_V1u = objective_V1u()
-#
-#def objV1u_data( run , objective , v2=None , u=None, T=None):
-#   data = {'STAs':np.vstack(run['statistics']['stimulus']['STA']) , 
-#           'STCs':np.vstack([stc[np.newaxis,:] for stc in run['statistics']['stimulus']['STC']]), 
-#           'V2':v2 , 'u': u , 'T':T, 'N':NRGC, 'N_spikes':run['N_spikes'] }
-#   return objective.where(**data).with_callback(callback)
-#
-#
-#def objV1_data( run , objective , v2=None , u=None):
-#   data = {'STAs':np.vstack(run['statistics']['stimulus']['STA']) , 
-#           'STCs':np.vstack([stc[np.newaxis,:] for stc in run['statistics']['stimulus']['STC']]), 
-#           'V2':v2 , 'U': u , 'N':NRGC, 'N_spikes':run['N_spikes'] }
-#   return objective.where(**data).with_callback(callback)
-#
-#@memory.cache
-#def optimize_V1( u,v2, T, init=V1 , gtol=1e-4 , maxiter=100):
-#   data = {'STAs':np.vstack(R['statistics']['stimulus']['STA']) , 
-#           'STCs':np.vstack([stc[np.newaxis,:] for stc in R['statistics']['stimulus']['STC']]), 
-#           'V2':v2 , 'u': u , 'T':T, 'N':NRGC , 'N_spikes':R['N_spikes'] }
-#   objective = obj_V1u.where(**data).with_callback(callback)
-#   optimizer = optimize.optimizer( objective )
-#   init_params = {'V1': init }
-#   params = optimizer(init_params=init_params,maxiter=maxiter,gtol=gtol)
-#   opt_V1 = objective.unflat(params)
-#   return opt_V1['V1']
-#
-#@memory.cache
-#def optimize_GLM( gtol=1e-6 , maxiter=500):
-#   objective = objV1_data( R , obj_V1, v2=np.zeros(Ncones) , u=np.eye(Ncones) )
-#   optimizer = optimize.optimizer( objective )
-#   init_params = {'V1': np.vstack( R['statistics']['stimulus']['STA'] ) }
-#   params = optimizer(init_params=init_params,maxiter=maxiter,gtol=gtol)
-#   opt_V1 = objective.unflat(params)
-#   return opt_V1['V1']
+@memory.cache
+def objective_V1( v1 = np.zeros( (NRGC,Ncones) ) ):
+   targets = { 'f':quadratic_Poisson, 'barrier':eig_barrier , 'LL':LNLEP }
+   targets = kb.reparameterize(targets,UVs(NRGC))
+   return    kolia_theano.Objective( init_params={'V1': v1 }, differentiate=['f'], 
+                                      mode='FAST_RUN' , **targets )
+obj_V1 = objective_V1()
+
+@memory.cache
+def objective_V1u( v1 = V1 ):
+   targets = { 'f':quadratic_Poisson, 'barrier':eig_barrier , 'LL':LNLEP }
+   targets = kb.reparameterize(targets,UVs(NRGC))
+   targets = kb.reparameterize(targets,linear_reparameterization)
+   return    kolia_theano.Objective( init_params={'V1': v1 }, differentiate=['f'], 
+                                      mode='FAST_RUN' , **targets )
+obj_V1u = objective_V1u()
+
+def objV1u_data( run , objective , v2=None , u=None, T=None):
+   data = {'STAs':np.vstack(run['statistics']['stimulus']['STA']) , 
+           'STCs':np.vstack([stc[np.newaxis,:] for stc in run['statistics']['stimulus']['STC']]), 
+           'V2':v2 , 'u': u , 'T':T, 'N':NRGC, 'N_spikes':run['N_spikes'] }
+   return objective.where(**data).with_callback(callback)
+
+
+def objV1_data( run , objective , v2=None , u=None):
+   data = {'STAs':np.vstack(run['statistics']['stimulus']['STA']) , 
+           'STCs':np.vstack([stc[np.newaxis,:] for stc in run['statistics']['stimulus']['STC']]), 
+           'V2':v2 , 'U': u , 'N':NRGC, 'N_spikes':run['N_spikes'] }
+   return objective.where(**data).with_callback(callback)
+
+@memory.cache
+def optimize_V1( u,v2, T, init=V1 , gtol=1e-4 , maxiter=100):
+   data = {'STAs':np.vstack(R['statistics']['stimulus']['STA']) , 
+           'STCs':np.vstack([stc[np.newaxis,:] for stc in R['statistics']['stimulus']['STC']]), 
+           'V2':v2 , 'u': u , 'T':T, 'N':NRGC , 'N_spikes':R['N_spikes'] }
+   objective = obj_V1u.where(**data).with_callback(callback)
+   optimizer = optimize.optimizer( objective )
+   init_params = {'V1': init }
+   params = optimizer(init_params=init_params,maxiter=maxiter,gtol=gtol)
+   opt_V1 = objective.unflat(params)
+   return opt_V1['V1']
+
+@memory.cache
+def optimize_GLM( gtol=1e-6 , maxiter=500):
+   objective = objV1_data( R , obj_V1, v2=np.zeros(Ncones) , u=np.eye(Ncones) )
+   optimizer = optimize.optimizer( objective )
+   init_params = {'V1': np.vstack( R['statistics']['stimulus']['STA'] ) }
+   params = optimizer(init_params=init_params,maxiter=maxiter,gtol=gtol)
+   opt_V1 = objective.unflat(params)
+   return opt_V1['V1']
 
 
 iterations[0] = -1
@@ -275,12 +276,12 @@ iterations[0] = -1
 T = place_cells( model['cones'] , inferred_locations , shapes )
 opt_u  = optimize_u( V1, init_u, V2*np.ones(V1.shape[1]) , T , gtol=1e-6)
 
-#glm_params = optimize_GLM()
-#test_glm   = objV1_data( testR , obj_V1, v2=np.zeros(Ncones) , u=np.eye(Ncones) )
-#
-#opt_v1     = optimize_V1( opt_u, V2*np.ones(V1.shape[1]), T, init=V1)
-#test_model = objV1u_data( testR , obj_V1u, v2= V2*np.ones(V1.shape[1]) , u=opt_u , T=T)
-#test_model = objU_data( testR , V1, V2*np.ones(V1.shape[1]) , T )
-#
-#print 'GLM   LL: ', test_glm.LL( glm_params )
-#print 'LQLEP LL: ', test_model.LL( opt_v1 )
+glm_params = optimize_GLM()
+test_glm   = objV1_data( testR , obj_V1, v2=np.zeros(Ncones) , u=np.eye(Ncones) )
+
+opt_v1     = optimize_V1( opt_u, V2*np.ones(V1.shape[1]), T, init=V1)
+test_model = objV1u_data( testR , obj_V1u, v2= V2*np.ones(V1.shape[1]) , u=opt_u , T=T)
+test_model = objU_data( testR , V1, V2*np.ones(V1.shape[1]) , T )
+
+print 'GLM   LL: ', test_glm.LL( glm_params )
+print 'LQLEP LL: ', test_model.LL( opt_v1 )

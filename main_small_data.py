@@ -2,7 +2,7 @@ import numpy
 import itertools
 
 from scipy.io import loadmat
-datarun = loadmat('key_info.mat')
+datarun = loadmat('datarun.mat')
 datarun = datarun['datarun']
 
 T = datarun['duration'][0][0][0][0]
