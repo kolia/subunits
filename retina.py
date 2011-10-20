@@ -9,7 +9,7 @@ import numpy
 #from numpy.linalg import pinv
 import numpy.random   as R
 
-#from IPython.Debugger import Tracer; debug_here = Tracer()
+from IPython.Debugger import Tracer; debug_here = Tracer()
 
 def ring_weights(shape=(10,10), sigma=1., offset_in=0., offset_out=0.):
     U = numpy.fromfunction( lambda i,j: \
@@ -130,95 +130,124 @@ def white_gaussian( sigma=1., dimension=1, N_timebins = 100000 ):
     """Independent zero mean sigma std gaussian.
     """
     return sigma*R.randn(dimension,N_timebins)
-    
-def make_statistics(x,spikes):
-    N_spikes         = numpy.sum(spikes,1)
-    NRGC, N_timebins = spikes.shape
-    d = {}
-    d['mean'] = numpy.sum(x,axis=1)/N_timebins
-    d['cov']  = numpy.cov(x)
-    d['STA']  = [ numpy.sum(x*spikes[i,:],1) / N_spikes[i] 
-                  for i in numpy.arange(NRGC) ]
-    d['STC']  = \
-        [ numpy.dot( x-d['STA'][i][:,numpy.newaxis], 
-                    numpy.transpose((x-d['STA'][i][:,numpy.newaxis])*spikes[i,:])) \
-        / N_spikes[i]               for i in numpy.arange(NRGC) ]
-    return d
 
 def simulator_LNLEP( model , stimulus ,
     N_timebins     = 10000        ,  # number of stimulus time samples
     firing_rate     = 0.1          ): # RGC firing rate
     """Simulate spiking data for a Linear-Nonlinear-Linear-Nonlinear-Poisson model.
     """
-    while 1:
-        X         = stimulus.generate( N_timebins=N_timebins, dimension=model['U'].shape[1] )
+    chunksize = 5000
+    N = 0
+    while N < N_timebins:
+        X         = stimulus.generate( N_timebins=chunksize, dimension=model['U'].shape[1] )
         b         = model['nonlinearity'](numpy.dot(model['U'],X))  # subunit activations
         intensity = numpy.exp(numpy.dot(model['V'],b))                                # RGC activations
-        constant  = numpy.log( model['V'].shape[0] * N_timebins * firing_rate / numpy.sum(intensity) )
+        constant  = numpy.log( model['V'].shape[0] * chunksize * firing_rate / numpy.sum(intensity) )
         intensity = intensity * numpy.exp(constant)        
         spikes    = R.poisson(intensity)
+        N += chunksize
         yield {'stimulus':X , 'spikes':spikes}
+    raise StopIteration()
 
-def read_dataset( stimulus_pattern='stimulus_%d.mat', data_file='data.mat'):
-    from scipy.io import loadmat
-    data = loadmat(data_file)
-    data = data['data']    
-    spikes = data['spike_rate'][0][0]
-    del data['spike_rate']
-    data['rgc_ids']        = data['rgc_ids'][0][0][0]    
-    data['cone_weights']   = data['cone_weights'][0][0]    
-    data['cone_types']     = data['cone_types'][0][0].tolist()    
-    data['cone_locations'] = data['cone_locations'][0][0]    
-    data['rgc_locations']  = numpy.array([d[0][0] for d in data['rgc_locations'][0][0]])    
+
+from scipy.io import loadmat
+def read_data( data_file='data.mat' ):
+    datarun = loadmat(data_file)['data']
+    data = {}
+    data['spikes'] = datarun['spike_rate'][0][0]
+    data['rgc_ids']        = datarun['rgc_ids'][0][0][0]    
+    data['cone_weights']   = datarun['cone_weights'][0][0]    
+    data['cone_types']     = datarun['cone_types'][0][0].tolist()    
+    data['cone_locations'] = datarun['cone_locations'][0][0]    
+    data['rgc_locations']  = numpy.array([d[0][0] for d in datarun['rgc_locations'][0][0]])    
     data['rgc_types']      = dict((d[0][0],d[1][0].tolist()) 
                                    for d in filter( lambda d : len( d[0] )>0 , [d[0][0] 
-                                   for d in data['cell_types'][0][0][0]] ))
-    try:
-        i = 0
-        N_timebins = 0
-        while 1:
-            data['stimulus'] = loadmat(stimulus_pattern % i)['cone_input'].T
-            data['spikes'] = spikes[N_timebins:N_timebins+data['stimulus'].shape[1]]
-            N_timebins += data['stimulus'].shape[1]
-            i += 1
-            yield data
-    except:
-        raise StopIteration()        
+                                   for d in datarun['cell_types'][0][0][0]] ))
+    return data
+
+import sys
+def read_stimulus( spikes, stimulus_pattern='cone_input_%d.mat'):
+    i = 0
+    N_timebins = 0
+    print 'Reading files: ',
+    while 1:
+        data = {}
+        try:
+            data['stimulus'] = loadmat(stimulus_pattern % i)['data'].T
+        except:
+            raise StopIteration()
+        data['spikes'] = spikes[:,N_timebins:N_timebins+data['stimulus'].shape[1]]
+        N_timebins += data['stimulus'].shape[1]
+        data['files_read'] = i
+        i += 1
+        print i,
+        sys.stdout.flush()
+        yield data
+    
+def make_statistics(x,spikes):   # FIX THIS, IT'S ALL WRONG !!!!   also, MAKE STATISTICS INTO ARGUMENTS
+    d = {}
+    d['sum'] = numpy.sum(x   ,axis=1)
+    d['sum_square']  = numpy.sum(x**2,axis=1)
+    d['STsum']  = [ numpy.sum(x*spikes[i,:],1) for i in numpy.arange(spikes.shape[0]) ]
+    d['STsum_square']  = [ numpy.dot( x, numpy.transpose(x*spikes[i,:])) \
+                                for i in numpy.arange(spikes.shape[0]) ]
+    return d
+
+def one(x,**other):      return numpy.ones((1,x.shape[1]))
+def identity(x,**other): return x
+def square(x  ,**other): return numpy.dot(x,x.T)
+
+def temporal_sum(x,**other): return numpy.sum(x,axis=-1)
+    
+def spike_triggered_sum(x,spikes=None,**other):
+    return [ numpy.sum(x*spikes[i,:],1) for i in numpy.arange(spikes.shape[0]) ]
+
+def spikes(x,spikes=None,**other): return spikes
+
+def normalize(x,N_timebins=None,N_spikes=None,**other):
+    if type(x) is type([]):
+        return [ r/n for r,n in zip(x, N_spikes) ]
+    else:
+        return x/N_timebins
+
+def covariance(x,N_timebins=None,mean=None,**other):
+    return (x - numpy.outer(mean,mean))/N_timebins
+
+localization = {'N_timebins' : [one,      temporal_sum,        identity  ],
+                'N_spikes'   : [one,      spike_triggered_sum, identity  ],
+                'spikes'     : [one,      spikes,              None      ],
+                'mean'       : [identity, temporal_sum,        normalize ],
+                'cov'        : [square,   identity,            covariance],
+                'STA'        : [identity, spike_triggered_sum, normalize ]}
 
 def accumulate_statistics( 
-    data_generator = None         ,  # a function which yields {'stimulus','spikes'} 
-    N_timebins     = 100000       ,  # number of time samples requested
-    average_me     = {}           ): # calculate STA, STC, stim. avg of this
-    generate = data_generator()
+    data_generator = None         ,  # yields {'stimulus','spikes'}
+    feature        = lambda x : x ,
+    pipelines      = localization ):
 
-    def get_chunk():
-        chunk = generate.next()
-        chunk['N_timebins'] = chunk['stimulus'].shape[1]
-        chunk['N_spikes']   = numpy.sum( chunk['spikes'], 1)
-        chunk['statistics'] = dict( (name,make_statistics(
-                                    average_me[name](chunk['stimulus']),chunk['spikes'])) 
-                                    for name in average_me.keys())
-        return chunk
+    def process_chunk( datum ):
+        return dict((name,accumulate(transform(datum['stimulus']), **datum))
+                     for name,[transform,accumulate,_] in pipelines.items())
 
-    result = get_chunk()        
-    while result['N_timebins'] < N_timebins:
-        ll = get_chunk()
-        for topname,topd in result['statistics'].items():
-            for name,d in result['statistics'][topname].items():
-                if isinstance(result['statistics'][topname][name],type([])):
-                    for i,(r,l) in enumerate(zip(result['statistics'][topname][name],
-                                                 ll['statistics'][topname][name])):
-                        result['statistics'][topname][name][i] = \
-                            (r*result['N_timebins'] + l*ll['N_timebins'])/ \
-                            (result['N_timebins'] + ll['N_timebins'])                        
-                else:
-                    result['statistics'][topname][name] = \
-                        (result['statistics'][topname][name]*result['N_timebins'] + 
-                             ll['statistics'][topname][name]*    ll['N_timebins'])/ \
-                        (result['N_timebins'] + ll['N_timebins'])
-        result['N_timebins'] = result['N_timebins'] + ll['N_timebins']
-        result['N_spikes']   = result['N_spikes']   + ll['N_spikes']
-    return result
+    stats = feature( data_generator.next() )
+    stats = process_chunk( stats )
+    for stat in data_generator:
+        stat = process_chunk( feature( stat ) )
+        for name,s in stats.items():
+            if isinstance(s,type([])): 
+                stats[name] = [ r+l for (r,l) in zip(s,stat[name])]
+            else:
+                stats[name] += stat[name]
+    for name,s in stats.items():
+        [_,_,postprocess] = pipelines[name]
+        if postprocess is not None:
+            if isinstance(s,type([])):
+                stats[name] = [postprocess(ss, **stats ) for ss in s]
+            else:
+                stats[name] =  postprocess(s , **stats )
+        else:
+            del stats[name]
+    return  stats
 
 def run_LNLEP( model , stimulus ,
     sigma_stimulus = 1.           ,  # stimulus standard deviation
@@ -230,6 +259,7 @@ def run_LNLEP( model , stimulus ,
     average_me['stimulus'] = lambda x : x
     average_me['subunits'] = lambda x : model['nonlinearity'](numpy.dot(model['U'],x))
 
-    data_generator = lambda : simulator_LNLEP( model , stimulus , firing_rate=firing_rate)
+    data_generator = simulator_LNLEP( model, stimulus, 
+                                      N_timebins=N_timebins, firing_rate=firing_rate)
     return accumulate_statistics( 
             data_generator=data_generator, N_timebins=N_timebins, average_me=average_me)

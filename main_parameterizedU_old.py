@@ -4,10 +4,10 @@ reload(kb)
 import kolia_theano
 reload(kolia_theano)
 
-import QuadPoiss
-reload(QuadPoiss)
-from   QuadPoiss import quadratic_Poisson, UVs , eig_barrier , LNLEP, \
-                 linear_reparameterization #, eigsM, invM, logdetIM, log_detIM
+#import QuadPoiss
+#reload(QuadPoiss)
+#from   QuadPoiss import quadratic_Poisson, UVs , eig_barrier , LNLEP, \
+#                 linear_reparameterization #, eigsM, invM, logdetIM, log_detIM
 
 import simulate_retina
 reload(simulate_retina)
