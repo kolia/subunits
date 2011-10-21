@@ -9,7 +9,7 @@ import numpy
 #from numpy.linalg import pinv
 import numpy.random   as R
 
-from IPython.Debugger import Tracer; debug_here = Tracer()
+#from IPython.Debugger import Tracer; debug_here = Tracer()
 
 def ring_weights(shape=(10,10), sigma=1., offset_in=0., offset_out=0.):
     U = numpy.fromfunction( lambda i,j: \
@@ -184,15 +184,6 @@ def read_stimulus( spikes, stimulus_pattern='cone_input_%d.mat'):
         sys.stdout.flush()
         yield data
     
-def make_statistics(x,spikes):   # FIX THIS, IT'S ALL WRONG !!!!   also, MAKE STATISTICS INTO ARGUMENTS
-    d = {}
-    d['sum'] = numpy.sum(x   ,axis=1)
-    d['sum_square']  = numpy.sum(x**2,axis=1)
-    d['STsum']  = [ numpy.sum(x*spikes[i,:],1) for i in numpy.arange(spikes.shape[0]) ]
-    d['STsum_square']  = [ numpy.dot( x, numpy.transpose(x*spikes[i,:])) \
-                                for i in numpy.arange(spikes.shape[0]) ]
-    return d
-
 def one(x,**other):      return numpy.ones((1,x.shape[1]))
 def identity(x,**other): return x
 def square(x  ,**other): return numpy.dot(x,x.T)
@@ -229,10 +220,12 @@ def accumulate_statistics(
         return dict((name,accumulate(transform(datum['stimulus']), **datum))
                      for name,[transform,accumulate,_] in pipelines.items())
 
-    stats = feature( data_generator.next() )
+    stats = data_generator.next()
+    stats['stimulus'] = feature(stats['stimulus'])
     stats = process_chunk( stats )
     for stat in data_generator:
-        stat = process_chunk( feature( stat ) )
+        stat['stimulus'] = feature(stat['stimulus'])
+        stat = process_chunk( stat )
         for name,s in stats.items():
             if isinstance(s,type([])): 
                 stats[name] = [ r+l for (r,l) in zip(s,stat[name])]
