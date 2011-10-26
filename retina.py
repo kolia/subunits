@@ -191,7 +191,10 @@ def square(x  ,**other): return numpy.dot(x,x.T)
 def temporal_sum(x,**other): return numpy.sum(x,axis=-1)
     
 def spike_triggered_sum(x,spikes=None,**other):
-    return [ numpy.sum(x*spikes[i,:],1) for i in numpy.arange(spikes.shape[0]) ]
+    if type(x) is type([]):
+        return [ numpy.sum(y*s,1) for y,s in zip(x,spikes) ]
+    else:
+        return [ numpy.sum(x*s,1) for s in spikes ]
 
 def spikes(x,spikes=None,**other): return spikes
 
@@ -206,18 +209,30 @@ def covariance(x,N_timebins=None,mean=None,**other):
 
 localization = {'N_timebins' : [one,      temporal_sum,        identity  ],
                 'N_spikes'   : [one,      spike_triggered_sum, identity  ],
-                'spikes'     : [one,      spikes,              None      ],
                 'mean'       : [identity, temporal_sum,        normalize ],
                 'cov'        : [square,   identity,            covariance],
                 'STA'        : [identity, spike_triggered_sum, normalize ]}
 
+def sparse_identity( x, sparse_index=None, **other ): 
+    return [x[si,:] for si in sparse_index]
+
+def sparse_STC( x, sparse_index=None, spikes=None, **other ):
+    return [ numpy.dot( x[si,:], (x[si,:]*s).T ) 
+             for s,si in zip(spikes,sparse_index) ]
+
+# accumulate_statistics must be called with sparse_index kwarg for this
+fit_U = {'N_spikes'   : [one,             spike_triggered_sum, identity ],
+        'sparse_STA' : [sparse_identity, spike_triggered_sum, normalize],
+        'sparse_STC' : [sparse_STC,      identity,            normalize]}
+
 def accumulate_statistics( 
     data_generator = None         ,  # yields {'stimulus','spikes'}
     feature        = lambda x : x ,
-    pipelines      = localization ):
+    pipelines      = localization , **other):
 
     def process_chunk( datum ):
-        return dict((name,accumulate(transform(datum['stimulus']), **datum))
+        datum.update( other )
+        return dict((name,accumulate(transform(datum['stimulus'],**datum), **datum))
                      for name,[transform,accumulate,_] in pipelines.items())
 
     stats = data_generator.next()
@@ -234,10 +249,11 @@ def accumulate_statistics(
     for name,s in stats.items():
         [_,_,postprocess] = pipelines[name]
         if postprocess is not None:
-            if isinstance(s,type([])):
-                stats[name] = [postprocess(ss, **stats ) for ss in s]
-            else:
-                stats[name] =  postprocess(s , **stats )
+            stats[name] =  postprocess(s , **stats )
+#            if isinstance(s,type([])):
+#                stats[name] = [postprocess(ss, **stats ) for ss in s]
+#            else:
+#                stats[name] =  postprocess(s , **stats )
         else:
             del stats[name]
     return  stats

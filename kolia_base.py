@@ -64,7 +64,7 @@ def save(result,name,where='/Users/kolia/Desktop'):
     cPickle.dump(result,savefile,protocol=2)
     savefile.close()
  
-def load(name,where='~/Desktop'):
+def load(name,where='/Users/kolia/Desktop'):
     savefile = open('%s/%s.pyckle' % (where,name),'r')
     result = cPickle.load(savefile)
     savefile.close()
