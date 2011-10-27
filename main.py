@@ -31,17 +31,16 @@ from kolia_base import save
 save(data,'data_localization')
 
 
-# BREAK THIS INTO GROUPS OF RGCs,  MEMORY BLOWING UP!!!
 @memory.cache
-def localization( datum, filters ):
+def localization( filters ):
     return retina.accumulate_statistics( 
         data_generator = 
-            retina.read_stimulus( datum['spikes'],
+            retina.read_stimulus( data['spikes'],
                                  stimulus_pattern='cone_input_%d.mat' ) ,
         feature= lambda x : numpy.dot(filters,x))
 
 #data['spikes'] = data['spikes'][:2,:]
-stats = localization( data, filters )
+stats = localization( filters )
 
 import pylab
 def hista(i , data=data, stats=stats, N=2):
@@ -52,8 +51,8 @@ def hista(i , data=data, stats=stats, N=2):
         pylab.hist( stats['STA'][i+j] , bins=30)
         pylab.ylabel(rgc_type(i+j,data=data))
 
-#from kolia_base import save
-#save(stats,'Linear_localization')
+from kolia_base import save
+save(stats,'Linear_localization')
 
 def n_largest( values , keep=10 ):
     sorted_values = numpy.abs(values)
@@ -61,7 +60,8 @@ def n_largest( values , keep=10 ):
     cutoff = sorted_values[-keep]
     return numpy.nonzero( numpy.abs(values) >= cutoff )[0]
     
-def fit_U_stats( rgc_type='off midget', keep=15, data=data, stats=stats ):
+@memory.cache
+def fit_U_stats( rgc_type='off midget', keep=15, stats=stats ):
     which_rgc = [i for i,ind in enumerate(data['rgc_ids'])
                    if  ind   in data['rgc_types'][rgc_type]]
     spikes = data['spikes'][which_rgc,:]
@@ -70,13 +70,16 @@ def fit_U_stats( rgc_type='off midget', keep=15, data=data, stats=stats ):
     stats['rgc_index'] = which_rgc
     stats.update( retina.accumulate_statistics( 
         data_generator = retina.read_stimulus( spikes ) ,
-        feature        = lambda x : numpy.dot(filters,x) ,
+        feature        = lambda x : x                   ,
         pipelines      = retina.fit_U                    ,
         sparse_index   = sparse_index                   ))
     return stats
 
 ustats = {}
 ustats['off midget'] = fit_U_stats( rgc_type='off midget', keep=20 )
+
+from kolia_base import save
+save(ustats,'ustats_0')
 
 import sys
 
@@ -95,7 +98,7 @@ sys.stdout.flush()
 from scipy.linalg   import schur
 @memory.cache
 def ARD( dSTA , Cin , lam=0.0001 ):
-    print 'Starting ARD of size', Cin.shape
+    print 'Starting ARD of size ', Cin.shape,' with lambda=',lam
     sys.stdout.flush()
     D,Z = schur(Cin)
     print 'Schur decomposition completed'
@@ -113,4 +116,4 @@ def ARD( dSTA , Cin , lam=0.0001 ):
         save({'V':V,'iW':iW},'Localizing_lam%.0e'%lam)
     return V, iW
     
-V, iW = ARD( dSTA , Cin , lam=0.00008 )
+V, iW = ARD( dSTA , Cin , lam=0.009 )
