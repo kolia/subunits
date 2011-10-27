@@ -57,7 +57,7 @@ keep = {'off midget' :  20, 'on midget' :  20,
 
 ustats = {}
 ustats[rgc_type] = fit_U_stats( rgc_type=rgc_type, keep=keep[rgc_type] )
-NRGC = len( ustats['which_rgc'] )
+NRGC = len( ustats[rgc_type]['rgc_index'] )
 
 
 def index( sequence = [] , f = lambda _: True ):
