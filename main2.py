@@ -96,6 +96,8 @@ sys.setrecursionlimit(10000)
 def extract(d, keys):
     return dict((k, d[k]) for k in keys if k in d)
 
+import sys
+
 @memory.cache
 def objective_u( u=init_u ):
     inputs  = UV12( **linear_reparameterization() )
@@ -104,6 +106,8 @@ def objective_u( u=init_u ):
                 'barrier':sum([d['barrier'] for d in env]) }
     params = extract( inputs, ['u'])
     args   = extract( inputs, ['STAs','STCs','V2','V1','N','N_spikes','T'])
+    print 'Compiling Objective_u...'
+    sys.stdout.flush()
     return kolia_theano.Objective( params, {'u': u }, args, outputs, 
                                    differentiate=['f'], mode='FAST_RUN' )
 obj_u   = objective_u()
