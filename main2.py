@@ -14,8 +14,8 @@ reload(kolia_theano)
 
 import QuadPoiss
 reload(QuadPoiss)
-from   QuadPoiss import LQLEP_wBarrier, LQLEP, UV12, UVs , \
-                        linear_reparameterization
+from   QuadPoiss import LQLEP_wBarrier, LQLEP, UV12, UVs ,\
+                        linear_reparameterization, LQLEP_input
 
 
 # Memoizing results using joblib;  makes life easier
@@ -97,11 +97,20 @@ def extract(d, keys):
     return dict((k, d[k]) for k in keys if k in d)
 
 import sys
+import copy
 
 @memory.cache
 def objective_u( u=init_u ):
+    lqlep_in  = LQLEP_input()
+    lqlep_out = LQLEP_wBarrier( **LQLEP( **lqlep_in ))
+    lqlep_in, lqlep_out = kolia_theano.simplify( lqlep_in , lqlep_out )
+
     inputs  = UV12( **linear_reparameterization() )
-    env     = [LQLEP_wBarrier( **LQLEP( **uv ) ) for uv in UVs(NRGC)(**inputs)]    
+    reparam = UVs(NRGC)(**inputs)
+    env     = [copy.deepcopy(lqlep_out) for uv in reparam]
+    for e,uv in zip(env,reparam):
+        for name,var in uv.items():
+            kolia_theano.reown( e[name] , var )
     outputs = { 'f'      :sum([d['LQLEP'  ] for d in env]),
                 'barrier':sum([d['barrier'] for d in env]) }
     params = extract( inputs, ['u'])

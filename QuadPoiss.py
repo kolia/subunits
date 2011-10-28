@@ -16,6 +16,15 @@ def named( **variables ):
     for name,v in variables.items():  v.name = name
     return variables
 
+def LQLEP_input(**other):
+    theta   = Th.dvector()
+    M       = Th.dmatrix()
+    STA     = Th.dvector()
+    STC     = Th.dmatrix()
+    N_spike = Th.dscalar()
+    other.update(locals())
+    return named( **other )
+
 def LQLEP( theta   = Th.dvector()  , M    = Th.dmatrix() ,
            STA     = Th.dvector()  , STC  = Th.dmatrix(), 
            N_spike = Th.dscalar(), **other):
@@ -40,7 +49,7 @@ def LQLEP_wBarrier( LQLEP    = Th.dscalar(), ldet = Th.dscalar(),
     with a barrier on the log-det term and a prior.
     '''
     LQLEP_wPrior = LQLEP + 0.5 * N_spike * 1./(ldet+250.)**2.
-    eigsImM,_ = eig( ImM )
+    eigsImM,barrier = eig( ImM )
     barrier   = 1-(Th.sum(Th.log(eigsImM))>-250)*(Th.min(eigsImM)>0)
     other.update(locals())
     return named( **other )
@@ -71,8 +80,7 @@ def UVs(N):
                          'M'  :      Th.dot( V1[i,:] * U.T , (V2 * U.T).T ),
                          'STA':      STAs[i,:],
                          'STC':      STCs[i,:,:],
-                         'N_spike':  N_spikes[i]/(Th.sum(N_spikes)) ,
-                         'U' :       U } ) for i in range(N)]
+                         'N_spike':  N_spikes[i]/(Th.sum(N_spikes))} ) for i in range(N)]
     return UV
 
 def linear_reparameterization( T  = Th.dtensor3() , u  = Th.dvector() , **other ):

@@ -53,8 +53,9 @@ eig = Eig()
 
 def reown( x , y ):
     x.owner = y.owner
-    for i,output in enumerate( x.owner.outputs ):
-        if output is y: x.owner.outputs[i] = x
+    if x.owner is not None:
+        for i,output in enumerate( x.owner.outputs ):
+            if output is y: x.owner.outputs[i] = x
 
 def shapely_tensor( name , x , dtype='float64'):
     '''Return SYMBOLIC tensor with the same dimensions and size as input.'''
@@ -65,6 +66,24 @@ def shapely_tensor( name , x , dtype='float64'):
         return Th.specify_shape(dtensor_x(name),x.shape)
     raise TypeError('shapely_tensor expects a scalar or numpy ndarray')
 
+def simplify( inputs , outputs ):
+    if type(inputs) is type({}):
+        input_list  = [x for _,x in sorted( inputs.items())]
+        output_list = [x for _,x in sorted(outputs.items())]
+        input_list , output_list = _simplify( input_list, output_list )
+        inputs  = dict(zip(sorted( inputs.keys()), input_list))
+        outputs = dict(zip(sorted(outputs.keys()),output_list))
+    else:
+        inputs , outputs = _simplify( inputs , outputs )
+    return inputs, outputs
+
+def _simplify( inputs , outputs ):
+    f           = function( inputs , outputs )
+    new_inputs  = f.maker.env.inputs
+    for ni,i in zip(new_inputs, inputs):
+        reown(ni,i)
+    return new_inputs , f.maker.env.outputs
+    
 class Params( object ):
     def __init__(self, example=None):
         self.Example_Params = example
