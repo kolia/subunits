@@ -68,20 +68,29 @@ def UV12( U    = Th.dmatrix(),  V1   = Th.dmatrix() , V2       = Th.dvector(),
     other.update(locals())
     return named( **other )
 
-def UVs(N):
+def thetaM( U   = Th.dmatrix(), v1  = Th.dvector() , V2 = Th.dvector() ,
+            STA = Th.dvector(), STC = Th.dmatrix(),  N_spike = Th.dscalar(), **other):
+    theta = Th.dot( U.T , v1 )
+    M     = Th.dot( v1 * U.T , (V2 * U.T).T )
+    other.update(locals())
+    return named( **other )
+
+
+def UV12_input(V1   = Th.dmatrix() , STAs = Th.dmatrix(), 
+               STCs = Th.dtensor3(), N_spikes = Th.dvector(), **other):
+    other.update(locals())
+    return named( **other )
+
+def UVi(i , V1   = Th.dmatrix() , STAs = Th.dmatrix(), STCs = Th.dtensor3(), 
+        N_spikes = Th.dvector(), **other):
     '''
     Reparameterize a list of N (theta,M) parameters as a function of a 
     common U,V2 and a matrix of N rows containing V1.
     '''
-    def UV( U    = Th.dmatrix(), V1   = Th.dmatrix() , V2 = Th.dvector() ,
-            STAs = Th.dmatrix(), STCs = Th.dtensor3(), 
-            N_spikes = Th.dvector(), **other):
-       return [named( **{'theta':    Th.dot( U.T , V1[i,:] ) ,
-                         'M'  :      Th.dot( V1[i,:] * U.T , (V2 * U.T).T ),
-                         'STA':      STAs[i,:],
-                         'STC':      STCs[i,:,:],
-                         'N_spike':  N_spikes[i]/(Th.sum(N_spikes))} ) for i in range(N)]
-    return UV
+    return named( **{'v1'  :    V1[i,:] ,
+                     'STA' :    STAs[i,:],
+                     'STC' :    STCs[i,:,:],
+                     'N_spike': N_spikes[i]/(Th.sum(N_spikes))} )
 
 def linear_reparameterization( T  = Th.dtensor3() , u  = Th.dvector() , **other ):
     U = Th.sum( T*u , axis=2 )    # U = Th.tensordot(T,u,axes=0)

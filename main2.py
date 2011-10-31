@@ -12,10 +12,12 @@ reload(optimize)
 import kolia_theano
 reload(kolia_theano)
 
+import theano.tensor as th
+
 import QuadPoiss
 reload(QuadPoiss)
-from   QuadPoiss import LQLEP_wBarrier, LQLEP, UV12, UVs ,\
-                        linear_reparameterization, LQLEP_input
+from   QuadPoiss import LQLEP_wBarrier, LQLEP, thetaM, UV12_input, UVi, \
+                        linear_reparameterization
 
 
 # Memoizing results using joblib;  makes life easier
@@ -99,26 +101,37 @@ def extract(d, keys):
 import sys
 import copy
 
+def single_objective_u():
+    arg    = ['u','STA','STC','V2','v1','N_spike','T']
+    result = ['LQLEP_wPrior','dLQLEP_wPrior','barrier']
+    env    = LQLEP_wBarrier( **LQLEP( **thetaM( **linear_reparameterization())))
+    env['dLQLEP_wPrior'] = th.grad(cost = env['LQLEP_wPrior'],
+                                   wrt  = env['u'],
+                                   consider_constant = extract( env, arg[1:]))
+    print 'Simplifying single objective_u...'
+    sys.stdout.flush()
+    env, outputs = kolia_theano.simplify( extract(env,arg), extract(env,result) )
+    env.update(outputs)
+    print 'done simplifying single objective_u.'
+    return env
+env = single_objective_u()
+
 @memory.cache
 def objective_u( u=init_u ):
-    lqlep_in  = LQLEP_input()
-    lqlep_out = LQLEP_wBarrier( **LQLEP( **lqlep_in ))
-    lqlep_in, lqlep_out = kolia_theano.simplify( lqlep_in , lqlep_out )
-
-    inputs  = UV12( **linear_reparameterization() )
-    reparam = UVs(NRGC)(**inputs)
-    env     = [copy.deepcopy(lqlep_out) for uv in reparam]
-    for e,uv in zip(env,reparam):
-        for name,var in uv.items():
-            kolia_theano.reown( e[name] , var )
-    outputs = { 'f'      :sum([d['LQLEP'  ] for d in env]),
-                'barrier':sum([d['barrier'] for d in env]) }
+    env = single_objective_u()
+    inputs = UV12_input( u=th.dvector('u') )
+    envs = [copy.deepcopy(env) for _ in range(NRGC)]
+    for i in range(NRGC):
+        for name,owner in UVi(i,**inputs).items():            
+            kolia_theano.reown( envs[i][name] , owner )
+    outputs = { 'f'      :sum([d[ 'LQLEP_wPrior'] for d in envs]),
+                'df'     :sum([d['dLQLEP_wPrior'] for d in envs]),
+                'barrier':sum([d['barrier'      ] for d in envs]) }
     params = extract( inputs, ['u'])
-    args   = extract( inputs, ['STAs','STCs','V2','V1','N','N_spikes','T'])
+    args   = extract( inputs, ['STAs','STCs','V2','V1','N_spikes','T'])
     print 'Compiling Objective_u...'
     sys.stdout.flush()
-    return kolia_theano.Objective( params, {'u': u }, args, outputs, 
-                                   differentiate=['f'], mode='FAST_RUN' )
+    return kolia_theano.Objective(params, {'u':u}, args, outputs, mode='FAST_RUN')
 obj_u   = objective_u()
 
 iterations = [0]
