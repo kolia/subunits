@@ -19,6 +19,7 @@ reload(QuadPoiss)
 from   QuadPoiss import LQLEP_wBarrier, LQLEP, thetaM, UV12_input, UVi, \
                         linear_reparameterization
 
+from IPython.Debugger import Tracer; debug_here = Tracer()
 
 # Memoizing results using joblib;  makes life easier
 from joblib import Memory
@@ -100,38 +101,55 @@ def extract(d, keys):
 
 import sys
 import copy
+import time
 
 def single_objective_u():
-    arg    = ['u','STA','STC','V2','v1','N_spike','T']
-    result = ['LQLEP_wPrior','dLQLEP_wPrior','barrier']
-    env    = LQLEP_wBarrier( **LQLEP( **thetaM( **linear_reparameterization())))
-    env['dLQLEP_wPrior'] = th.grad(cost = env['LQLEP_wPrior'],
-                                   wrt  = env['u'],
-                                   consider_constant = extract( env, arg[1:]))
+    arg     = ['u','STA','STC','V2','v1','N_spike','T']
+    result  = ['LQLEP_wPrior','dLQLEP_wPrior','barrier']
+    vardict = LQLEP_wBarrier( **LQLEP( **thetaM( **linear_reparameterization())))
+    vardict['dLQLEP_wPrior'] = th.grad(cost = vardict['LQLEP_wPrior'],
+                                       wrt  = vardict['u'],
+                                       consider_constant = extract( vardict, arg[1:]))
     print 'Simplifying single objective_u...'
     sys.stdout.flush()
-    env, outputs = kolia_theano.simplify( extract(env,arg), extract(env,result) )
-    env.update(outputs)
-    print 'done simplifying single objective_u.'
-    return env
-env = single_objective_u()
+    t0 = time.time()
+    inputs, outputs = kolia_theano.simplify( extract(vardict,arg), extract(vardict,result) )
+    t1 = time.time()
+    print 'done simplifying single objective_u in ', t1-t0, ' sec.'
+    sys.stdout.flush()
+    return inputs, outputs
 
-@memory.cache
+#@memory.cache
 def objective_u( u=init_u ):
-    env = single_objective_u()
-    inputs = UV12_input( u=th.dvector('u') )
-    envs = [copy.deepcopy(env) for _ in range(NRGC)]
-    for i in range(NRGC):
-        for name,owner in UVi(i,**inputs).items():            
-            kolia_theano.reown( envs[i][name] , owner )
+    single_in, single_out  = single_objective_u()
+    inputs = UV12_input()
+#    common_inputs =  extract( linear_reparameterization(), ['u','T'])
+    common_inputs =  extract( linear_reparameterization(V2=single_in['V2']), ['u','T','V2'])
+    all_inputs = inputs
+    all_inputs.update(common_inputs)
+    def make_env_i(i):
+        in_i, out_i = copy.deepcopy( (single_in, single_out) )
+        all_inputs.update( in_i )
+        env_i = kolia_theano.make_env( all_inputs, out_i )
+        all_inputs.update( UVi(i,**inputs).items() + common_inputs.items() )
+        env_i = kolia_theano.reconnect_env( all_inputs, env_i )
+        out_i.update( kolia_theano.list2dict( env_i.inputs ,  all_inputs ) )
+        env_i.disown()
+        return out_i
+    envs = [make_env_i(i) for i in range(NRGC)]
     outputs = { 'f'      :sum([d[ 'LQLEP_wPrior'] for d in envs]),
                 'df'     :sum([d['dLQLEP_wPrior'] for d in envs]),
                 'barrier':sum([d['barrier'      ] for d in envs]) }
-    params = extract( inputs, ['u'])
-    args   = extract( inputs, ['STAs','STCs','V2','V1','N_spikes','T'])
+    params = extract( all_inputs, ['u'])
+    args   = extract( all_inputs, ['STAs','STCs','V2','V1','N_spikes','T'])
     print 'Compiling Objective_u...'
     sys.stdout.flush()
-    return kolia_theano.Objective(params, {'u':u}, args, outputs, mode='FAST_RUN')
+    t0 = time.time()
+    result = kolia_theano.Objective(params, {'u':u}, args, outputs, mode='FAST_RUN')
+    t1 = time.time()
+    print 'done compiling Objective_u in ', t1-t0, ' sec.'
+    sys.stdout.flush()
+    return result
 obj_u   = objective_u()
 
 iterations = [0]

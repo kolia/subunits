@@ -66,24 +66,43 @@ def shapely_tensor( name , x , dtype='float64'):
         return Th.specify_shape(dtensor_x(name),x.shape)
     raise TypeError('shapely_tensor expects a scalar or numpy ndarray')
 
+def _dict2list( X ):
+    if type(X) is type({}):
+        return [x for _,x in sorted( X.items())]
+    return X
+
+def list2dict( _list, template ):
+    if type(template) is type({}):
+        return dict(zip(sorted( template.keys()), _list))
+    return _list
+
 def simplify( inputs , outputs ):
-    if type(inputs) is type({}):
-        input_list  = [x for _,x in sorted( inputs.items())]
-        output_list = [x for _,x in sorted(outputs.items())]
-        input_list , output_list = _simplify( input_list, output_list )
-        inputs  = dict(zip(sorted( inputs.keys()), input_list))
-        outputs = dict(zip(sorted(outputs.keys()),output_list))
-    else:
-        inputs , outputs = _simplify( inputs , outputs )
-    return inputs, outputs
+    input_list, output_list = _simplify( _dict2list(inputs), _dict2list(outputs) )
+    return list2dict( input_list, inputs), list2dict( output_list, outputs)
 
 def _simplify( inputs , outputs ):
-    f           = function( inputs , outputs )
-    new_inputs  = f.maker.env.inputs
-    for ni,i in zip(new_inputs, inputs):
-        reown(ni,i)
-    return new_inputs , f.maker.env.outputs
-    
+    env = simplified_env( inputs, outputs )
+    new_outputs = env.outputs
+    env.disown()
+    return inputs , new_outputs
+
+def simplified_env( inputs, outputs ):
+    return reconnect_env( inputs,  
+                function( _dict2list(inputs), _dict2list(outputs) ).maker.env)
+
+from theano.gof.env import Env
+def make_env( inputs, outputs ):
+    return Env( _dict2list(inputs), _dict2list(outputs) )
+
+def reconnect_env( inputs, env ):
+    old_inputs  = env.inputs
+    inputs = _dict2list(inputs)
+    env.inputs = inputs
+    for ni,i in zip(old_inputs, inputs ):
+        if ni is not i:
+            env.replace(ni,i)
+    return env
+
 class Params( object ):
     def __init__(self, example=None):
         self.Example_Params = example
@@ -143,7 +162,8 @@ class Objective( Params ):
         # Have theano compile actual objective functions
         self.functions = {}
         for name, output in self.outputs.items():
-            self.functions[name] = function([self.flatParam]+self.ArgList,output,mode=mode)
+            self.functions[name] = function([self.flatParam]+self.ArgList,
+                                             output,mode=mode,accept_inplace=True)
 
     def where(self,**args):
         t = copy.copy(self) #object()   # replace with deepcopy of self?

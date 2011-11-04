@@ -5,11 +5,12 @@ SYMBOLIC representations (using theano) of desired quantities
 
 @author: kolia
 """
+
 import theano.tensor  as Th
 from theano.sandbox.linalg import matrix_inverse, det
 from kolia_theano import eig, logdet
 
-#from IPython.Debugger import Tracer; debug_here = Tracer()
+from IPython.Debugger import Tracer; debug_here = Tracer()
 
 def named( **variables ):
     if variables.has_key('other')  :  del variables['other']
