@@ -174,3 +174,18 @@ def reparameterize(funcs,reparam,reducer=lambda r,x: r+x, zero=0. ):
                      for name,f in funcs.items() )
     else:
         return __reparameterize(funcs,reparam)
+
+#def _sum_objectives( functions ):
+#    def summed( x ): return numpy.sum([f(x) for f in functions])
+#    return summed
+
+class Sum_objectives( object ):
+    def __init__( objectives, attributes=['f'] ):
+        self.objectives = objectives
+        self.attributes = attributes
+        for fname in attributes:
+            def summed( x ): 
+                return numpy.sum([f(x) for f in 
+                                       [getattr(o,fname) for o in objectives]])
+            setattr(self,fname,summed)
+            setattr(getattr(self,fname),'__name__',fname)

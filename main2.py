@@ -100,7 +100,6 @@ def extract(d, keys):
     return dict((k, d[k]) for k in keys if k in d)
 
 import sys
-import copy
 import time
 
 def single_objective_u():
@@ -118,39 +117,7 @@ def single_objective_u():
     print 'done simplifying single objective_u in ', t1-t0, ' sec.'
     sys.stdout.flush()
     return inputs, outputs
-
-#@memory.cache
-def objective_u( u=init_u ):
-    single_in, single_out  = single_objective_u()
-    inputs = UV12_input()
-#    common_inputs =  extract( linear_reparameterization(), ['u','T'])
-    common_inputs =  extract( linear_reparameterization(V2=single_in['V2']), ['u','T','V2'])
-    all_inputs = inputs
-    all_inputs.update(common_inputs)
-    def make_env_i(i):
-        in_i, out_i = copy.deepcopy( (single_in, single_out) )
-        all_inputs.update( in_i )
-        env_i = kolia_theano.make_env( all_inputs, out_i )
-        all_inputs.update( UVi(i,**inputs).items() + common_inputs.items() )
-        env_i = kolia_theano.reconnect_env( all_inputs, env_i )
-        out_i.update( kolia_theano.list2dict( env_i.inputs ,  all_inputs ) )
-        env_i.disown()
-        return out_i
-    envs = [make_env_i(i) for i in range(NRGC)]
-    outputs = { 'f'      :sum([d[ 'LQLEP_wPrior'] for d in envs]),
-                'df'     :sum([d['dLQLEP_wPrior'] for d in envs]),
-                'barrier':sum([d['barrier'      ] for d in envs]) }
-    params = extract( all_inputs, ['u'])
-    args   = extract( all_inputs, ['STAs','STCs','V2','V1','N_spikes','T'])
-    print 'Compiling Objective_u...'
-    sys.stdout.flush()
-    t0 = time.time()
-    result = kolia_theano.Objective(params, {'u':u}, args, outputs, mode='FAST_RUN')
-    t1 = time.time()
-    print 'done compiling Objective_u in ', t1-t0, ' sec.'
-    sys.stdout.flush()
-    return result
-obj_u   = objective_u()
+single_objective = single_objective_u()
 
 iterations = [0]
 def callback( objective , params ):
@@ -168,16 +135,20 @@ def callback( objective , params ):
 
 iterations[0] = iterations[0] + 1
 
-def objU_data( run , v1 , v2 , T ):
-   data = {'STAs':numpy.vstack(run['sparse_STA']) ,
-           'STCs':numpy.vstack([stc[numpy.newaxis,:] for stc in run['sparse_STC']]), 
-           'V2':v2 , 'V1': v1 , 'N':NRGC , 'N_spikes':run['N_spikes'] , 'T': T}
-   return obj_u.where(**data).with_callback(callback)
+def objU_data( run , v1 , v2 , T , i ):
+   data = { 'STA':run['sparse_STA'][i], 'STC':run['sparse_STC'][i], 
+            'V2':v2 , 'V1': v1[i] , 'N_spike':run['N_spikes'][i] , 'T': T}
+   return single_objective.where(**data).with_callback(callback)
+
 
 @memory.cache
 def optimize_u( v1, init_u, v2 , T, gtol=1e-7 , maxiter=500):
-   optimizer = optimize.optimizer( objU_data( ustats[rgc_type] , v1 , v2 , T ) )
-   # debug_here()
-   params = optimizer(init_params={'u': init_u },maxiter=maxiter,gtol=gtol)
-   opt_u = obj_u.unflat(params)
-   return opt_u['u']
+    objective = kb.Sum_objective( [objU_data( ustats[rgc_type] , v1 , v2 , T , i )
+                                   for i in range(NRGC)] )
+    optimizer = optimize.optimizer( objective )
+    # debug_here()
+    params = optimizer(init_params={'u': init_u },maxiter=maxiter,gtol=gtol)
+    opt_u = single_objective.unflat(params)
+    return opt_u['u']
+
+optimize_u( v1, init_u, v2 , T, gtol=1e-7 , maxiter=500)
