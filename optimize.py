@@ -74,7 +74,7 @@ def backtrack(xk,pk,barrier):
         
     """
     # initial phase: find a point on other side of barrier by *1.5
-    a  = 1000.
+    a  = 0.001
     while True:
         if a>5000.:
             return 5000.
@@ -266,7 +266,9 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
 #            gfkp1   = myfprime(xk + amax*pk)
 #        else:
 #            alpha_k = minimum(alpha_k,amax)
-
+            
+            print
+            
             if alpha_k is not None:
                 bval = barr(xk + alpha_k*pk)
             else:
@@ -284,6 +286,10 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
 #        if alpha_k is not None:
 #            old_fval= f(xk + alpha_k*pk) 
 #            gfkp1   = myfprime(xk + alpha_k*pk)
+        
+        if alpha_k is None:
+            old_fval = f(xk)
+            break
         
         old_old_fval = old_fval
         old_fval = old_fval2

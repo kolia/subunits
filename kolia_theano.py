@@ -168,8 +168,8 @@ class Objective( Params ):
     def where(self,**args):
         t = copy.copy(self) #object()   # replace with deepcopy of self?
         t.ArgValues = [args[n] for n in sorted(self.Args.keys())]
-        print 'Objective.where: the following arguments have been fixed:'
-        print [(n,args[n].shape) for n in sorted(self.Args.keys())]
+#        print 'Objective.where: the following arguments have been fixed:'
+#        print [(n,args[n].shape) for n in sorted(self.Args.keys())]
         def package(some_function):
             def packaged_function(params): return some_function(kb.flat(params),*t.ArgValues)
             return packaged_function

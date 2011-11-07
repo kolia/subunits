@@ -9,6 +9,10 @@ import numpy
 #from numpy.linalg import pinv
 import numpy.random   as R
 
+# Memoizing results using joblib;  makes life easier
+from joblib import Memory
+memory = Memory(cachedir='/Users/kolia/Documents/joblibcache', verbose=0)
+
 #from IPython.Debugger import Tracer; debug_here = Tracer()
 
 def ring_weights(shape=(10,10), sigma=1., offset_in=0., offset_out=0.):
@@ -29,11 +33,11 @@ def LNLEP_ring_model(
 
 def place_cells( centers_in , centers_out , shapes ):
     r = numpy.zeros((len(centers_out),len(centers_in),len(shapes)))
-    for i in numpy.arange(r.shape[0]):
-        for j in numpy.arange(r.shape[1]):
-            for k in numpy.arange(r.shape[2]):
-                r[i,j,k] = shapes[k](centers_out[i][0]-centers_in[j][0], 
-                                     centers_out[i][1]-centers_in[j][1])
+    dx = numpy.array([[co[0]-ci[0] for co in centers_out] for ci in centers_in])
+    dy = numpy.array([[co[1]-ci[1] for co in centers_out] for ci in centers_in])
+#    dy = centers_out[i][1]-centers_in[j][1]
+    for k in numpy.arange(r.shape[2]):
+        r[:,:,k] = shapes[k](dx,dy).T
     return r
 #    return numpy.fromfunction( (lambda i,j,k: 
 #        shapes[k](centers_out[i][0]-centers_in[j][0], 
@@ -53,6 +57,7 @@ def hexagonal_2Dgrid( spacing=1. , field_size_x=10. , field_size_y=10. ):
                 [[(x,y) for x in x1] + [(x,y+d/2.) for x in x2] \
                 for y in numpy.arange(spacing/2., field_size_y, d)]))
 
+@memory.cache
 def gaussian2D_weights( centers_in , centers_out , sigma=1. ):
     def make_filter( x, y, sigma , centers_in ):
         f = numpy.array( [numpy.exp(-0.5*((i-x)**2.+(j-y)**2.)/sigma**2.) 
