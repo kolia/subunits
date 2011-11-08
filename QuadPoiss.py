@@ -42,14 +42,14 @@ def LQLEP( theta   = Th.dvector()  , M    = Th.dmatrix() ,
     other.update(locals())
     return named( **other )
 
-def LQLEP_wBarrier( LQLEP    = Th.dscalar(), ldet = Th.dscalar(), 
+def LQLEP_wBarrier( LQLEP    = Th.dscalar(), ldet = Th.dscalar(), V2 = Th.dvector(), 
                     N_spike  = Th.dscalar(), ImM  = Th.dmatrix(),  **other):
     '''
     The actual Linear-Quadratic-Exponential-Poisson log-likelihood, 
     as a function of theta and M, 
     with a barrier on the log-det term and a prior.
     '''
-    LQLEP_wPrior = LQLEP + 0.5 * N_spike * 1./(ldet+250.)**2.
+    LQLEP_wPrior = LQLEP + 0.5 * N_spike * 1./(ldet+250.)**2. + Th.sum( V2**2 )
     eigsImM,barrier = eig( ImM )
     barrier   = 1-(Th.sum(Th.log(eigsImM))>-250)*(Th.min(eigsImM)>0)
     other.update(locals())
@@ -95,5 +95,16 @@ def UVi(i , V1   = Th.dmatrix() , STAs = Th.dmatrix(), STCs = Th.dtensor3(),
 
 def linear_reparameterization( T  = Th.dtensor3() , u  = Th.dvector() , **other ):
     U = Th.sum( T*u , axis=2 )    # U = Th.tensordot(T,u,axes=0)
+    other.update(locals())
+    return named( **other )
+
+def quadratic_V2_parameterization( T  = Th.dtensor3() , V2 = Th.dvector() ,
+#                                   u  = Th.dvector() ,  
+                                   b  = Th.dvector()  , ub = Th.dvector()  ,
+                                   c  = Th.dvector() ,  uc = Th.dvector()  , **other ):
+#    Ub = Th.sum( T*ub , axis=2 )
+#    Uc = Th.sum( T*uc , axis=2 )
+    U  = ( Th.sum( T*ub , axis=2 ).T * b ).T  \
+       + ( Th.sum( T*uc , axis=2 ).T * c ).T #+ Th.sum( T*u  , axis=2 )
     other.update(locals())
     return named( **other )

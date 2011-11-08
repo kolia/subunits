@@ -22,7 +22,7 @@ from retina import place_cells
 import QuadPoiss
 reload(QuadPoiss)
 from   QuadPoiss import LQLEP_wBarrier, LQLEP, thetaM, \
-                        linear_reparameterization
+                 linear_reparameterization, quadratic_V2_parameterization
 
 # Memoizing results using joblib;  makes life easier
 from joblib import Memory
@@ -95,7 +95,7 @@ def fit_U_stats( rgc_type='off midget', keep=15, stats=stats ):
     return stats, sparse_index
 
 
-rgc_type = 'off midget'
+rgc_type = 'off parasol'
 keep = {'off midget' :  20, 'on midget' :  20, 
         'off parasol': 100, 'on parasol': 100}
 
@@ -133,18 +133,6 @@ def radial_piecewise_linear( nodes=[] , values=[] , default=0.):
 #                   (nodes[first]-nodes[first-1])
 #        else: return default
     return f
-    
-nodes = numpy.array([0., 2.5, 5., 10., 20., 40.])
-#nodes = numpy.array([0., 2.3, 2.8, 3.3, 4., 5., 6., 7.5, 10., 14., 20., 40.])
-#nodes = numpy.array([0., 3., 4., 5., 5.5, 6., 6.5, 7., 7.5, 8.5, 10., 12., 14., 20., 30., 50.])
-#nodes = numpy.array([0., 3.2, 4.5, 5.5, 6.3, 6.9, 7.5, 8.3, 9., 10., 11., 12., 13., 14., 15., 20., 25., 35.])
-
-value_matrix = numpy.eye(len(nodes))
-shapes = [ radial_piecewise_linear(nodes,values) for values in value_matrix]
-
-init_u = numpy.exp(-0.5*(nodes**2))
-#init_u = numpy.ones(nodes.shape)
-init_u = init_u/numpy.sqrt(numpy.sum(init_u**2.)) * 0.05
 
 import sys
 sys.setrecursionlimit(10000)
@@ -205,48 +193,85 @@ inferred_locations = [possible_subunits[i] for i in numpy.nonzero(keepers)[0]]
 
 import time
 
-@memory.cache
-def single_objective_u( u=init_u):
-    arg     = ['u','STA','STC','V2','v1','N_spike','T']
-    vardict = LQLEP_wBarrier( **LQLEP( **thetaM( **linear_reparameterization())))
-    print 'Simplifying single objective_u...'
-    sys.stdout.flush()
-    t0 = time.time()
-    params = extract(vardict,arg[0 ])
-    args   = extract(vardict,arg[1:])
-    outputs = { 'f':vardict['LQLEP'], 'barrier':vardict['barrier'] }
-    obj = kolia_theano.Objective( params, {'u': u }, args, outputs, 
-                                  differentiate=['f'], mode='FAST_RUN' )
-    t1 = time.time()
-    print 'done simplifying single objective_u in ', t1-t0, ' sec.'
-    sys.stdout.flush()
-    return obj
-single_objective = single_objective_u()
-
 iterations = [0]
 def callback( objective , params ):
 #    fval = objective.f(params)
+    result = objective.unflat(params)
     print ' Iter:', iterations[0]
-    for p in params: print '%.2f' %p,
-    if numpy.remainder( iterations[0] , 3 ) == 0:
-        result = objective.unflat(params)
-        if result.has_key('u'):
-            pylab.clf()
-            pylab.close('all')
-            pylab.figure(1, figsize=(10,12))
-            pylab.plot(nodes,result['u'])
-            pylab.title('u: '+', '.join([('%.2f'%x) for x in result['u']]))
-            pylab.xlabel('nodes: '+', '.join([('%.1f'%x) for x in nodes]))
-#            p.savefig('/Users/kolia/Desktop/u.svg',format='svg')
-            pylab.savefig('/Users/kolia/Desktop/u_%s.pdf'%rgc_type,format='pdf')
+    for name,x in result.items():
+        if x.size>10:
+            print name, 'min mean max: ',
+            print numpy.min(x), numpy.mean(x), numpy.max(x)            
+        else:
+            print name, ': ',
+            for p in x: print '%.2f' %p,
+            print
+    if numpy.remainder( iterations[0] , 5 ) == 0:
+        pylab.clf()
+        pylab.close('all')
+        pylab.figure(1, figsize=(10,12))
+        filename = '_'.join(sorted(result.keys()))+'_'+rgc_type
+        save(result,filename)
+        N = len(result.keys())
+        i = 1
+        for name,x in result.items():
+            pylab.subplot(N,1,i)
+            if x.size is nodes.size:
+                pylab.plot(nodes,x)
+                pylab.title(name+': '+', '.join([('%.2f'%y) for y in x]))
+                pylab.xlabel('nodes: '+', '.join([('%.1f'%y) for y in nodes]))
+            else:
+                pylab.subplot(N,1,i)
+                pylab.hist(x, bins=30)
+            i += 1
+        pylab.savefig('/Users/kolia/Desktop/%s.pdf'%filename, format='pdf')
+#        p.savefig('/Users/kolia/Desktop/u.svg',format='svg')
     iterations[0] = iterations[0] + 1
 
-def objective_u( run , v1 , v2 , T , index ):
+def single_objective( param_templates ):
+    arg     = set(['u','V2','STA','STC','v1','N_spike','T'])
+    vardict = LQLEP_wBarrier( **LQLEP( **thetaM( **linear_reparameterization())))
+    print 'Simplifying single objective...'
+    sys.stdout.flush()
+    t0 = time.time()
+    params = extract(vardict,param_templates.keys())
+    args   = extract(vardict,arg-set(param_templates.keys()))
+    outputs = { 'f':vardict['LQLEP'], 'barrier':vardict['barrier'] }
+    obj = kolia_theano.Objective( params, param_templates, args, outputs,
+                                  differentiate=['f'], mode='FAST_RUN' )
+    t1 = time.time()
+    print 'done simplifying single objective for', param_templates.keys(),
+    print 'in ', t1-t0, ' sec.'
+    sys.stdout.flush()
+    return obj
+
+def single_obj_uabc( param_templates ):
+    arg     = set(['ub','b','uc','c','V2','STA','STC','v1','N_spike','T'])
+    vardict = LQLEP_wBarrier( **LQLEP( **thetaM( **quadratic_V2_parameterization())))
+    print 'Simplifying single objective...'
+    sys.stdout.flush()
+    t0 = time.time()
+    params = extract(vardict,param_templates.keys())
+    args   = extract(vardict,arg-set(param_templates.keys()))
+    outputs = { 'f':vardict['LQLEP_wPrior'], 'barrier':vardict['barrier'] }
+    obj = kolia_theano.Objective( params, param_templates, args, outputs,
+                                  differentiate=['f'], mode='FAST_RUN' )
+    t1 = time.time()
+    print 'done simplifying single objective for', param_templates.keys(),
+    print 'in ', t1-t0, ' sec.'
+    sys.stdout.flush()
+    return obj
+
+
+def objective( single_obj, run , knowns, v1 , T , index ):
     def objective_RGC_i( i ):
         data = { 'STA':run['sparse_STA'][i], 'STC':run['sparse_STC'][i], 
-                 'V2':v2 , 'v1': v1[i] , 'N_spike':float(run['N_spikes'][i]) , 
+                 'v1': v1[i] , 'N_spike':float(run['N_spikes'][i]) , 
                  'T': T[:,index[i],:]}
-        return single_objective.where(**data)
+        data.update(knowns)
+        print '.',
+        sys.stdout.flush()
+        return single_obj.where(**data)
     objective = objective_RGC_i(0).with_callback(callback)
     sum_obj   = kb.Sum_objectives( [ objective_RGC_i(i) for i in range(NRGC)] , 
                                 attributes=['f','df','barrier'])
@@ -256,18 +281,63 @@ def objective_u( run , v1 , v2 , T , index ):
     return objective
 
 #@memory.cache
-def optimize_u( objective, init_u, gtol=1e-7 , maxiter=500):
-    optimizer = optimize.optimizer( objective )
-    params = optimizer(init_params={'u': init_u },maxiter=maxiter,gtol=gtol)
-    opt_u = single_objective.unflat(params)
-    return opt_u['u']
+def optimize_objective( single_obj, obj, init, gtol=1e-7 , maxiter=500 ):
+    optimizer = optimize.optimizer( obj )
+    params = optimizer( init_params=init, maxiter=maxiter, gtol=gtol )
+    return single_obj.unflat( params )
 
-print 'Starting fit of u...'
-sys.stdout.flush()
 
-V2 = 0.5*numpy.ones(len(inferred_locations))
+nodes = numpy.array([0., 2., 3.5, 5., 10., 20., 40., 80., 150.])
+#nodes = numpy.array([0., 2.3, 2.8, 3.3, 4., 5., 6., 7.5, 10., 14., 20., 40.])
+#nodes = numpy.array([0., 3., 4., 5., 5.5, 6., 6.5, 7., 7.5, 8.5, 10., 12., 14., 20., 30., 50.])
+#nodes = numpy.array([0., 3.2, 4.5, 5.5, 6.3, 6.9, 7.5, 8.3, 9., 10., 11., 12., 13., 14., 15., 20., 25., 35.])
+
+value_matrix = numpy.eye(len(nodes))
+shapes = [ radial_piecewise_linear(nodes,values) for values in value_matrix]
+
+#init_u = numpy.array([3.05, 2.12, -2.14, 0.45, 0.56, -0.01, -0.18])
+init_u = numpy.array([2.58, -0.7, -0.3, -0.2, 0.09, -0.03, 0., 0., 0.])
+#init_u = numpy.exp(-0.5*(nodes**2))
+##init_u = numpy.ones(nodes.shape)
+#init_u = init_u/numpy.sqrt(numpy.sum(init_u**2.)) * 0.05
+
+init_V2 = 0.5*numpy.ones(len(inferred_locations))
+
 T  = place_cells( cones , inferred_locations , shapes )
-objective = objective_u( ustats[rgc_type] , V1 , V2  , T , sparse_index )
-del T
 
-opt_u  = optimize_u( objective, init_u, gtol=1e-5 , maxiter=50)
+import copy
+@memory.cache
+def ML( params, unknowns, objective_name=None, gtol=1e-7 , maxiter=150 ):
+    print
+    print 'FITTING ', unknowns
+    sys.stdout.flush()
+    knowns = copy.copy(params)
+    for uk in unknowns: del knowns[uk]
+    unknowns = extract(params,unknowns)
+    if objective_name is 'ub':
+        single_obj = single_obj_uabc( unknowns )
+    else:
+        single_obj = single_objective( unknowns )
+    global_obj = objective( single_obj, ustats[rgc_type] , knowns , 
+                            V1  , T , sparse_index )
+    return optimize_objective( single_obj, global_obj, unknowns, 
+                               gtol=gtol , maxiter=maxiter)
+
+#params = {'u':init_u, 'ub':0.*init_u, 'V2':init_V2}
+#params.update(ML(params, ['u','ub','V2'], 'ub'))
+#params.update(ML(params, ['V2'], 'uabc', gtol=1e-7 , maxiter=30))
+#for i in range(2):
+#    params.update(ML(params, ['ua','ub'] , 'uabc', gtol=1e-7 , maxiter=9))
+#    params.update(ML(params, ['V2'], 'uabc', gtol=1e-7 , maxiter=30))
+#params.update(ML(params, ['ua','ub','V2'], 'uabc'))
+
+params = {#'u':init_u, 
+          'ub': init_u, 'b':numpy.ones_like(init_V2), 
+          'uc':-0.01*init_u, 'c':numpy.ones_like(init_V2), 
+          'V2':init_V2}
+params.update(ML(params, ['ub','b','uc','c'],'ub'))
+#params.update(ML(params, ['u'] , gtol=1e-1 , maxiter=9))
+#params.update(ML(params, ['V2'], gtol=1e-1 , maxiter=30))
+#params.update(ML(params, ['u'] , gtol=1e-1 , maxiter=8))
+#params.update(ML(params, ['V2'], gtol=1e-1 , maxiter=30))
+#params.update(ML(params, ['u'], gtol=1e-1 , maxiter=8))

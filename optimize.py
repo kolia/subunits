@@ -58,7 +58,7 @@ def optimizer( objective , f='f' , df='df', barrier='barrier', maxiter=500,
 #        return Opt.fmin_bfgs(self.f,params,fprime=self.df,
 #                             gtol=1.1e-6,maxiter=10000,args=data,callback=cb)
 
-
+init_a = [0.001]
 def backtrack(xk,pk,barrier):
     if barrier is None: return 500
     """Find large(st) alpha such that barrier(xk+alpha*pk) is 0.
@@ -74,9 +74,10 @@ def backtrack(xk,pk,barrier):
         
     """
     # initial phase: find a point on other side of barrier by *1.5
-    a  = 0.001
+    a  = init_a[0]
     while True:
         if a>5000.:
+            init_a[0] = 3500.
             return 5000.
         if barrier(xk + a*pk): break
         a = a * 1.5
@@ -91,6 +92,7 @@ def backtrack(xk,pk,barrier):
             left  = (right+left)/2.
         if left>0 or right<1e-300: break
 #    print 'amax : ', left
+    init_a[0] = left
     return left
 
 
