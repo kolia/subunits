@@ -17,18 +17,17 @@ reload(kolia_theano)
 
 import retina
 reload(retina)
-from retina import place_cells
 
 import QuadPoiss
 reload(QuadPoiss)
 from   QuadPoiss import LQLEP_wBarrier, LQLEP, thetaM, \
-                 linear_reparameterization, quadratic_V2_parameterization
+                 linear_reparameterization
 
 # Memoizing results using joblib;  makes life easier
 from joblib import Memory
 memory = Memory(cachedir='/Users/kolia/Documents/joblibcache', verbose=0)
 
-from IPython.Debugger import Tracer; debug_here = Tracer()
+# from IPython.Debugger import Tracer; debug_here = Tracer()
 
 data = retina.read_data()
 
@@ -50,16 +49,33 @@ from kolia_base import save
 save(data,'data_localization')
 
 
+from scipy.linalg   import schur
+import sys
+sys.setrecursionlimit(10000)
+
 @memory.cache
 def localization( filters ):
-    return retina.accumulate_statistics( 
+    stats = retina.accumulate_statistics( 
         data_generator = 
             retina.read_stimulus( data['spikes'],
-                                 stimulus_pattern='cone_input_%d.mat' ) ,
+                                 stimulus_pattern='cone_input_%d.mat' ,
+                                 skip_pattern=(5,0) ) ,
         feature= lambda x : numpy.dot(filters,x))
+    stats['dSTA']  = numpy.concatenate(
+        [STA[:,numpy.newaxis]-stats['mean'][:,numpy.newaxis] 
+         for STA in stats['STA']], axis=1)
+    print 'calculated dSTA'
+    sys.stdout.flush()
+    stats['D'], stats['Z'] = schur(stats['cov'])
+    del stats['cov']
+    return stats
+
+
 
 #data['spikes'] = data['spikes'][:2,:]
 stats = localization( filters )
+
+del filters
 
 import pylab
 def hista(i , data=data, stats=stats, N=2):
@@ -80,15 +96,22 @@ def n_largest( values , keep=10 ):
     return numpy.nonzero( numpy.abs(values) >= cutoff )[0]
     
 @memory.cache
-def fit_U_stats( rgc_type='off midget', keep=15, stats=stats ):
+def fit_U_stats( rgc_type='off midget', keep=15, stats=stats, skip_pattern=None ):
     which_rgc = [i for i,ind in enumerate(data['rgc_ids'])
                    if  ind   in data['rgc_types'][rgc_type]]
-    spikes = data['spikes'][which_rgc,:]
-    sparse_index = [n_largest( sta, keep=keep ) for sta in stats['STA']]
+    # Used to subtract mean and normalize by covariance
+#    normalizer   = (stats['mean'],numpy.dot(stats['Z'],
+#                                  numpy.dot(stats['D']**(-0.5),stats['Z'].T)))
+    spikes       = data['spikes'][which_rgc,:]
+    stats['cov'] = numpy.dot( stats['Z'],numpy.dot(stats['D'],stats['Z'].T) )
+    diagcov      = numpy.diag( stats['cov'] )
+    sparse_index = [n_largest( sta/diagcov, keep=keep ) for sta in stats['STA']]
     stats['rgc_type']  = rgc_type
     stats['rgc_index'] = which_rgc
     stats.update( retina.accumulate_statistics( 
-        data_generator = retina.read_stimulus( spikes ) ,
+        data_generator = retina.read_stimulus( spikes , 
+#                                               normalizer=normalizer,
+                                               skip_pattern=skip_pattern) ,
         feature        = lambda x : x                   ,
         pipelines      = retina.fit_U                    ,
         sparse_index   = sparse_index                   ))
@@ -99,11 +122,10 @@ rgc_type = 'off parasol'
 keep = {'off midget' :  20, 'on midget' :  20, 
         'off parasol': 100, 'on parasol': 100}
 
-ustats = {}
-ustats[rgc_type], sparse_index = \
-     fit_U_stats( rgc_type=rgc_type, keep=keep[rgc_type] )
-NRGC = len( ustats[rgc_type]['rgc_index'] )
-
+train_stats = {}
+train_stats[rgc_type], sparse_index = \
+     fit_U_stats( rgc_type=rgc_type, keep=keep[rgc_type], skip_pattern=(5,0) )
+NRGC = len( train_stats[rgc_type]['rgc_index'] )
 
 #def index( sequence = [] , f = lambda _: True ):
 #    """Return the index of the first item in seq where f(item) == True."""
@@ -134,53 +156,36 @@ def radial_piecewise_linear( nodes=[] , values=[] , default=0.):
 #        else: return default
     return f
 
-import sys
-sys.setrecursionlimit(10000)
-
 from kolia_base import save
-save(ustats,'ustats_0')
+save(train_stats,'ustats_0')
 
 def extract(d, keys):
     return dict((k, d[k]) for k in keys if k in d)
 
-dSTA  = numpy.concatenate(
-        [STA[:,numpy.newaxis]-stats['mean'][:,numpy.newaxis] 
-         for STA in stats['STA']], axis=1)
 
-print 'calculated dSTA'
-sys.stdout.flush()
-
-Cin = stats['cov']/2
-
-del stats, fit_U_stats, localization
-
-print 'calculated Cin'
-sys.stdout.flush()
-
-from scipy.linalg   import schur
 @memory.cache
-def ARD( dSTA , Cin , lam=0.0001 ):
-    print 'Starting ARD of size ', Cin.shape,' with lambda=',lam
+def ARD( stats , lam=0.0001 ):
+    print 'Starting ARD of size ', stats['Z'].shape,' with lambda=',lam
     sys.stdout.flush()
-    D,Z = schur(Cin)
+    D,Z = stats['D']/2 , stats['Z']
     print 'Schur decomposition completed'
     sys.stdout.flush()
     DD  = numpy.diag(D)
     keep= DD>1e-10
     P   =  (Z[:,keep] * numpy.sqrt(DD[keep])).T
-    y   =  numpy.dot ( (Z[:,keep] * 1/numpy.sqrt(DD[keep])).T , dSTA ) / 2    
+    y   =  numpy.dot ( (Z[:,keep] * 1/numpy.sqrt(DD[keep])).T , stats['dSTA'] ) / 2
     iW = 1e-1
     for i in range(2):
         print 'Irlsing'
         sys.stdout.flush()
-        V, iW = IRLS.IRLS( y, P, x=0, disp_every=2, lam=lam, maxiter=3 , 
+        V, iW = IRLS.IRLS( y, P, x=0, disp_every=2, lam=lam, maxiter=2 , 
                            ftol=1e-5, nonzero=1e-1, iw=iW)
         save({'V':V,'iW':iW},'Localizing_lam%.0e'%lam)
     return V, iW
     
-V, iW = ARD( dSTA , Cin , lam=0.01 )
+V, iW = ARD( stats , lam=0.02 )
 
-del dSTA, Cin, ARD
+del stats, localization, ARD
 
 #print 'V'
 #kb.print_sparse_rows( V, precision=1e-1 )
@@ -229,14 +234,15 @@ def callback( objective , params ):
     iterations[0] = iterations[0] + 1
 
 def single_objective( param_templates ):
-    arg     = set(['u','V2','STA','STC','v1','N_spike','T'])
+    arg     = set(['u','V2','STA','STC','v1','N_spike','T','Cm1'])
     vardict = LQLEP_wBarrier( **LQLEP( **thetaM( **linear_reparameterization())))
     print 'Simplifying single objective...'
     sys.stdout.flush()
     t0 = time.time()
     params = extract(vardict,param_templates.keys())
     args   = extract(vardict,arg-set(param_templates.keys()))
-    outputs = { 'f':vardict['LQLEP'], 'barrier':vardict['barrier'] }
+    outputs = { 'f':vardict['LQLEP_wPrior'], 'LL':vardict['LQLEP'],
+                'barrier':vardict['barrier'] }
     obj = kolia_theano.Objective( params, param_templates, args, outputs,
                                   differentiate=['f'], mode='FAST_RUN' )
     t1 = time.time()
@@ -245,49 +251,43 @@ def single_objective( param_templates ):
     sys.stdout.flush()
     return obj
 
-def single_obj_uabc( param_templates ):
-    arg     = set(['ub','b','uc','c','V2','STA','STC','v1','N_spike','T'])
-    vardict = LQLEP_wBarrier( **LQLEP( **thetaM( **quadratic_V2_parameterization())))
-    print 'Simplifying single objective...'
-    sys.stdout.flush()
-    t0 = time.time()
-    params = extract(vardict,param_templates.keys())
-    args   = extract(vardict,arg-set(param_templates.keys()))
-    outputs = { 'f':vardict['LQLEP_wPrior'], 'barrier':vardict['barrier'] }
-    obj = kolia_theano.Objective( params, param_templates, args, outputs,
-                                  differentiate=['f'], mode='FAST_RUN' )
-    t1 = time.time()
-    print 'done simplifying single objective for', param_templates.keys(),
-    print 'in ', t1-t0, ' sec.'
-    sys.stdout.flush()
-    return obj
+from functools import partial
 
+def _sum_objectives( objectives, attribute, x ):
+    return sum([getattr(o,attribute)(x) for o in objectives])
 
-def objective( single_obj, run , knowns, v1 , T , index ):
+def _concat_objectives( objectives, attribute, x ):
+    return numpy.vstack([getattr(o,attribute)(x) for o in objectives])
+
+def objective( single_obj, run , knowns, v1 , T , C, index ):
     def objective_RGC_i( i ):
         data = { 'STA':run['sparse_STA'][i], 'STC':run['sparse_STC'][i], 
                  'v1': v1[i] , 'N_spike':float(run['N_spikes'][i]) , 
-                 'T': T[:,index[i],:]}
+                 'T': T[:,index[i],:], 
+#                 'Cm1': numpy.eye(len(index[i]))}
+     'Cm1': numpy.diag(numpy.diag(numpy.linalg.inv(C[numpy.ix_(index[i],index[i])])))}
+#        if knowns.has_key('V1'):
+#            
         data.update(knowns)
         print '.',
         sys.stdout.flush()
         return single_obj.where(**data)
     objective = objective_RGC_i(0).with_callback(callback)
-    sum_obj   = kb.Sum_objectives( [ objective_RGC_i(i) for i in range(NRGC)] , 
-                                attributes=['f','df','barrier'])
-    objective.f  = sum_obj.f
-    objective.df = sum_obj.df
-    objective.barrier = sum_obj.barrier
+    objectives = [ objective_RGC_i(i) for i in range(NRGC)]
+#    sum_obj   = kb.Sum_objectives( objectives , attributes=['f','df','barrier'])
+    for fname in ['f','df','barrier']:
+        setattr(objective,fname,partial(_sum_objectives, objectives, fname))
+        setattr(getattr(objective,fname),'__name__',fname)
     return objective
 
 #@memory.cache
-def optimize_objective( single_obj, obj, init, gtol=1e-7 , maxiter=500 ):
+def optimize_objective( obj, init, gtol=1e-7 , maxiter=500 ):
     optimizer = optimize.optimizer( obj )
     params = optimizer( init_params=init, maxiter=maxiter, gtol=gtol )
-    return single_obj.unflat( params )
+    return obj.unflat( params )
 
 
-nodes = numpy.array([0., 2., 3.5, 5., 10., 20., 40., 80., 150.])
+nodes = numpy.array([0., 2., 7., 12., 20., 40., 250.])
 #nodes = numpy.array([0., 2.3, 2.8, 3.3, 4., 5., 6., 7.5, 10., 14., 20., 40.])
 #nodes = numpy.array([0., 3., 4., 5., 5.5, 6., 6.5, 7., 7.5, 8.5, 10., 12., 14., 20., 30., 50.])
 #nodes = numpy.array([0., 3.2, 4.5, 5.5, 6.3, 6.9, 7.5, 8.3, 9., 10., 11., 12., 13., 14., 15., 20., 25., 35.])
@@ -296,32 +296,25 @@ value_matrix = numpy.eye(len(nodes))
 shapes = [ radial_piecewise_linear(nodes,values) for values in value_matrix]
 
 #init_u = numpy.array([3.05, 2.12, -2.14, 0.45, 0.56, -0.01, -0.18])
-init_u = numpy.array([2.58, -0.7, -0.3, -0.2, 0.09, -0.03, 0., 0., 0.])
+init_u = numpy.array([0.4, -0.2, 0., 0., 0., 0., 0])
 #init_u = numpy.exp(-0.5*(nodes**2))
 ##init_u = numpy.ones(nodes.shape)
 #init_u = init_u/numpy.sqrt(numpy.sum(init_u**2.)) * 0.05
 
-init_V2 = 0.5*numpy.ones(len(inferred_locations))
+init_V2 = 0.01*numpy.ones(len(inferred_locations))
 
-T  = place_cells( cones , inferred_locations , shapes )
+T  = retina.place_cells( cones , inferred_locations , shapes )
 
 import copy
-@memory.cache
-def ML( params, unknowns, objective_name=None, gtol=1e-7 , maxiter=150 ):
+def global_objective( params, unknowns, objective_name=None, gtol=1e-6 , maxiter=1000 ):
     print
     print 'FITTING ', unknowns
-    sys.stdout.flush()
     knowns = copy.copy(params)
     for uk in unknowns: del knowns[uk]
     unknowns = extract(params,unknowns)
-    if objective_name is 'ub':
-        single_obj = single_obj_uabc( unknowns )
-    else:
-        single_obj = single_objective( unknowns )
-    global_obj = objective( single_obj, ustats[rgc_type] , knowns , 
-                            V1  , T , sparse_index )
-    return optimize_objective( single_obj, global_obj, unknowns, 
-                               gtol=gtol , maxiter=maxiter)
+    single_obj = single_objective( unknowns )
+    return objective( single_obj, train_stats[rgc_type] , knowns , 
+                      V1  , T ,   train_stats[rgc_type]['cov'], sparse_index )
 
 #params = {'u':init_u, 'ub':0.*init_u, 'V2':init_V2}
 #params.update(ML(params, ['u','ub','V2'], 'ub'))
@@ -331,11 +324,19 @@ def ML( params, unknowns, objective_name=None, gtol=1e-7 , maxiter=150 ):
 #    params.update(ML(params, ['V2'], 'uabc', gtol=1e-7 , maxiter=30))
 #params.update(ML(params, ['ua','ub','V2'], 'uabc'))
 
-params = {#'u':init_u, 
-          'ub': init_u, 'b':numpy.ones_like(init_V2), 
-          'uc':-0.01*init_u, 'c':numpy.ones_like(init_V2), 
-          'V2':init_V2}
-params.update(ML(params, ['ub','b','uc','c'],'ub'))
+import gc
+gc.collect()
+
+params = {'u':init_u, 'V2':init_V2
+#            , 'b':0.01*init_V2, 'ub':numpy.zeros_like(init_u) 
+         }
+
+unknowns = ['u','V2']
+global_obj = global_objective( params, unknowns, 'ub' )
+params.update(optimize_objective( global_obj, extract(params,unknowns), 
+                                  gtol=1e-7 , maxiter=1000))
+                                  
+
 #params.update(ML(params, ['u'] , gtol=1e-1 , maxiter=9))
 #params.update(ML(params, ['V2'], gtol=1e-1 , maxiter=30))
 #params.update(ML(params, ['u'] , gtol=1e-1 , maxiter=8))

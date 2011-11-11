@@ -1,10 +1,11 @@
 """
 Minor changes to the BFGS optimizer in scipy.optimize
 """
-from scipy.optimize import approx_fprime
+import sys
+from   scipy.optimize import approx_fprime
 import numpy
-from numpy import asarray, sqrt, Inf, isinf, minimum, isfinite
-from scipy.optimize.linesearch import line_search_wolfe1, line_search_wolfe2
+from   numpy import asarray, sqrt, Inf, isinf, minimum, isfinite
+from   scipy.optimize.linesearch import line_search_wolfe1, line_search_wolfe2
 
 from kolia_base import flat
 
@@ -121,7 +122,6 @@ def wrap_function(function):
         return function(x)
     return ncalls, function_wrapper
 
-
 def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
               epsilon=_epsilon, maxiter=None, full_output=0, disp=1,
               retall=0, callback=None, barrier=None):
@@ -202,6 +202,9 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
     else:
         grad_calls, myfprime = wrap_function(fprime)
 #    debug_here()
+    if barr(x0):
+        print 'Optimization started with value violating constraints!'
+        sys.stdout.flush()
     gfk = myfprime(x0)
     k = 0
     N = len(x0)
@@ -291,6 +294,7 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
         
         if alpha_k is None:
             old_fval = f(xk)
+            warnflag = 2
             break
         
         old_old_fval = old_fval

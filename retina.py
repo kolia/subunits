@@ -171,22 +171,37 @@ def read_data( data_file='data.mat' ):
     return data
 
 import sys
-def read_stimulus( spikes, stimulus_pattern='cone_input_%d.mat'):
+def read_stimulus( spikes, stimulus_pattern='cone_input_%d.mat', 
+                   normalizer=None, skip_pattern=None):
     i = 0
     N_timebins = 0
     print 'Reading files: ',
     while 1:
+        if skip_pattern is not None:
+            if skip_pattern[0]>0:
+                # skip every skip_pattern[0]-th i
+                if numpy.mod(i,numpy.abs(skip_pattern[0])) == skip_pattern[1]:
+                    i += 1
+            else:
+                # keep every skip_pattern[0]-th i only
+                if numpy.mod(i,numpy.abs(skip_pattern[0])) != skip_pattern[1]:
+                    i += 1
         data = {}
         try:
-            data['stimulus'] = loadmat(stimulus_pattern % i)['data'].T
+            data['stimulus'] = loadmat(stimulus_pattern % i)['data']
+#            # Use normalizer to subtract mean and normalize variance
+#            if normalizer is not None:
+#                data['stimulus'] = data['stimulus'] - normalizer[0]
+#                data['stimulus'] = numpy.dot( data['stimulus'] , normalizer[1] )
+            data['stimulus'] = data['stimulus'].T
         except:
             raise StopIteration()
         data['spikes'] = spikes[:,N_timebins:N_timebins+data['stimulus'].shape[1]]
         N_timebins += data['stimulus'].shape[1]
         data['files_read'] = i
-        i += 1
         print i,
         sys.stdout.flush()
+        i += 1
         yield data
     
 def one(x,**other):      return numpy.ones((1,x.shape[1]))
