@@ -94,20 +94,23 @@ def deep_iter(X):
     '''Generates depth-first iterator over numpy array values 
     in nested dictionaries and lists: useful for generic flattening of 
     structured parameters.'''
-    if isinstance(X,type(dict())):
-        for _,x in sorted(X.items()):
-            for y in deep_iter(x): yield y
-    if isinstance(X,type([])):
-        for   x in X:
-            for y in deep_iter(x): yield y
     if isinstance(X,type(array([]))):
         yield X
+    elif isinstance(X,type(dict())):
+        for _,x in sorted(X.items()):
+            for y in deep_iter(x): yield y
+    elif isinstance(X,type([])):
+        for   x in X:
+            for y in deep_iter(x): yield y
+    else:
+        yield array(X)
 
 def flat(X):
     '''Flatten and concatenate all the numpy arrays contained in 
     possibly nested dictonaries and lists.'''
     return concatenate( [x.flatten() for x in deep_iter(X)] )
 
+import copy
 def __unflat(template,X,n=0):
     if isinstance(template,type(array([]))):
         return reshape( X[n:n+template.size] , template.shape) , n+template.size
@@ -124,12 +127,33 @@ def __unflat(template,X,n=0):
         result[key] = rec
     return result,n
 
+
+def zeros_like(X):
+    if isinstance(X,type(array([]))):
+        return X * 0.
+    elif isinstance(X,type(dict())):
+        iterset = sorted(X.items())
+        result  = {}
+    elif isinstance(X,type([])):
+        iterset = enumerate(X)
+        result  = [None for i in len(X)]
+    else:
+        raise TypeError('zeros_like expects numpy ndarray, list or dict')
+    for key,x in iterset:
+        rec  = zeros_like(x)
+        result[key] = rec
+    return result
+
+
 def unflat(template,X):
     '''Populate all the numpy arrays contained in 
     possibly nested dictonaries and lists of template, taking the 
     values from flat vector X of appropriate length: this is the 
-    inverse operation of flat(X).'''    
-    return __unflat(template,X)[0]
+    inverse operation of flat(X).'''
+    if isinstance(X,type(array([]))):
+        return __unflat(template,X)[0]
+    else:
+        return X
 
 
 from inspect   import getargspec

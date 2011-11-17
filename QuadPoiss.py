@@ -98,7 +98,10 @@ def UVi(i , V1   = Th.dmatrix() , STAs = Th.dmatrix(), STCs = Th.dtensor3(),
                      'STC' :    STCs[i,:,:],
                      'N_spike': N_spikes[i]/(Th.sum(N_spikes))} )
 
-def linear_reparameterization( T  = Th.dtensor3() , u  = Th.dvector() , **other ):
+def linear_reparameterization( T  = Th.dtensor3() , u  = Th.dvector() , 
+                                     **other ):
+#                                b = Th.dvector() ,  ub = Th.dvector(), **other ): 
+#    U = ( Th.sum( T*ub  , axis=2 ).T * b  ).T + Th.sum( T*u , axis=2 )
     U = Th.sum( T*u , axis=2 )    # U = Th.tensordot(T,u,axes=0)
     other.update(locals())
     return named( **other )

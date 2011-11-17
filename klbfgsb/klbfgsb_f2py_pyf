@@ -1,0 +1,27 @@
+!    -*- f90 -*-
+python module _klbfgsb ! in 
+    interface  ! in :_klbfgsb
+        subroutine setulb(n,m,x,l,u,nbd,f,g,amax,factr,pgtol,wa,iwa,task,iprint,csave,lsave,isave,dsave,d) ! in routines.f
+            integer, optional,check(len(x)>=n),depend(x) :: n=len(x)
+            integer :: m
+            double precision dimension(n) :: x
+            double precision dimension(n),depend(n) :: l
+            double precision dimension(n),depend(n) :: u
+            integer dimension(n),depend(n) :: nbd
+            double precision :: f
+            double precision dimension(n),depend(n) :: g
+            double precision :: amax
+            double precision :: factr
+            double precision :: pgtol
+            double precision dimension(2*m*n+4*n+12*m*m+12*m),depend(n,m) :: wa
+            integer dimension(3 * n),depend(n) :: iwa
+            character*60 :: task
+            integer :: iprint
+            character*60 :: csave
+            logical dimension(4) :: lsave
+            integer dimension(44) :: isave
+            double precision dimension(29) :: dsave
+            double precision dimension(n),depend(n) :: d
+        end subroutine setulb
+    end interface 
+end python module _klbfgsb
