@@ -140,7 +140,8 @@ class Objective( Params ):
     'd' + name; for example, the gradient of f will become objective.df
 
     Optionally, a callback function of the parameters'''
-    def __init__(self, params, init_params , args, outputs, differentiate=[], mode=None):
+    def __init__(self, params, init_params , args, outputs, 
+                 differentiate=[], mode='FAST_RUN'):
         # Set up parameters
         super(Objective,self).__init__( example=init_params )
         for name,p in params.items():
@@ -165,8 +166,10 @@ class Objective( Params ):
             self.functions[name] = function([self.flatParam]+self.ArgList,
                                              output,mode=mode,accept_inplace=True)
 
-    def where(self,**args):
+    def where(self,other,**args):
         t = copy.copy(self) #object()   # replace with deepcopy of self?
+        for name,value in other.items():
+            setattr(t,name,value)
         t.ArgValues = [args[n] for n in sorted(self.Args.keys())]
 #        print 'Objective.where: the following arguments have been fixed:'
 #        print [(n,args[n].shape) for n in sorted(self.Args.keys())]

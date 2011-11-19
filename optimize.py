@@ -9,7 +9,7 @@ from   scipy.optimize.linesearch import line_search_wolfe1, line_search_wolfe2
 
 from kolia_base import flat
 
-#from IPython.Debugger import Tracer; debug_here = Tracer()
+import ipdb
 
 _epsilon = sqrt(numpy.finfo(float).eps)
 
@@ -208,8 +208,8 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
     gfk = myfprime(x0)
     k = 0
     N = len(x0)
-    I = numpy.eye(N,dtype=int)
-    Hk = I
+
+    Hk = numpy.eye(N)
     old_fval = f(x0)
     old_old_fval = old_fval + 5000
     xk = x0
@@ -331,10 +331,20 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
         if isinf(rhok): # this is patch for numpy
             rhok = 1000.0
             print "Divide-by-zero encountered: rhok assumed large"
-        A1 = I - sk[:,numpy.newaxis] * yk[numpy.newaxis,:] * rhok
-        A2 = I - yk[:,numpy.newaxis] * sk[numpy.newaxis,:] * rhok
-        Hk = numpy.dot(A1,numpy.dot(Hk,A2)) + rhok * sk[:,numpy.newaxis] \
-                 * sk[numpy.newaxis,:]
+            
+#        I = numpy.eye(N,dtype=int)
+#        A1 = I - sk[:,numpy.newaxis] * yk[numpy.newaxis,:] * rhok
+#        A2 = I - yk[:,numpy.newaxis] * sk[numpy.newaxis,:] * rhok
+#        Hk = numpy.dot(A1,numpy.dot(Hk,A2)) + rhok * sk[:,numpy.newaxis] \
+#                 * sk[numpy.newaxis,:]
+
+# Same as above with inplace operations
+        Hkyk = numpy.dot(Hk,yk) * rhok
+        numpy.add(Hk,   - Hkyk[:,numpy.newaxis] *   sk[numpy.newaxis,:] , Hk)
+        Hkyk = numpy.dot(Hk.T,yk) * rhok
+        numpy.add(Hk,   -   sk[:,numpy.newaxis] * Hkyk[numpy.newaxis,:] , Hk)
+        numpy.add(Hk, rhok* sk[:,numpy.newaxis] *   sk[numpy.newaxis,:] , Hk)
+
 
     if disp or full_output:
         fval = old_fval
