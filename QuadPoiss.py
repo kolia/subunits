@@ -53,19 +53,37 @@ def LQLEP_wBarrier( LQLEP    = Th.dscalar(), ldet = Th.dscalar(), V2 = Th.dvecto
     with a barrier on the log-det term and a prior.
     '''
     LQLEP_wPrior = LQLEP + 0.5 * N_spike * 1./(ldet+250.)**2. \
-                 + Th.sum( V2**2 ) - Th.sum(Th.log(1.-9*V2**2.*Th.sum(U**2,axis=[1])))
+                 - Th.sum(Th.log(1.-9*V2**2.*Th.sum(U**2,axis=[1]))) #+ Th.sum( V2**2 ) 
     eigsImM,barrier = eig( ImM )
     barrier   = 1-(Th.sum(Th.log(eigsImM))>-250) * \
                   (Th.min(eigsImM)>0) * (Th.max(9*V2**2.*Th.sum(U**2,axis=[1]))<1)
     other.update(locals())
     return named( **other )
 
+def LQLEP_wV1posBarrier( LQLEP    = Th.dscalar(), ldet = Th.dscalar(), V2 = Th.dvector(), 
+                    N_spike  = Th.dscalar(), ImM  = Th.dmatrix(),  U = Th.dmatrix(),
+                    v1 = Th.dvector(), **other):
+    '''
+    The actual Linear-Quadratic-Exponential-Poisson log-likelihood, 
+    as a function of theta and M, 
+    with a barrier on the log-det term and a prior.
+    '''
+    LQLEP_wV1posPrior = LQLEP + 0.5 * N_spike * (1./(ldet+250.)**2. - Th.sum(Th.log(v1))) \
+                 - Th.sum(Th.log(1.-9*V2**2.*Th.sum(U**2,axis=[1]))) #+ Th.sum( V2**2 ) 
+    LQLEP_wPrior = LQLEP_wV1posPrior
+    eigsImM,barrier = eig( ImM )
+    barrier   = 1-(Th.sum(Th.log(eigsImM))>-250) * (Th.min(v1.flatten())>=0) * \
+                  (Th.min(eigsImM)>0) * (Th.max(9*V2**2.*Th.sum(U**2,axis=[1]))<1)
+    other.update(locals())
+    return named( **other )
+
+
 def eig_pos_barrier( barrier = Th.dscalar(), V1 = Th.dvector(), **other):
     '''
     A barrier enforcing that the log-det of M should be > exp(-6), 
     and all the eigenvalues of M > 0.  Returns true if barrier is violated.
     '''
-    posV1_barrier = 1-(1-barrier)*(Th.min(V1.flatten())>0)
+    posV1_barrier = 1-(1-barrier)*(Th.min(V1.flatten())>=0)
     other.update(locals())
     return named( **other )
 

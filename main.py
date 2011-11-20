@@ -23,8 +23,8 @@ reload(retina)
 
 import QuadPoiss
 reload(QuadPoiss)
-from   QuadPoiss import LQLEP_wBarrier, LQLEP, thetaM, \
-                 linear_reparameterization
+from   QuadPoiss import LQLEP_wV1posBarrier, LQLEP_wBarrier, LQLEP, \
+                        thetaM, linear_reparameterization
 
 # Memoizing results using joblib;  makes life easier
 from joblib import Memory
@@ -77,10 +77,10 @@ def localization( filters , which ):
 
 which = range(376)
 
-rgc_type = 'off parasol'
+#rgc_type = 'off parasol'
 #rgc_type = 'on midget'
 #rgc_type = 'on parasol'
-#rgc_type = 'off midget'
+rgc_type = 'off midget'
 keep = {'off midget' :  30, 'on midget' :  30, 
         'off parasol': 120, 'on parasol': 120}
 
@@ -233,8 +233,8 @@ def callback( objective , params , force=False ):
             for p in x: print '%.2f' %p,
             print
     if force or numpy.remainder( iterations[0] , 20 ) == 19:
-        filename = '_'.join(sorted(result.keys()))+'_'+rgc_type+ \
-                  '_lam'+str(int(100*lam))+'_'+str(int(maxiter))+'iters'
+        filename = objective.positive_V1+'_'.join(sorted(result.keys()))+'_'+ \
+                  rgc_type+'_lam'+str(int(100*lam))+'_'+str(int(maxiter))+'iters'
         pylab.clf()
         pylab.close('all')
         pylab.figure(2, figsize=(12,10))
@@ -265,9 +265,9 @@ def callback( objective , params , force=False ):
 #        p.savefig('/Users/kolia/Desktop/u.svg',format='svg')
     iterations[0] = iterations[0] + 1
 
-def single_objective( param_templates ):
+def single_objective( param_templates , vardict ):
     arg     = set(['u','V2','STA','STC','v1','N_spike','T','Cm1'])
-    vardict = LQLEP_wBarrier( **LQLEP( **thetaM( **linear_reparameterization())))
+    vardict = LQLEP_wV1posBarrier( **LQLEP( **thetaM( **linear_reparameterization())))
     print 'Simplifying single objective...'
     sys.stdout.flush()
     t0 = time.time()
@@ -354,19 +354,18 @@ def _sum_objectives( objectives, global_objective, attribute, X ):
                               for i,obj in enumerate(objectives[1:]))
 
 
-def global_objective( params=None, unknowns=None , indices=None ):
+def global_objective( params=None, unknowns=None , indices=None , vardict=None ):
     print
     print 'Preparing objective for unknowns: ', unknowns
     sys.stdout.flush()
     t0 = time.time()
     for name in unknowns.keys():
         if params.has_key(name): del params[name]
-    single_obj = single_objective( split_params( unknowns, 0 , indices ) )
+    single_obj = single_objective( split_params( unknowns, 0 , indices ) , vardict )
     objectives = [single_obj.where({},**split_params(params,i,indices)) 
                                    for i in range(NRGC)]
-    arg     = set(['u','V2','sparse_STA','sparse_STC','V1','N_spikes','T','cov'])
-    vardict = LQLEP_wBarrier( **LQLEP( **thetaM( **linear_reparameterization())))
     symbolic_params = extract(vardict,unknowns.keys())
+    arg     = set(['u','V2','sparse_STA','sparse_STC','V1','N_spikes','T','cov'])
     args   = extract(vardict,arg-set(unknowns.keys()))
     objective = kolia_theano.Objective( symbolic_params, unknowns, args, {})
     objective = objective.where({'indices':indices},**params).with_callback(callback)
@@ -374,6 +373,10 @@ def global_objective( params=None, unknowns=None , indices=None ):
     for fname in ['f','df','barrier']:
         setattr(objective,fname,partial(_sum_objectives, objectives, objective, fname))
         setattr(getattr(objective,fname),'__name__',fname)
+    if vardict.has_key('LQLEP_wV1posPrior'):
+        setattr(objective,'positive_V1','posV1')
+    else:
+        setattr(objective,'positive_V1','')
     print '... done preparing objective in', time.time()-t0,'sec.'
 
     print
@@ -426,20 +429,25 @@ indices = extract( train_stats[rgc_type], ['sparse_index', 'subunit_index'] )
 import gc
 gc.collect()
 
-def optimize_over( params, run=train_stats[rgc_type] , u=init_u , sv1=sv1 ):
+
+
+def optimize_over( params, vardict , run=train_stats[rgc_type] , u=init_u , sv1=sv1 ):
     global_obj = global_objective( params = 
                     all_variables( run, sv1=sv1, u=u, V2=init_V2,
                         T=retina.place_cells( cones , inferred_locations , shapes )) 
-                    , unknowns = params, indices = indices)
+                    , vardict = vardict, unknowns = params, indices = indices)
     result = optimize_objective( global_obj, params, gtol=1e-7 , maxiter=maxiter)
     global_obj.callback(result,force=True)
     return result
 
 
-params = {'sv1':sv1, 'V2':init_V2}
-#params.update( optimize_over(params) )
+params = {'sv1':numpy.abs(sv1), 'V2':init_V2 , 'u':init_u}
 
-params.update({'u':init_u})
-opt0 = optimize_over( params )
+# positive V1:
+vardict = LQLEP_wV1posBarrier( **LQLEP( **thetaM( **linear_reparameterization())))
+# else:
+#vardict = LQLEP_wBarrier( **LQLEP( **thetaM( **linear_reparameterization())))
+
+opt0 = optimize_over( params , vardict )
 
 print 'RGC type:', rgc_type
