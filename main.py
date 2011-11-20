@@ -75,12 +75,14 @@ def localization( filters , which ):
     del stats['cov']
     return stats
 
-which = range(50)
+which = range(376)
 
 rgc_type = 'off parasol'
 #rgc_type = 'on midget'
-keep = {'off midget' :  20, 'on midget' :  20, 
-        'off parasol': 100, 'on parasol': 100}
+#rgc_type = 'on parasol'
+#rgc_type = 'off midget'
+keep = {'off midget' :  30, 'on midget' :  30, 
+        'off parasol': 120, 'on parasol': 120}
 
 
 #data['spikes'] = data['spikes'][:2,:]
@@ -215,10 +217,10 @@ inferred_locations = [possible_subunits[i] for i in numpy.nonzero(keepers)[0]]
 
 import time
 
-maxiter = 1000
+maxiter = 3000
 
 iterations = [0]
-def callback( objective , params ):
+def callback( objective , params , force=False ):
 #    fval = objective.f(params)
     result = objective.unflat(params)
     print ' Iter:', iterations[0]
@@ -230,13 +232,16 @@ def callback( objective , params ):
             print name, ': ',
             for p in x: print '%.2f' %p,
             print
-    if numpy.remainder( iterations[0] , 20 ) == 99:
-        filename = '_'.join(sorted(result.keys()))+'_'+rgc_type+'_lam'+str(int(100*lam))+'_'+str(int(maxiter))+'iters'
+    if force or numpy.remainder( iterations[0] , 20 ) == 19:
+        filename = '_'.join(sorted(result.keys()))+'_'+rgc_type+ \
+                  '_lam'+str(int(100*lam))+'_'+str(int(maxiter))+'iters'
         pylab.clf()
         pylab.close('all')
         pylab.figure(2, figsize=(12,10))
+        zeros = numpy.nonzero( result['V2'] == 0 )[0]
         a1_V2   = kb.values_to_color( result['V2'] , (0.8,0.,0.) )
-        a_V2 = [(x,1.-x,0.,a) for x,_,_,a in a1_V2]
+        a_V2 = [[x,1.-x,0.,a] for x,_,_,a in a1_V2]
+        for i in zeros: a_V2[i][3] = 0.1
 #        ipdb.set_trace()
         kb.plot_circles( sizes=1.5, offsets=inferred_locations, linewidth=0.,
                          facecolors=a_V2, edgecolors=(0.,0.,0.,0.3))
@@ -253,7 +258,8 @@ def callback( objective , params ):
                 pylab.xlabel('nodes: '+', '.join([('%.1f'%y) for y in nodes]))
             else:
                 pylab.subplot(N,1,i)
-                pylab.hist(x, bins=30)
+                xx = x[ numpy.nonzero(x) ]
+                pylab.hist(xx, bins=30)
             i += 1
         pylab.savefig('/Users/kolia/Desktop/%s.pdf'%filename, format='pdf')
 #        p.savefig('/Users/kolia/Desktop/u.svg',format='svg')
@@ -278,41 +284,6 @@ def single_objective( param_templates ):
     return obj
 
 from functools import partial
-
-#def split_params( params , i ):
-#    rt = copy.deepcopy( params )
-#    for name,param in params.items():
-#        if name is 'V1':
-#            del rt['V1']
-#            rt['v1'] = param[i]
-#        if name is 'sparse_STA':
-#            del rt['sparse_STA']
-#            rt['STA'] = param[i]
-#        if name is 'sparse_STC':
-#            del rt['sparse_STC']
-#            rt['STC'] = param[i]
-#        if name is 'N_spikes':
-#            del rt['N_spikes']
-#            rt['N_spike'] = float(param[i])
-#        if params.has_key('sparse_index'):
-#            index = params['sparse_index'][i]
-#            if name is 'T':
-#                rt['T'] = param[:,index,:]
-#            if name is 'cov':
-#                del rt['cov']
-#                rt['Cm1'] = numpy.linalg.inv( param[numpy.ix_(index,index)] )
-##                rt['Cm1'] = numpy.diag(numpy.diag(numpy.linalg.inv(
-##                                       C[numpy.ix_(index[i],index[i])])))
-#    if rt.has_key('sparse_index'): del rt['sparse_index']
-#    return  rt
- 
-#def fuse_params( into , params , i , index=None):
-#    for name,param in params.items():
-#        if name is 'v1':
-#            into['V1'][i,:] = param
-#        else:
-#            into[name] += param
-#    return into
 
 import copy
 def split_params( params , i , indices ):
@@ -347,19 +318,16 @@ def split_params( params , i , indices ):
             else:
                 if name is 'T':
                     rt['T'] = param[:,index,:]
-#                rt['Cm1'] = numpy.diag(numpy.diag(numpy.linalg.inv(
-#                                       C[numpy.ix_(index[i],index[i])])))
-#    if rt.has_key( 'sparse_index'): del rt[ 'sparse_index']
-#    if rt.has_key('subunit_index'): del rt['subunit_index']
     return  rt
 
 def fuse_params( into , params , i , indices=None ):
     if indices is not None and indices.has_key('subunit_index'):
+        index = indices['subunit_index'][i]
         for name,param in params.items():
             if name is 'v1':
                 into['sv1'][i] = param
             elif name is 'V2':
-                into['V2'][index] = param
+                into['V2'][index] += param
             else:
                 into[name] += param
     else:
@@ -384,22 +352,6 @@ def _sum_objectives( objectives, global_objective, attribute, X ):
     else:
         return result + sum(getattr(obj,attribute)(split_params(x,i,indices))
                               for i,obj in enumerate(objectives[1:]))
-#        for i,obj in enumerate(objectives)[1:]:
-#            result += getattr(obj,attribute)(split_params(x,i))
-#        return result
-#    return Params.flat( result )
-
-#    x = Params.unflat(X)
-#    first = objectives[0].unflat( getattr(objectives[0],attribute)(split_params(x,0)) )
-#    if first.size>1:
-#        result = fuse_params( kb.zeros_like(x) , first , 0 )
-#    else:
-#        result = first
-#    for i,obj in enumerate(objectives)[1:]:
-#        param = obj.unflat( getattr(obj,attribute)(split_params(x,i)) )
-#        ipdb.set_trace()
-#        result = fuse_params( result , param , i )
-#    return Params.flat( result )
 
 
 def global_objective( params=None, unknowns=None , indices=None ):
@@ -448,10 +400,8 @@ def optimize_objective( obj, init, gtol=1e-7 , maxiter=500 , optimizer=optimize 
     return obj.unflat( params )
 
 
-nodes = numpy.array([0., 2., 7., 12., 20., 40., 250.])
+nodes = numpy.array([0., 3., 6., 10., 20., 40., 100.])
 #nodes = numpy.array([0., 2.3, 2.8, 3.3, 4., 5., 6., 7.5, 10., 14., 20., 40.])
-#nodes = numpy.array([0., 3., 4., 5., 5.5, 6., 6.5, 7., 7.5, 8.5, 10., 12., 14., 20., 30., 50.])
-#nodes = numpy.array([0., 3.2, 4.5, 5.5, 6.3, 6.9, 7.5, 8.3, 9., 10., 11., 12., 13., 14., 15., 20., 25., 35.])
 
 value_matrix = numpy.eye(len(nodes))
 shapes = [ radial_piecewise_linear(nodes,values) for values in value_matrix]
@@ -462,16 +412,7 @@ init_u = numpy.array([0.4, 0.2, 0.05, 0.02, 0.01, 0.005, 0.])
 ##init_u = numpy.ones(nodes.shape)
 #init_u = init_u/numpy.sqrt(numpy.sum(init_u**2.)) * 0.05
 
-init_V2 = 0.*numpy.ones(len(inferred_locations))
-
-
-#params = {'u':init_u, 'ub':0.*init_u, 'V2':init_V2}
-#params.update(ML(params, ['u','ub','V2'], 'ub'))
-#params.update(ML(params, ['V2'], 'uabc', gtol=1e-7 , maxiter=30))
-#for i in range(2):
-#    params.update(ML(params, ['ua','ub'] , 'uabc', gtol=1e-7 , maxiter=9))
-#    params.update(ML(params, ['V2'], 'uabc', gtol=1e-7 , maxiter=30))
-#params.update(ML(params, ['ua','ub','V2'], 'uabc'))
+init_V2 = numpy.zeros(len(inferred_locations))
 
 
 def all_variables( run , **others ):
@@ -481,52 +422,24 @@ def all_variables( run , **others ):
     return result
 
 indices = extract( train_stats[rgc_type], ['sparse_index', 'subunit_index'] )
-
-#params = all_variables( train_stats[rgc_type], u=init_u, V2=init_V2, V1=V1, 
-#                        T=retina.place_cells( cones , inferred_locations , shapes ) )
-#            , 'b':0.01*init_V2, 'ub':numpy.zeros_like(init_u) 
-
-#unknowns     = {'u':init_u, 'V2':init_V2} 
-#global_obj = global_objective( params = all_variables( 
-#                        train_stats[rgc_type], sv1=sv1, 
-#                        T=retina.place_cells( cones , inferred_locations , shapes ) ) ,
-#                               unknowns = unknowns, indices = indices)
-#global_obj = global_objective( params = all_variables( 
-#                        train_stats[rgc_type], sv1=sv1, 
-#                        T=retina.place_cells( cones , inferred_locations , shapes ) ) ,
-#                               unknowns = unknowns)
                                
 import gc
 gc.collect()
 
-#params = optimize_objective( global_obj, unknowns, gtol=1e-7 , maxiter=maxiter)
+def optimize_over( params, run=train_stats[rgc_type] , u=init_u , sv1=sv1 ):
+    global_obj = global_objective( params = 
+                    all_variables( run, sv1=sv1, u=u, V2=init_V2,
+                        T=retina.place_cells( cones , inferred_locations , shapes )) 
+                    , unknowns = params, indices = indices)
+    result = optimize_objective( global_obj, params, gtol=1e-7 , maxiter=maxiter)
+    global_obj.callback(result,force=True)
+    return result
+
 
 params = {'sv1':sv1, 'V2':init_V2}
-global_obj = global_objective( params = all_variables( 
-                        train_stats[rgc_type], sv1=sv1,
-                        T=retina.place_cells( cones , inferred_locations , shapes ),
-                        **{'u':init_u}) ,
-                    unknowns = params, indices = indices)
-params.update(optimize_objective( global_obj, params, gtol=1e-7 , maxiter=maxiter))
-
+#params.update( optimize_over(params) )
 
 params.update({'u':init_u})
-global_obj = global_objective( params = all_variables( 
-                        train_stats[rgc_type], sv1=sv1,
-                        T=retina.place_cells( cones , inferred_locations , shapes )) ,
-                    unknowns = params, indices = indices)
-opt0 = optimize_objective( global_obj, params, gtol=1e-7 , maxiter=maxiter)
-                                  
-#
-#unknowns = ['u','V2','V1']
-#global_obj = global_objective( params, unknowns )
-#import gc
-#gc.collect()
-#params.update(optimize_objective( global_obj, extract(params,unknowns), 
-#                                  gtol=1e-7 , maxiter=1000, optimizer=klbfgsb))
+opt0 = optimize_over( params )
 
-#params.update(ML(params, ['u'] , gtol=1e-1 , maxiter=9))
-#params.update(ML(params, ['V2'], gtol=1e-1 , maxiter=30))
-#params.update(ML(params, ['u'] , gtol=1e-1 , maxiter=8))
-#params.update(ML(params, ['V2'], gtol=1e-1 , maxiter=30))
-#params.update(ML(params, ['u'], gtol=1e-1 , maxiter=8))
+print 'RGC type:', rgc_type

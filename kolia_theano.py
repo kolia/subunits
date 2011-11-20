@@ -179,7 +179,7 @@ class Objective( Params ):
         for name in self.outputs.keys():
             setattr(t,name,package(self.functions[name]))
         def with_callback(callbk):
-            def callback(params): return callbk(t,params)
+            def callback(params,**kwargs): return callbk(t,params,**kwargs)
             t.callback = callback
             return t
         t.with_callback = with_callback
