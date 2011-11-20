@@ -78,9 +78,9 @@ def localization( filters , which ):
 which = range(376)
 
 #rgc_type = 'off parasol'
-#rgc_type = 'on midget'
+rgc_type = 'on midget'
 #rgc_type = 'on parasol'
-rgc_type = 'off midget'
+#rgc_type = 'off midget'
 keep = {'off midget' :  30, 'on midget' :  30, 
         'off parasol': 120, 'on parasol': 120}
 
