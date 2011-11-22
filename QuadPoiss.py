@@ -27,6 +27,14 @@ def LQLEP_input(**other):
     other.update(locals())
     return named( **other )
 
+def LNP( theta = Th.dvector(),  STA = Th.dvector(), N_spike = Th.dscalar(), **other):
+    '''
+    LNP log-likelihood, as a function of theta.  Minimizer is the STA.
+    '''
+    LNP = -0.5 * N_spike *( - Th.sum(theta ** 2.) + 2. * Th.sum( theta * STA ))
+    other.update(locals())
+    return named( **other )
+
 def LQLEP( theta   = Th.dvector()  , M    = Th.dmatrix() ,
            STA     = Th.dvector()  , STC  = Th.dmatrix() , 
            N_spike = Th.dscalar()  , Cm1  = Th.dmatrix() , **other):
@@ -53,27 +61,23 @@ def LQLEP_wBarrier( LQLEP    = Th.dscalar(), ldet = Th.dscalar(), V2 = Th.dvecto
     with a barrier on the log-det term and a prior.
     '''
     LQLEP_wPrior = LQLEP + 0.5 * N_spike * 1./(ldet+250.)**2. \
-                 - Th.sum(Th.log(1.-9*V2**2.*Th.sum(U**2,axis=[1]))) #+ Th.sum( V2**2 ) 
+                 - Th.sum(Th.log(1.-9*V2**2.*Th.sum(U**2,axis=[1])))
+                 #+ Th.sum( V2**2 ) \
     eigsImM,barrier = eig( ImM )
     barrier   = 1-(Th.sum(Th.log(eigsImM))>-250) * \
                   (Th.min(eigsImM)>0) * (Th.max(9*V2**2.*Th.sum(U**2,axis=[1]))<1)
     other.update(locals())
     return named( **other )
 
-def LQLEP_wV1posBarrier( LQLEP    = Th.dscalar(), ldet = Th.dscalar(), V2 = Th.dvector(), 
-                    N_spike  = Th.dscalar(), ImM  = Th.dmatrix(),  U = Th.dmatrix(),
-                    v1 = Th.dvector(), **other):
+def LQLEP_positiveV1( LQLEP_wPrior = Th.dscalar(), barrier = Th.dscalar(),
+                      v1 = Th.dvector(), **other):
     '''
     The actual Linear-Quadratic-Exponential-Poisson log-likelihood, 
     as a function of theta and M, 
     with a barrier on the log-det term and a prior.
     '''
-    LQLEP_wV1posPrior = LQLEP + 0.5 * N_spike * (1./(ldet+250.)**2. - Th.sum(Th.log(v1))) \
-                 - Th.sum(Th.log(1.-9*V2**2.*Th.sum(U**2,axis=[1]))) #+ Th.sum( V2**2 ) 
-    LQLEP_wPrior = LQLEP_wV1posPrior
-    eigsImM,barrier = eig( ImM )
-    barrier   = 1-(Th.sum(Th.log(eigsImM))>-250) * (Th.min(v1.flatten())>=0) * \
-                  (Th.min(eigsImM)>0) * (Th.max(9*V2**2.*Th.sum(U**2,axis=[1]))<1)
+    LQLEP_positiveV1   = LQLEP_wPrior - Th.sum(Th.log(v1))
+    barrier_positiveV1 = 1-((1 - barrier) * (Th.min(v1.flatten())>=0))
     other.update(locals())
     return named( **other )
 

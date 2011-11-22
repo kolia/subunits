@@ -6,6 +6,7 @@ from   scipy.optimize import approx_fprime
 import numpy
 from   numpy import asarray, sqrt, Inf, isinf, minimum, isfinite
 from   scipy.optimize.linesearch import line_search_wolfe1, line_search_wolfe2
+import time
 
 from kolia_base import flat
 
@@ -43,11 +44,17 @@ def optimizer( objective , f='f' , df='df', barrier='barrier', maxiter=500,
                  df=df, barrier=barrier, callback=callback, gtol=gtol, 
                  maxiter=maxiter , full_output=full_output , **options):
         init_params = flat(init_params)
-        x, fx, dfx, _, _, _, _ = fmin_barrier_bfgs(f,init_params,fprime=df,
-                                                   gtol=gtol,maxiter=maxiter,
-                                                   callback=callback,
-                                                   barrier=barrier, disp=disp,
-                                                   full_output=True, **options)
+        print 'Starting optimization:'
+        sys.stdout.flush()
+        t0 = time.time()
+        x, fx, dfx, _, _, _ = fmin_barrier_bfgs(f,init_params,fprime=df,
+                                                gtol=gtol,maxiter=maxiter,
+                                                callback=callback,
+                                                barrier=barrier, disp=disp,
+                                                full_output=True, **options)
+        objective.callback(init_params,force=True)
+        print '... done optimizing in', time.time()-t0,'sec.'
+
         if full_output:
             return (x,fx,dfx)
         else:
@@ -77,24 +84,26 @@ def backtrack(xk,pk,barrier):
     # initial phase: find a point on other side of barrier by *1.5
     a  = init_a[0]
     while True:
-        if a>5000.:
-            init_a[0] = 3500.
-            return 5000.
-        if barrier(xk + a*pk): break
+        if a>50000.:
+            init_a[0] = 35000.
+            return 50000., 0.
+        b = barrier(xk + a*pk)
+        if b: break
         a = a * 1.5
 
     # refinement phase: 8 rounds of dichotomy
     left  = 0
     right = a
     while True:
-        if barrier(xk + (right+left)/2.*pk):
+        b = barrier(xk + (right+left)/2.*pk)
+        if b:
             right = (right+left)/2.
         else:
             left  = (right+left)/2.
         if left>0 or right<1e-300: break
 #    print 'amax : ', left
     init_a[0] = left
-    return left
+    return left, b
 
 
 def simple_search(f,xk,pk,amax):
@@ -196,7 +205,10 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
     if maxiter is None:
         maxiter = len(x0)*200
     func_calls, f    = wrap_function(f      )
-    barr_calls, barr = wrap_function(barrier)
+    if barrier is None:
+        barr_calls, barr = wrap_function(lambda _: 0)
+    else:
+        barr_calls, barr = wrap_function(barrier)
     if fprime is None:
         grad_calls, myfprime = wrap_function(approx_fprime, (f, epsilon))
     else:
@@ -218,20 +230,24 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
     sk = [2*gtol]
     warnflag = 0
     gnorm = vecnorm(gfk,ord=norm)
+    best_x = xk
+    best_f = old_fval
+    best_k = 0
+    best_g = gfk
     while (gnorm > gtol) and (k < maxiter):
         pk = -numpy.dot(Hk,gfk)
 
-        amax = backtrack(xk,pk,barr)          # scipy.optimize.fmin_bfgs 
+        amax, bamax = backtrack(xk,pk,barr)     # scipy.optimize.fmin_bfgs 
                                                 # modified here 
                                                 # and line_searches below!
 #        amax = 50.
         famax = f(xk+amax*pk)
-        bamax = barr(xk+amax*pk)
         if disp:
-            print 'amax%d:%15g  f:%14.10g f(amax):%10g  #b:%d  #f:%d' \
-                % (bamax,amax,old_fval,famax,barr_calls[0],func_calls[0]),
-        if callback is not None:
-            callback(xk)
+            print 'Iter:%d  f:%14.10g  #b:%d  #f:%d' \
+                % (k,old_fval,barr_calls[0],func_calls[0]),
+            if barrier is not None:
+                 print'barrier%d:%3g f(amax):%3g' % (bamax,amax,famax) ,
+        method = ''
 
         if (bamax == 0) and (famax < old_fval):
             alpha_k  = amax
@@ -246,7 +262,7 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
                 if disp : print 'Warning: error in line_search_wolfe2..'
                 
             if alpha_k is not None:
-                print 'w2 ',
+                method = 'wolfe2'
             else:
                 # line search failed: try different one.
                 alpha_k, fc, gc, old_fval2, old_old_fval2, gfkp1 = \
@@ -256,13 +272,13 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
             if alpha_k is None:
                 alpha_k , old_fval2 = simple_search(f,xk,pk,amax)
                 if alpha_k is not None: 
-                    print ' simple ',
+                    method = 'simple'
     
             if alpha_k is None:
                 pk = -pk
                 alpha_k , old_fval2 = simple_search(f,xk,pk,amax)
                 if alpha_k is not None:
-                    print ' simple2 ',
+                    method = 'simple2'
 
 ##        debug_here()
 #        if old_fval>famax and isfinite(famax):
@@ -286,7 +302,7 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
                     alpha_k = amax
                 else:
                     alpha_k , old_fval = simple_search(f,xk,pk,amax)
-                    print ' simple3 ',
+                    method = 'simple3'
 
 #        if alpha_k is not None:
 #            old_fval= f(xk + alpha_k*pk) 
@@ -302,6 +318,12 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
 
         xkp1 = xk + alpha_k * pk
         gfkp1 = myfprime(xk + alpha_k * pk)
+
+        gnorm = vecnorm(gfkp1,ord=norm)
+        print 'gnorm:%4e %s' %(gnorm,method)
+
+        if callback is not None:
+            callback(xk)
 
         if retall:
             allvecs.append(xkp1)
@@ -319,8 +341,14 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
         yk = gfkp1 - gfk
         gfk = gfkp1
         k += 1
-        gnorm = vecnorm(gfk,ord=norm)
-        if (gnorm <= gtol):
+        
+        if old_fval<best_f:
+            best_x = xk
+            best_f = old_fval
+            best_k = k
+            best_g = gfk
+        
+        if (gnorm <= gtol) or (k>best_k+10):
             break
 
         try: # this was handled in numeric, let it remaines for more safety
@@ -347,7 +375,7 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
 
 
     if disp or full_output:
-        fval = old_fval
+        fval = best_f
     if warnflag == 2:
         if disp:
             print "Warning: Desired error not necessarily achieved " \
@@ -377,12 +405,12 @@ def fmin_barrier_bfgs(f, x0, fprime=None, gtol=1e-6, norm=Inf,
             print "         Gradient evaluations: %d" % grad_calls[0]
 
     if full_output:
-        retlist = xk, fval, gfk, Hk, func_calls[0], grad_calls[0], warnflag
+        retlist = best_x, fval, best_g, func_calls[0], grad_calls[0], warnflag
         if retall:
             retlist += (allvecs,)
     else:
-        retlist = xk
+        retlist = best_x
         if retall:
-            retlist = (xk, allvecs)
+            retlist = (best_x, allvecs)
 
     return retlist

@@ -23,7 +23,7 @@ reload(retina)
 
 import QuadPoiss
 reload(QuadPoiss)
-from   QuadPoiss import LQLEP_wV1posBarrier, LQLEP_wBarrier, LQLEP, \
+from   QuadPoiss import LQLEP_positiveV1, LQLEP_wBarrier, LQLEP, LNP, \
                         thetaM, linear_reparameterization
 
 # Memoizing results using joblib;  makes life easier
@@ -47,11 +47,8 @@ def get_rgc_type( i , data=data ):
         if eyedee in inds: return rgctype
     return None
 
-filters = retina.gaussian2D_weights( cones, possible_subunits, sigma=3. )
-
 from kolia_base import save
 save(data,'data_localization')
-
 
 from scipy.linalg   import schur
 import sys
@@ -59,10 +56,10 @@ sys.setrecursionlimit(10000)
 
 
 @memory.cache
-def localization( filters , which ):
+def localization( filters ):
     stats = retina.accumulate_statistics( 
         data_generator = 
-            retina.read_stimulus( data['spikes'][which],
+            retina.read_stimulus( data['spikes'],
                                  stimulus_pattern='cone_input_%d.mat' ,
                                  skip_pattern=(5,0) ) ,
         feature= lambda x : numpy.dot(filters,x))
@@ -75,20 +72,8 @@ def localization( filters , which ):
     del stats['cov']
     return stats
 
-which = range(376)
-
-#rgc_type = 'off parasol'
-rgc_type = 'on midget'
-#rgc_type = 'on parasol'
-#rgc_type = 'off midget'
-keep = {'off midget' :  30, 'on midget' :  30, 
-        'off parasol': 120, 'on parasol': 120}
-
-
 #data['spikes'] = data['spikes'][:2,:]
-stats = localization( filters, which )
-
-del filters
+stats = localization( retina.gaussian2D_weights( cones, possible_subunits, sigma=3. ) )
 
 import pylab
 def hista(i , data=data, stats=stats, N=2):
@@ -109,9 +94,12 @@ def n_largest( values , keep=10 ):
     return numpy.nonzero( numpy.abs(values) >= cutoff )[0]
 
 @memory.cache
-def fit_U_stats( rgc_type='off midget', keep=15, stats=stats, skip_pattern=None, which=which ):
+def fit_U_stats( rgc_type='off midget', stats=stats, skip_pattern=None ):
+    keep = {'off midget' :  30, 'on midget' :  30, 
+            'off parasol': 120, 'on parasol': 120}
+    keep = keep[rgc_type]
     which_rgc = [i for i,ind in enumerate(data['rgc_ids'])
-                   if  ind   in data['rgc_types'][rgc_type] and i in which]
+                   if  ind   in data['rgc_types'][rgc_type]] #and i in which]
 #                   and data['rgc_locations'][i][1]>170 ]
     print 'Fitting stats for',len(which_rgc),'RGCs'
     # Used to subtract mean and normalize by covariance
@@ -135,10 +123,18 @@ def fit_U_stats( rgc_type='off midget', keep=15, stats=stats, skip_pattern=None,
         sparse_index   = stats['sparse_index']          ))
     return stats
 
-train_stats = {}
-train_stats[rgc_type] = \
-     fit_U_stats( rgc_type=rgc_type, keep=keep[rgc_type], skip_pattern=(5,0), which=which )
-NRGC = len( train_stats[rgc_type]['rgc_index'] )
+#rgc_type = 'off parasol'
+rgc_type = 'on midget'
+#rgc_type = 'on parasol'
+#rgc_type = 'off midget'
+
+def train_stats(rgc_type):
+    return fit_U_stats( rgc_type=rgc_type, skip_pattern=(5,0) )
+
+def test_stats(rgc_type):
+    return fit_U_stats( rgc_type=rgc_type, skip_pattern=(-5,0) )
+
+NRGC = len( train_stats(rgc_type)['rgc_index'] )
 
 #def index( sequence = [] , f = lambda _: True ):
 #    """Return the index of the first item in seq where f(item) == True."""
@@ -170,7 +166,6 @@ def radial_piecewise_linear( nodes=[] , values=[] , default=0.):
     return f
 
 from kolia_base import save
-save(train_stats,'train_stats')
 
 def extract(d, keys):
     return dict((k, d[k]) for k in keys if k in d)
@@ -200,7 +195,7 @@ lam = 0.0
 V, iW = ARD( stats , lam=lam )
 
 sv1 = numpy.vstack([V[index,i] for i,index in 
-                    enumerate(train_stats[rgc_type]['subunit_index'])])
+                    enumerate(train_stats(rgc_type)['subunit_index'])])
 
 print 'sv1.shape:',sv1.shape
 
@@ -217,64 +212,14 @@ inferred_locations = [possible_subunits[i] for i in numpy.nonzero(keepers)[0]]
 
 import time
 
-maxiter = 3000
 
-iterations = [0]
-def callback( objective , params , force=False ):
-#    fval = objective.f(params)
-    result = objective.unflat(params)
-    print ' Iter:', iterations[0]
-    for name,x in result.items():
-        if x.size>10:
-            print name, 'min mean max: ',
-            print numpy.min(x), numpy.mean(x), numpy.max(x)            
-        else:
-            print name, ': ',
-            for p in x: print '%.2f' %p,
-            print
-    if force or numpy.remainder( iterations[0] , 20 ) == 19:
-        filename = objective.positive_V1+'_'.join(sorted(result.keys()))+'_'+ \
-                  rgc_type+'_lam'+str(int(100*lam))+'_'+str(int(maxiter))+'iters'
-        pylab.clf()
-        pylab.close('all')
-        pylab.figure(2, figsize=(12,10))
-        zeros = numpy.nonzero( result['V2'] == 0 )[0]
-        a1_V2   = kb.values_to_color( result['V2'] , (0.8,0.,0.) )
-        a_V2 = [[x,1.-x,0.,a] for x,_,_,a in a1_V2]
-        for i in zeros: a_V2[i][3] = 0.1
-#        ipdb.set_trace()
-        kb.plot_circles( sizes=1.5, offsets=inferred_locations, linewidth=0.,
-                         facecolors=a_V2, edgecolors=(0.,0.,0.,0.3))
-        pylab.savefig('/Users/kolia/Desktop/V2_%s.pdf'%filename, format='pdf')
-        pylab.figure(1, figsize=(10,12))
-        save(result,filename)
-        N = len(result.keys())
-        i = 1
-        for name,x in result.items():
-            pylab.subplot(N,1,i)
-            if x.size is nodes.size:
-                pylab.plot(nodes,x)
-                pylab.title(name+': '+', '.join([('%.2f'%y) for y in x]))
-                pylab.xlabel('nodes: '+', '.join([('%.1f'%y) for y in nodes]))
-            else:
-                pylab.subplot(N,1,i)
-                xx = x[ numpy.nonzero(x) ]
-                pylab.hist(xx, bins=30)
-            i += 1
-        pylab.savefig('/Users/kolia/Desktop/%s.pdf'%filename, format='pdf')
-#        p.savefig('/Users/kolia/Desktop/u.svg',format='svg')
-    iterations[0] = iterations[0] + 1
-
-def single_objective( param_templates , vardict ):
+def single_objective( param_templates , vardict , outputs ):
     arg     = set(['u','V2','STA','STC','v1','N_spike','T','Cm1'])
-    vardict = LQLEP_wV1posBarrier( **LQLEP( **thetaM( **linear_reparameterization())))
     print 'Simplifying single objective...'
     sys.stdout.flush()
     t0 = time.time()
     params = extract(vardict,param_templates.keys())
     args   = extract(vardict,arg-set(param_templates.keys()))
-    outputs = { 'f':vardict['LQLEP_wPrior'], 'LL':vardict['LQLEP'],
-                'barrier':vardict['barrier'] }
     obj = kolia_theano.Objective( params, param_templates, args, outputs,
                                   differentiate=['f'], mode='FAST_RUN' )
     t1 = time.time()
@@ -289,34 +234,34 @@ import copy
 def split_params( params , i , indices ):
     rt = copy.deepcopy( params )
     for name,param in params.items():
-        if name is 'sparse_STA':
+        if name == 'sparse_STA':
             del rt['sparse_STA']
             rt['STA'] = param[i]
-        elif name is 'sparse_STC':
+        elif name == 'sparse_STC':
             del rt['sparse_STC']
             rt['STC'] = param[i]
-        elif name is 'N_spikes':
+        elif name == 'N_spikes':
             del rt['N_spikes']
-            rt['N_spike'] = float(param[i])
-        if name is 'V1':
+            rt['N_spike'] = float(param[i]/sum(params['N_spikes']))
+        if name == 'V1':
             del rt['V1']
             rt['v1'] = param[i]
         if indices.has_key('sparse_index'):
             index = indices['sparse_index'][i]
-            if name is 'sv1':
+            if name == 'sv1':
                 del rt['sv1']
                 rt['v1'] = param[i]
-            elif name is 'cov':
+            elif name == 'cov':
                 del rt['cov']
                 rt['Cm1'] = numpy.linalg.inv( param[numpy.ix_(index,index)] )
             if indices.has_key('subunit_index'):
                 sindex = indices['subunit_index'][i]
-                if name is 'V2':
+                if name == 'V2':
                     rt['V2'] = param[sindex]
-                elif name is 'T':
+                elif name == 'T':
                     rt['T'] = param[numpy.ix_(index,sindex,range(param.shape[2]))]
             else:
-                if name is 'T':
+                if name == 'T':
                     rt['T'] = param[:,index,:]
     return  rt
 
@@ -354,31 +299,7 @@ def _sum_objectives( objectives, global_objective, attribute, X ):
                               for i,obj in enumerate(objectives[1:]))
 
 
-def global_objective( params=None, unknowns=None , indices=None , vardict=None ):
-    print
-    print 'Preparing objective for unknowns: ', unknowns
-    sys.stdout.flush()
-    t0 = time.time()
-    for name in unknowns.keys():
-        if params.has_key(name): del params[name]
-    single_obj = single_objective( split_params( unknowns, 0 , indices ) , vardict )
-    objectives = [single_obj.where({},**split_params(params,i,indices)) 
-                                   for i in range(NRGC)]
-    symbolic_params = extract(vardict,unknowns.keys())
-    arg     = set(['u','V2','sparse_STA','sparse_STC','V1','N_spikes','T','cov'])
-    args   = extract(vardict,arg-set(unknowns.keys()))
-    objective = kolia_theano.Objective( symbolic_params, unknowns, args, {})
-    objective = objective.where({'indices':indices},**params).with_callback(callback)
-#    ipdb.set_trace()
-    for fname in ['f','df','barrier']:
-        setattr(objective,fname,partial(_sum_objectives, objectives, objective, fname))
-        setattr(getattr(objective,fname),'__name__',fname)
-    if vardict.has_key('LQLEP_wV1posPrior'):
-        setattr(objective,'positive_V1','posV1')
-    else:
-        setattr(objective,'positive_V1','')
-    print '... done preparing objective in', time.time()-t0,'sec.'
-
+def test_global_objective( objective, unknowns ):
     print
     print 'Testing global objective:'
     test_param = objective.flat(unknowns)
@@ -387,19 +308,19 @@ def global_objective( params=None, unknowns=None , indices=None , vardict=None )
             for n,v in objective.unflat(test_param).items()]
     print 'f:', objective.f(test_param),objective.f(unknowns)
     print 'df:', objective.unflat(objective.df(test_param))
-    print 'barrier:', objective.barrier(test_param),objective.barrier(unknowns)
+    if hasattr( objective , 'barrier' ):
+        print 'barrier:', objective.barrier(test_param),objective.barrier(unknowns)
     print
 
-    return objective
+def update_dict( d , key, resource , names ):
+    for name in names:
+        if resource.has_key(name): d.update({key:resource[name]})
+#    return d
 
 #@memory.cache
-def optimize_objective( obj, init, gtol=1e-7 , maxiter=500 , optimizer=optimize ):
+def optimize_objective( obj, init, gtol=1e-2 , maxiter=500 , optimizer=optimize ):
     optimizer = optimizer.optimizer( obj )
-    print 'Starting optimization:'
-    sys.stdout.flush()
-    t0 = time.time()
     params = optimizer( init_params=init, maxiter=maxiter, gtol=gtol )
-    print '... done optimizing in', time.time()-t0,'sec.'
     return obj.unflat( params )
 
 
@@ -417,37 +338,145 @@ init_u = numpy.array([0.4, 0.2, 0.05, 0.02, 0.01, 0.005, 0.])
 
 init_V2 = numpy.zeros(len(inferred_locations))
 
-
-def all_variables( run , **others ):
-    result = extract( run, ['sparse_STA','sparse_STC','sparse_index',
-                            'N_spikes','cov','subunit_index'] )
-    result.update( others )
-    return result
-
-indices = extract( train_stats[rgc_type], ['sparse_index', 'subunit_index'] )
+indices = extract( train_stats(rgc_type), ['sparse_index', 'subunit_index'] )
                                
 import gc
 gc.collect()
 
+def default( d, defaults, fields=None ):
+    for name,value in defaults.items():
+        if (fields is None) or (name in fields):
+            if not d.has_key(name): d[name] = value
+
+def global_objective( unknowns, knowns, vardict, run ):
+    print
+    print 'Preparing objective for unknowns: ', unknowns
+    sys.stdout.flush()
+    t0 = time.time()
+    variables = ['u','V2','sv1','sparse_STA','sparse_STC','V1','N_spikes','T','cov']
+    run.update({'u':init_u, 'V2':init_V2, 'sv1':numpy.abs(sv1),
+                'T':retina.place_cells( cones, cones, shapes )})
+    default( knowns, run, variables ) 
+    outputs = {}
+    update_dict( outputs, 'f', vardict , ['LNP', 'LQLEP_wPrior', 'LQLEP_positiveV1'] )
+    update_dict( outputs , 'LL'      , vardict , ['LNP', 'LQLEP'] )
+    update_dict( outputs , 'barrier' , vardict , ['barrier','barrier_positiveV1'] )
+    single_obj = single_objective( split_params( unknowns, 0, indices ), vardict, outputs)
+    objectives = [single_obj.where({},**split_params(knowns,i,indices))
+                                   for i in range(NRGC)]
+    symbolic_params = extract(vardict,unknowns.keys())
+    args   = extract(vardict,set(variables)-set(unknowns.keys()))
+    global_obj = kolia_theano.Objective( symbolic_params, unknowns, args, {})
+    global_obj = global_obj.where({'indices':indices}, **knowns)
+#    ipdb.set_trace()
+    for fname in ['f','df','barrier','LL']:
+        if hasattr(objectives[0],fname):
+            setattr(global_obj,fname,partial(_sum_objectives, objectives, global_obj, fname))
+            setattr(getattr(global_obj,fname),'__name__',fname)
+    test_global_objective( global_obj, unknowns )
+    global_obj.description = ''
+    print '... done preparing objective in', time.time()-t0,'sec.'
+    return global_obj
+
+maxiter = 3000
+
+def display_params( result ):
+    for name,x in result.items():
+        if x.size == 1:
+            print name,':',x,
+        elif x.size>10:
+            print name, 'min mean max: ',
+            print numpy.min(x), numpy.mean(x), numpy.max(x)            
+        else:
+            scale = numpy.max(numpy.abs(x))
+            print name, (': (scale %f)'%scale),
+            for p in x: print '%.4f' %(p/scale),
+            print
+    print
+    
+def plot_params( result , filename ):
+    save(result,filename)
+    pylab.clf()
+    pylab.close('all')
+    if result.has_key('V2'):
+        pylab.figure(2, figsize=(12,10))
+        zeros = numpy.nonzero( result['V2'] == 0 )[0]
+        a1_V2   = kb.values_to_color( result['V2'] , (0.8,0.,0.) )
+        a_V2 = [[x,1.-x,0.,a] for x,_,_,a in a1_V2]
+        for i in zeros: a_V2[i][3] = 0.1
+        kb.plot_circles( sizes=1.5, offsets=inferred_locations, linewidth=0.001,
+                         facecolors=a_V2, edgecolors=(0.,0.,0.,0.3))
+        try:
+            pylab.savefig('/Users/kolia/Desktop/V2_%s.pdf'%filename, format='pdf')
+        except: pass                
+    pylab.figure(1, figsize=(10,12))
+    N = len([1 for v in result.values() if v.size>1])
+    i = 1
+    for name,x in result.items():
+        pylab.subplot(N,1,i)
+        if x.size is nodes.size:
+            scale = numpy.max(numpy.abs(x))
+            pylab.plot(nodes,x)
+            pylab.title(name+': '+', '.join([('%.2f'%(y/scale)) for y in x])+' scale:'+('%.2f'%scale))
+            pylab.xlabel('nodes: '+', '.join([('%.1f'%y) for y in nodes]))
+            i += 1
+        elif x.size>1:
+            pylab.subplot(N,1,i)
+            xx = x[ numpy.nonzero(x) ]
+            pylab.title(name)
+            pylab.hist(x, bins=50)
+            i += 1
+    pylab.savefig('/Users/kolia/Desktop/%s.pdf'%filename, format='pdf')
 
 
-def optimize_over( params, vardict , run=train_stats[rgc_type] , u=init_u , sv1=sv1 ):
-    global_obj = global_objective( params = 
-                    all_variables( run, sv1=sv1, u=u, V2=init_V2,
-                        T=retina.place_cells( cones , inferred_locations , shapes )) 
-                    , vardict = vardict, unknowns = params, indices = indices)
-    result = optimize_objective( global_obj, params, gtol=1e-7 , maxiter=maxiter)
-    global_obj.callback(result,force=True)
-    return result
+iterations = [0]
+def callback( objective , params , force=False , other={} , objectives=[] ):
+    result = objective.unflat(params)
+    result.update(other)
+    for o in objectives:
+        result.update( {o.description:o.LL(params)} )
+    display_params( result )
+    if force or numpy.remainder( iterations[0] , 20 ) == 19:
+        filename = objective.description+'_'+'_'.join(sorted(result.keys()))+'_'+ \
+                  rgc_type+'_lam'+str(int(100*lam))+'_'+str(int(maxiter))+'iters'
+        plot_params( result, filename )
+    iterations[0] = iterations[0] + 1
 
 
-params = {'sv1':numpy.abs(sv1), 'V2':init_V2 , 'u':init_u}
+@memory.cache
+def test_LNP(rgc_type=rgc_type):
+    vardict   = LNP( **thetaM( **linear_reparameterization()))
+    unknowns  = {'sv1':sv1}
+    u = numpy.zeros(len(nodes))
+    u[0] = 1.
+    train_LNP = global_objective( {'sv1':sv1}, {'u':u,'V2':init_V2}, vardict, 
+                                   run=train_stats(rgc_type))
+    train_LNP.with_callback(callback)
+    train_LNP.description = 'LNP'
+    params = optimize.optimizer( train_LNP )( init_params=unknowns, 
+                                              maxiter=1000, gtol=1e-7 )
+    return global_objective( {'sv1':sv1}, {'u':u,'V2':init_V2}, vardict, 
+                              run=test_stats(rgc_type)).LL(params)
 
-# positive V1:
-vardict = LQLEP_wV1posBarrier( **LQLEP( **thetaM( **linear_reparameterization())))
-# else:
-#vardict = LQLEP_wBarrier( **LQLEP( **thetaM( **linear_reparameterization())))
+test_LNP_LL = test_LNP()
+print
+print 'LNP test LL:',test_LNP_LL
+print
 
-opt0 = optimize_over( params , vardict )
-
-print 'RGC type:', rgc_type
+@memory.cache
+def optimize_LQLEP(rgc_type):
+    unknowns = {'sv1':sv1, 'V2':init_V2 , 'u':init_u}
+    vardict = LQLEP_wBarrier( **LQLEP( **thetaM( **linear_reparameterization())))
+    train_LQLEP = global_objective( unknowns, {}, vardict, run=train_stats(rgc_type))
+#    test_LQLEP  = global_objective( unknowns, {}, vardict, run= test_stats(rgc_type))
+#    test_LQLEP.description = 'Test LQLEP'
+#    train_LQLEP.with_callback(partial(callback,other={'Test LNP':test_LNP_LL},
+#                                               objectives=[test_LQLEP]))
+    train_LQLEP.with_callback(callback)
+    train_LQLEP.description = 'LQLEP'
+    trained = optimize_objective( train_LQLEP, unknowns, gtol=1e-7 , maxiter=maxiter)
+    print 'RGC type:', rgc_type
+    train_LQLEP.callback( trained, force=True )
+    return trained
+    
+trained = optimize_LQLEP(rgc_type)

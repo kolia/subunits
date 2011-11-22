@@ -185,7 +185,7 @@ def read_stimulus( spikes, stimulus_pattern='cone_input_%d.mat',
             else:
                 # keep every skip_pattern[0]-th i only
                 if numpy.mod(i,numpy.abs(skip_pattern[0])) != skip_pattern[1]:
-                    i += 1
+                    i += numpy.abs(skip_pattern[0])-1
         data = {}
         try:
             data['stimulus'] = loadmat(stimulus_pattern % i)['data']
