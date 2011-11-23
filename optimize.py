@@ -52,7 +52,7 @@ def optimizer( objective , f='f' , df='df', barrier='barrier', maxiter=500,
                                                 callback=callback,
                                                 barrier=barrier, disp=disp,
                                                 full_output=True, **options)
-        objective.callback(init_params,force=True)
+        objective.callback(x,force=True)
         print '... done optimizing in', time.time()-t0,'sec.'
 
         if full_output:

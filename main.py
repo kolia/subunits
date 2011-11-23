@@ -24,7 +24,8 @@ reload(retina)
 import QuadPoiss
 reload(QuadPoiss)
 from   QuadPoiss import LQLEP_positiveV1, LQLEP_wBarrier, LQLEP, LNP, \
-                        thetaM, linear_reparameterization
+                        thetaM, linear_reparameterization, \
+                        LQLEP_positive_u
 
 # Memoizing results using joblib;  makes life easier
 from joblib import Memory
@@ -214,7 +215,7 @@ import time
 
 
 def single_objective( param_templates , vardict , outputs ):
-    arg     = set(['u','V2','STA','STC','v1','N_spike','T','Cm1'])
+    arg     = set(['u','V2','STA','STC','v1','N_spike','T','Cm1','C'])
     print 'Simplifying single objective...'
     sys.stdout.flush()
     t0 = time.time()
@@ -253,6 +254,7 @@ def split_params( params , i , indices ):
                 rt['v1'] = param[i]
             elif name == 'cov':
                 del rt['cov']
+                rt['C'] = param[numpy.ix_(index,index)]
                 rt['Cm1'] = numpy.linalg.inv( param[numpy.ix_(index,index)] )
             if indices.has_key('subunit_index'):
                 sindex = indices['subunit_index'][i]
@@ -302,12 +304,17 @@ def _sum_objectives( objectives, global_objective, attribute, X ):
 def test_global_objective( objective, unknowns ):
     print
     print 'Testing global objective:'
-    test_param = objective.flat(unknowns)
-    print 'discrepancy when flattening and unflattening:', \
-          [(n,numpy.sum((v-unknowns[n])**2.)) 
-            for n,v in objective.unflat(test_param).items()]
+    if isinstance( unknowns, type({}) ):
+        test_param = objective.flat(unknowns)
+        print 'discrepancy when flattening and unflattening:', \
+              [(n,numpy.sum((v-unknowns[n])**2.)) 
+                for n,v in objective.unflat(test_param).items()]
+    else:
+        test_param = objective.unflat( unknowns )
+        print 'discrepancy when flattening and unflattening:', \
+            numpy.sum((unknowns-objective.flat(test_param))**2.)
     print 'f:', objective.f(test_param),objective.f(unknowns)
-    print 'df:', objective.unflat(objective.df(test_param))
+#    print 'df:', objective.unflat(objective.df(test_param))
     if hasattr( objective , 'barrier' ):
         print 'barrier:', objective.barrier(test_param),objective.barrier(unknowns)
     print
@@ -320,18 +327,21 @@ def update_dict( d , key, resource , names ):
 #@memory.cache
 def optimize_objective( obj, init, gtol=1e-2 , maxiter=500 , optimizer=optimize ):
     optimizer = optimizer.optimizer( obj )
-    params = optimizer( init_params=init, maxiter=maxiter, gtol=gtol )
-    return obj.unflat( params )
+    return optimizer( init_params=init, maxiter=maxiter, gtol=gtol )
 
 
-nodes = numpy.array([0., 3., 6., 10., 20., 40., 100.])
+#nodes = numpy.array([0., 3., 6., 10., 20., 40., 100.])
+#init_u = numpy.array([0.4, 0.2, 0.05, 0.02, 0.01, 0.005, 0.])
+
+nodes = numpy.array([0., 2., 3., 5., 7., 10., 13., 16., 20., 25., 30., 40., 60., 100.])
+init_u = numpy.array([0.4, 0.3, 0.2, 0.1, 0.05, 0.02, 0.01, 0.005, 0.,0.,0.,0.,0.,0.])
+
 #nodes = numpy.array([0., 2.3, 2.8, 3.3, 4., 5., 6., 7.5, 10., 14., 20., 40.])
 
 value_matrix = numpy.eye(len(nodes))
 shapes = [ radial_piecewise_linear(nodes,values) for values in value_matrix]
 
 #init_u = numpy.array([3.05, 2.12, -2.14, 0.45, 0.56, -0.01, -0.18])
-init_u = numpy.array([0.4, 0.2, 0.05, 0.02, 0.01, 0.005, 0.])
 #init_u = numpy.exp(-0.5*(nodes**2))
 ##init_u = numpy.ones(nodes.shape)
 #init_u = init_u/numpy.sqrt(numpy.sum(init_u**2.)) * 0.05
@@ -358,9 +368,11 @@ def global_objective( unknowns, knowns, vardict, run ):
                 'T':retina.place_cells( cones, cones, shapes )})
     default( knowns, run, variables ) 
     outputs = {}
-    update_dict( outputs, 'f', vardict , ['LNP', 'LQLEP_wPrior', 'LQLEP_positiveV1'] )
+    update_dict( outputs, 'f', vardict , 
+            ['LNP', 'LQLEP_wPrior', 'LQLEP_positiveV1', 'LQLEP_positive_u'] )
     update_dict( outputs , 'LL'      , vardict , ['LNP', 'LQLEP'] )
-    update_dict( outputs , 'barrier' , vardict , ['barrier','barrier_positiveV1'] )
+    update_dict( outputs , 'barrier' , vardict , 
+                ['barrier','barrier_positiveV1','barrier_positive_u'] )
     single_obj = single_objective( split_params( unknowns, 0, indices ), vardict, outputs)
     objectives = [single_obj.where({},**split_params(knowns,i,indices))
                                    for i in range(NRGC)]
@@ -384,7 +396,7 @@ def display_params( result ):
     for name,x in result.items():
         if x.size == 1:
             print name,':',x,
-        elif x.size>10:
+        elif x.size>20:
             print name, 'min mean max: ',
             print numpy.min(x), numpy.mean(x), numpy.max(x)            
         else:
@@ -464,19 +476,22 @@ print 'LNP test LL:',test_LNP_LL
 print
 
 @memory.cache
-def optimize_LQLEP(rgc_type):
-    unknowns = {'sv1':sv1, 'V2':init_V2 , 'u':init_u}
-    vardict = LQLEP_wBarrier( **LQLEP( **thetaM( **linear_reparameterization())))
+def optimize_LQLEP(rgc_type, maxiter=maxiter,
+    vardict = LQLEP_wBarrier( **LQLEP( **thetaM( **linear_reparameterization())))):
+    unknowns = {'sv1':sv1, 'V2':init_V2 , 'u':init_u+0.0000001}
     train_LQLEP = global_objective( unknowns, {}, vardict, run=train_stats(rgc_type))
-#    test_LQLEP  = global_objective( unknowns, {}, vardict, run= test_stats(rgc_type))
-#    test_LQLEP.description = 'Test LQLEP'
-#    train_LQLEP.with_callback(partial(callback,other={'Test LNP':test_LNP_LL},
-#                                               objectives=[test_LQLEP]))
-    train_LQLEP.with_callback(callback)
-    train_LQLEP.description = 'LQLEP'
-    trained = optimize_objective( train_LQLEP, unknowns, gtol=1e-7 , maxiter=maxiter)
+    test_LQLEP  = global_objective( unknowns, {}, vardict, run= test_stats(rgc_type))
+    test_LQLEP.description = 'Test LQLEP'
+    train_LQLEP.with_callback(partial(callback,other={'Test LNP':test_LNP_LL},
+                                               objectives=[test_LQLEP]))
+#    train_LQLEP.with_callback(callback)
+    train_LQLEP.description = 'LQLEP_positiveU'
+    trained = optimize_objective( train_LQLEP, unknowns, gtol=1e-10 , maxiter=maxiter)
     print 'RGC type:', rgc_type
+    test_global_objective( train_LQLEP, trained )
     train_LQLEP.callback( trained, force=True )
+    train_LQLEP.callback( train_LQLEP.unflat( trained ), force=True )
     return trained
     
-trained = optimize_LQLEP(rgc_type)
+trained = optimize_LQLEP(rgc_type, maxiter=40,
+         vardict = LQLEP_positive_u( **LQLEP_wBarrier( **LQLEP( **thetaM( **linear_reparameterization())))))

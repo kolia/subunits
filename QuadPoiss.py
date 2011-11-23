@@ -27,11 +27,13 @@ def LQLEP_input(**other):
     other.update(locals())
     return named( **other )
 
-def LNP( theta = Th.dvector(),  STA = Th.dvector(), N_spike = Th.dscalar(), **other):
+def LNP(   theta = Th.dvector(),  STA = Th.dvector(), 
+         N_spike = Th.dscalar(),  C   = Th.dmatrix(),  **other):
     '''
     LNP log-likelihood, as a function of theta.  Minimizer is the STA.
     '''
-    LNP = -0.5 * N_spike *( - Th.sum(theta ** 2.) + 2. * Th.sum( theta * STA ))
+    LNP = -0.5 * N_spike *( - logdet(C) + 2. * Th.sum( theta * STA ) \
+                            - Th.sum(Th.dot(C,theta) * theta) )
     other.update(locals())
     return named( **other )
 
@@ -52,17 +54,18 @@ def LQLEP( theta   = Th.dvector()  , M    = Th.dmatrix() ,
     other.update(locals())
     return named( **other )
 
-def LQLEP_wBarrier( LQLEP    = Th.dscalar(), ldet = Th.dscalar(), V2 = Th.dvector(), 
+def LQLEP_wBarrier( LQLEP    = Th.dscalar(), ldet = Th.dscalar(), v1 = Th.dvector(), 
                     N_spike  = Th.dscalar(), ImM  = Th.dmatrix(),  U = Th.dmatrix(),
-                    **other):
+                    V2       = Th.dvector(),    u = Th.dvector(), **other):
     '''
     The actual Linear-Quadratic-Exponential-Poisson log-likelihood, 
     as a function of theta and M, 
     with a barrier on the log-det term and a prior.
     '''
-    LQLEP_wPrior = LQLEP + 0.5 * N_spike * 1./(ldet+250.)**2. \
-                 - Th.sum(Th.log(1.-9*V2**2.*Th.sum(U**2,axis=[1])))
-                 #+ Th.sum( V2**2 ) \
+    LQLEP_wPrior = LQLEP + 0.5 * N_spike * ( 1./(ldet+250.)**2. \
+                 - 0.000001 * Th.sum(Th.log(1.-9*V2**2.*Th.sum(U**2,axis=[1]))))
+#                 + 1. * Th.sum( (u[2:]+u[:-2]-2*u[1:-1])**2. )
+#                 + 0.0001*Th.sum( V2**2 )
     eigsImM,barrier = eig( ImM )
     barrier   = 1-(Th.sum(Th.log(eigsImM))>-250) * \
                   (Th.min(eigsImM)>0) * (Th.max(9*V2**2.*Th.sum(U**2,axis=[1]))<1)
@@ -76,8 +79,20 @@ def LQLEP_positiveV1( LQLEP_wPrior = Th.dscalar(), barrier = Th.dscalar(),
     as a function of theta and M, 
     with a barrier on the log-det term and a prior.
     '''
-    LQLEP_positiveV1   = LQLEP_wPrior - Th.sum(Th.log(v1))
+    LQLEP_positiveV1   = LQLEP_wPrior - 0.0001 * Th.sum(Th.log(v1))
     barrier_positiveV1 = 1-((1 - barrier) * (Th.min(v1.flatten())>=0))
+    other.update(locals())
+    return named( **other )
+
+def LQLEP_positive_u( LQLEP_wPrior = Th.dscalar(), barrier = Th.dscalar(),
+                     u = Th.dvector(), **other):
+    '''
+    The actual Linear-Quadratic-Exponential-Poisson log-likelihood, 
+    as a function of theta and M, 
+    with a barrier on the log-det term and a prior.
+    '''
+    LQLEP_positive_u   = LQLEP_wPrior - 0.0001 * Th.sum(Th.log(u))
+    barrier_positive_u = 1-((1 - barrier) * (Th.min(u.flatten())>=0))
     other.update(locals())
     return named( **other )
 
