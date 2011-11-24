@@ -125,9 +125,9 @@ def fit_U_stats( rgc_type='off midget', stats=stats, skip_pattern=None ):
     return stats
 
 #rgc_type = 'off parasol'
-rgc_type = 'on midget'
+#rgc_type = 'on midget'
 #rgc_type = 'on parasol'
-#rgc_type = 'off midget'
+rgc_type = 'off midget'
 
 def train_stats(rgc_type):
     return fit_U_stats( rgc_type=rgc_type, skip_pattern=(5,0) )
@@ -390,7 +390,7 @@ def global_objective( unknowns, knowns, vardict, run ):
     print '... done preparing objective in', time.time()-t0,'sec.'
     return global_obj
 
-maxiter = 3000
+maxiter = 10000
 
 def display_params( result ):
     for name,x in result.items():
@@ -485,7 +485,7 @@ def optimize_LQLEP(rgc_type, maxiter=maxiter,
     train_LQLEP.with_callback(partial(callback,other={'Test LNP':test_LNP_LL},
                                                objectives=[test_LQLEP]))
 #    train_LQLEP.with_callback(callback)
-    train_LQLEP.description = 'LQLEP_positiveU'
+    train_LQLEP.description = 'LQLEP_smoothpositiveU1_manynodes'
     trained = optimize_objective( train_LQLEP, unknowns, gtol=1e-10 , maxiter=maxiter)
     print 'RGC type:', rgc_type
     test_global_objective( train_LQLEP, trained )
@@ -493,5 +493,5 @@ def optimize_LQLEP(rgc_type, maxiter=maxiter,
     train_LQLEP.callback( train_LQLEP.unflat( trained ), force=True )
     return trained
     
-trained = optimize_LQLEP(rgc_type, maxiter=40,
+trained = optimize_LQLEP(rgc_type, maxiter=maxiter,
          vardict = LQLEP_positive_u( **LQLEP_wBarrier( **LQLEP( **thetaM( **linear_reparameterization())))))
