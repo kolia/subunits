@@ -31,6 +31,15 @@ def values_to_color( values , color ):
     (r,g,b,a)  = matplotlib.colors.ColorConverter().to_rgba(color)
     return [(r*v,g*v,b*v,a) for v in values]
 
+def values_to_uniform_color( values , color ):
+    '''Untested'''
+    pairs  = sorted( [p for p in enumerate(values)], key=lambda p: p[1])
+    pairs  = sorted( [p for p in enumerate( pairs)], key=lambda p: p[1][0])
+    colors = [float(p[0])/len(pairs) for p in pairs]
+    (r,g,b,a)  = matplotlib.colors.ColorConverter().to_rgba(color)
+    return [(r*v,g*v,b*v,a) for v in colors]
+
+
 def values_to_alpha( values , color ):
     ''''''
     m = min(values)
@@ -144,7 +153,6 @@ def zeros_like(X):
         result[key] = rec
     return result
 
-
 def unflat(template,X):
     '''Populate all the numpy arrays contained in 
     possibly nested dictonaries and lists of template, taking the 
@@ -153,12 +161,10 @@ def unflat(template,X):
     if isinstance(X,type(array([]))):
         return __unflat(template,X)[0]
     else:
-        return X
+        return copy.deepcopy(X)
 
 
-from inspect   import getargspec
 from functools import partial
-import copy
 def __reparameterize(func,reparam,reducer,zero):
     output = reparam()
     if isinstance(output,type([])):
