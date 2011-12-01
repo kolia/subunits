@@ -33,9 +33,10 @@ def values_to_color( values , color ):
 
 def values_to_uniform_color( values , color ):
     '''Untested'''
-    pairs  = sorted( [p for p in enumerate(values)], key=lambda p: p[1])
-    pairs  = sorted( [p for p in enumerate( pairs)], key=lambda p: p[1][0])
-    colors = [float(p[0])/len(pairs) for p in pairs]
+    vals = set(values)
+    d = dict([(v,i) for i,v in enumerate( sorted(vals) )])
+    colors = [d[v] for v in values]
+    colors = [float(c)/len(vals) for c in colors]
     (r,g,b,a)  = matplotlib.colors.ColorConverter().to_rgba(color)
     return [(r*v,g*v,b*v,a) for v in colors]
 

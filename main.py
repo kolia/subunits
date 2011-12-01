@@ -413,7 +413,7 @@ def init_sv1( rgc_type ):
 #    return numpy.vstack([V[index,i] for i,index in 
 #                enumerate(train_stats(rgc_type)['subunit_index'])])
 
-def global_objective( unknowns, knowns, vardict, run ):
+def global_objective( unknowns, knowns, vardict, run, indices ):
     print
     print 'Preparing objective for unknowns: ', unknowns
     sys.stdout.flush()
@@ -480,32 +480,52 @@ def plot_params( result , filename ):
         pylab.figure(2, figsize=(12,10))
         zeros = numpy.nonzero( nonlinearity == 0 )[0]
 
-        a1_V2   = kb.values_to_color( nonlinearity , (0.8,0.,0.) )
+        a1_V2   = kb.values_to_color( nonlinearity , 'r' )
         a_V2 = [[x,1.-x,0.,a] for x,_,_,a in a1_V2]
         for i in zeros: a_V2[i][3] = 0.1
         kb.plot_circles( sizes=1.5, offsets=inferred_locations, linewidth=0.001,
                          facecolors=a_V2, edgecolors=(0.,0.,0.,0.3))
         try:
-            pylab.savefig('/Users/kolia/Desktop/V2_%s.pdf'%filename, format='pdf')
+            pylab.savefig('/Users/kolia/Desktop/nonlinearity_%s.pdf'%filename, format='pdf')
         except: pass
 
-        a1_V2   = kb.values_to_uniform_color( numpy.abs(nonlinearity) , (0.8,0.,0.) )
-        a_V2 = [[1.,0.,0.,x] for x,_,_,a in a1_V2]
+        a1_V2   = kb.values_to_uniform_color( numpy.abs(nonlinearity) , 'r' )
+        a_V2 = [[x,0.,0.,x*x] for x,_,_,a in a1_V2]
         for i in zeros:  a_V2[i] = [0.,0.,0.,0.1]
         kb.plot_circles( sizes=1.5, offsets=inferred_locations, linewidth=0.001,
                          facecolors=a_V2, edgecolors=(0.,0.,0.,0.3))
         try:
-            pylab.savefig('/Users/kolia/Desktop/V2_abs_unif_%s.pdf'%filename, format='pdf')
+            pylab.savefig('/Users/kolia/Desktop/nonlinearity_abs_unif_%s.pdf'%filename, format='pdf')
         except: pass
 
-        a1_V2   = kb.values_to_uniform_color( nonlinearity , (0.8,0.,0.) )
+        a1_V2   = kb.values_to_uniform_color( nonlinearity , 'r' )
         a_V2 = [[x,1.-x,0.,a] for x,_,_,a in a1_V2]
         for i in zeros: a_V2[i][3] = 0.1
         kb.plot_circles( sizes=1.5, offsets=inferred_locations, linewidth=0.001,
                          facecolors=a_V2, edgecolors=(0.,0.,0.,0.3))
         try:
-            pylab.savefig('/Users/kolia/Desktop/V2_unif_%s.pdf'%filename, format='pdf')
+            pylab.savefig('/Users/kolia/Desktop/nonlinearity_unif_%s.pdf'%filename, format='pdf')
         except: pass
+
+    if result.has_key('c'):
+        a1_V2   = kb.values_to_color( result['c'] , 'r' )
+        a_V2 = [[x,1.-x,0.,a] for x,_,_,a in a1_V2]
+        for i in zeros: a_V2[i][3] = 0.1
+        kb.plot_circles( sizes=1.5, offsets=inferred_locations, linewidth=0.001,
+                         facecolors=a_V2, edgecolors=(0.,0.,0.,0.3))
+        try:
+            pylab.savefig('/Users/kolia/Desktop/c_%s.pdf'%filename, format='pdf')
+        except: pass
+
+        a1_V2   = kb.values_to_uniform_color( result['c'] , 'r' )
+        a_V2 = [[x,1.-x,0.,a] for x,_,_,a in a1_V2]
+        for i in zeros: a_V2[i][3] = 0.1
+        kb.plot_circles( sizes=1.5, offsets=inferred_locations, linewidth=0.001,
+                         facecolors=a_V2, edgecolors=(0.,0.,0.,0.3))
+        try:
+            pylab.savefig('/Users/kolia/Desktop/c_unif_%s.pdf'%filename, format='pdf')
+        except: pass
+
 
     pylab.figure(1, figsize=(10,12))
     N = len([1 for v in result.values() if v.size>1 and v.ndim<2])
@@ -543,7 +563,10 @@ def callback( objective , params , force=False , other={} , objectives=[] , plot
     for name,value in result.items():
         if hasattr(value, '__call__'):
             result[name] = value(params)
-    display_params( result )
+    try:
+        display_params( result )
+    except:
+        pass
     if force or numpy.remainder( iterations[0] , plot_every ) == plot_every-1:
         filename = objective.description
 #        filename = objective.description+'_'+'_'.join(sorted(result.keys()))+'_'+ \
@@ -558,15 +581,17 @@ def _test_LNP(rgc_type=rgc_type):
     unknowns  = {'sv1':init_sv1(rgc_type)}
     u = numpy.zeros(len(nodes))
     u[0] = 1.
+    indices = extract( train_stats(rgctype), ['sparse_index', 'subunit_index'] )
+    indices['N_subunits'] = len(possible_subunits)
     train_LNP = global_objective( unknowns, {'u':u,'V2':init_V2}, vardict, 
-                                   run=train_stats(rgc_type))
+                                   run=train_stats(rgc_type), indices=indices)
     train_LNP.with_callback(callback)
     train_LNP.description = 'LNP'
     params = optimize.optimizer( train_LNP )( init_params=unknowns, 
                                               maxiter=5000, gtol=1e-7 )
     return params , \
            global_objective( unknowns, {'u':u,'V2':init_V2}, vardict, 
-                              run=test_stats(rgc_type)).LL(params)
+                              run=test_stats(rgc_type), indices=indices).LL(params)
 
 @memory.cache
 def test_LNP(rgc_type=rgc_type):
@@ -578,10 +603,10 @@ def test_LNP(rgc_type=rgc_type):
 #print
 
 @memory.cache
-def optimize_LQLEP(rgc_type, maxiter=maxiter, unknowns = None,
+def optimize_LQLEP(rgc_type, maxiter=maxiter, unknowns = None, indices=None,
     vardict = LQLEP_wBarrier( **LQLEP( **thetaM( **linear_reparameterization())))):
-    train_LQLEP = global_objective( unknowns, {}, vardict, run=train_stats(rgc_type))
-    test_LQLEP  = global_objective( unknowns, {}, vardict, run= test_stats(rgc_type))
+    train_LQLEP = global_objective( unknowns, {}, vardict, run=train_stats(rgc_type), indices=indices)
+    test_LQLEP  = global_objective( unknowns, {}, vardict, run= test_stats(rgc_type), indices=indices)
     test_LQLEP.description = 'Test LQLEP'
     train_LQLEP.with_callback(partial(callback,other={'Test LNP':test_LNP(rgc_type)},
                                                objectives=[test_LQLEP]))
@@ -595,14 +620,14 @@ def optimize_LQLEP(rgc_type, maxiter=maxiter, unknowns = None,
     return trained
 
 @memory.cache
-def reoptimize_LQLEP( rgc_type, filename='', maxiter=maxiter,
+def reoptimize_LQLEP( rgc_type, filename='', maxiter=maxiter, indices=None,
     vardict = LQLEP_wBarrier( **LQLEP( **thetaM( **u2V2_parameterization())))):
     print 'reoptimizing',filename
     old = kb.load(filename)
     unknowns = {'sv1':old['sv1'], 'V2':old['V2'] , 'u':old['u'], 'ub':0.00001*old['u']}
     del old
-    train_LQLEP = global_objective( unknowns, {}, vardict, run=train_stats(rgc_type))
-    test_LQLEP  = global_objective( unknowns, {}, vardict, run= test_stats(rgc_type))
+    train_LQLEP = global_objective( unknowns, {}, vardict, run=train_stats(rgc_type), indices=indices)
+    test_LQLEP  = global_objective( unknowns, {}, vardict, run= test_stats(rgc_type), indices=indices)
     test_LQLEP.description = 'Test LQLEP'
     train_LQLEP.with_callback(partial(callback,other={'Test LNP':test_LNP(rgc_type)},
                                                objectives=[test_LQLEP]))
@@ -616,20 +641,20 @@ def reoptimize_LQLEP( rgc_type, filename='', maxiter=maxiter,
     return trained
 
 @memory.cache
-def reoptimize_LQLEP_c( rgc_type, filename='', maxiter=maxiter,
+def reoptimize_LQLEP_c( rgc_type, filename='', maxiter=maxiter, indices=None,
     vardict = LQLEP_wBarrier( **LQLEP( **thetaM( **u2c_parameterization())))):
     print 'reoptimizing',filename
     old = kb.load(filename)
 #    unknowns = {'sv1':sv1, 'V2':init_V2 , 'u':old['u'], 'uc':old['u'], 'c':init_V2}
     unknowns = {'sv1':old['sv1'], 'V2':init_V2 , 'u':old['u'], 'uc':old['uc'], 'c':old['c']}
     del old
-    train_LQLEP = global_objective( unknowns, {}, vardict, run=train_stats(rgc_type))
-    test_LQLEP  = global_objective( unknowns, {}, vardict, run= test_stats(rgc_type))
+    train_LQLEP = global_objective( unknowns, {}, vardict, run=train_stats(rgc_type), indices=indices)
+    test_LQLEP  = global_objective( unknowns, {}, vardict, run= test_stats(rgc_type), indices=indices)
     test_LQLEP.description = 'Test LQLEP'
-    train_LQLEP.with_callback(partial(callback,other={'Test LNP':test_LNP(rgc_type)},
+    train_LQLEP.with_callback(partial(callback,other={'Test LNP':test_LNP(rgc_type)[1]},
                                                objectives=[test_LQLEP]))
 #    train_LQLEP.with_callback(callback)
-    train_LQLEP.description = 'reUc1_'+filename
+    train_LQLEP.description = 'Uc2_'+rgc_type
     trained = optimize_objective( train_LQLEP, unknowns, gtol=1e-10 , maxiter=maxiter)
     print 'RGC type:', rgc_type
     test_global_objective( train_LQLEP, trained )
@@ -639,19 +664,18 @@ def reoptimize_LQLEP_c( rgc_type, filename='', maxiter=maxiter,
 
 
 @memory.cache
-def reoptimize_LQLEP_cd( rgc_type, filename='', maxiter=maxiter,
+def reoptimize_LQLEP_cd( rgc_type, filename='', maxiter=maxiter, indices=None,
     vardict = LQLEP_positive_u( **LQLEP_wBarrier( **LQLEP( **thetaM( **u2cd_parameterization()))))):
     print 'reoptimizing',filename
     old = kb.load(filename)
     unknowns = {'sv1':old['sv1'], 'V2':old['V2'] , 'u':old['u'], 
                 'uc':old['uc'], 'c':old['c'], 'ud':old['uc'], 'd':numpy.zeros_like(old['V2'])}
     del old
-    train_LQLEP = global_objective( unknowns, {}, vardict, run=train_stats(rgc_type))
-    test_LQLEP  = global_objective( unknowns, {}, vardict, run= test_stats(rgc_type))
+    train_LQLEP = global_objective( unknowns, {}, vardict, run=train_stats(rgc_type), indices=indices)
+    test_LQLEP  = global_objective( unknowns, {}, vardict, run= test_stats(rgc_type), indices=indices)
     test_LQLEP.description = 'Test LQLEP'
     train_LQLEP.with_callback(partial(callback,other=
-            {'Test LNP':test_LNP(rgc_type), 'nonlinearity':test_LQLEP.nonlinearity},
-                                               objectives=[test_LQLEP]))
+            {'nonlinearity':test_LQLEP.nonlinearity}, objectives=[test_LQLEP]))
 #    train_LQLEP.with_callback(callback)
     train_LQLEP.description = 'reUc1_'+filename
     trained = optimize_objective( train_LQLEP, unknowns, gtol=1e-10 , maxiter=maxiter)
@@ -685,9 +709,9 @@ def reoptimize_LQLEP_cd( rgc_type, filename='', maxiter=maxiter,
 #                                               objectives=[test_LQLEP], plot_every=500))
 
 
-
-
-for rgctype in ['on parasol','off parasol','on midget','off midget']:
+types = ['off midget','off parasol', 'on midget', 'on parasol']
+types.reverse()
+for rgctype in types:
     print
     print
     print
@@ -699,12 +723,29 @@ for rgctype in ['on parasol','off parasol','on midget','off midget']:
 
     indices = extract( train_stats(rgctype), ['sparse_index', 'subunit_index'] )
     indices['N_subunits'] = len(possible_subunits)
+    retrain = reoptimize_LQLEP_c(rgctype, filename=infile, maxiter=maxiter, indices=indices,
+             vardict = LQLEP_positive_u( **LQLEP_wBarrier( **LQLEP( **thetaM( **u2c_parameterization())))))
 
-    unknowns = extract( kb.load(infile), ['c', 'V2', 'u', 'sv1', 'uc'])
-    vardict = LQLEP_wBarrier( **LQLEP( **thetaM( **u2c_parameterization())))
-    test_LQLEP  = global_objective( unknowns, {}, vardict, run= test_stats(rgctype))
-    test_LQLEP.description = 'LQLEP_smoothposU1'+rgctype
-    
-    test_LQLEP.with_callback(partial(callback,other=
-                {'nonlinearity':test_LQLEP.nonlinearity, 'LL':test_LQLEP.LL}))
-    test_LQLEP.callback( unknowns , force=True )
+
+
+#for rgctype in ['on parasol','off parasol','on midget','off midget']:
+#    print
+#    print
+#    print
+#    print rgctype
+#    print
+#    print
+#    infile = 'reUc1_LQLEP_smoothpositiveU1_manynodes_Test LNP_Test LQLEP_V2_sv1_u_'+ \
+#             rgctype+'_lam0_10000iters'
+#
+#    indices = extract( train_stats(rgctype), ['sparse_index', 'subunit_index'] )
+#    indices['N_subunits'] = len(possible_subunits)
+#
+#    unknowns = extract( kb.load(infile), ['c', 'V2', 'u', 'sv1', 'uc'])
+#    vardict = LQLEP_wBarrier( **LQLEP( **thetaM( **u2c_parameterization())))
+#    test_LQLEP  = global_objective( unknowns, {}, vardict, run= test_stats(rgctype))
+#    test_LQLEP.description = 'LQLEP_smoothposU1'+rgctype
+#    
+#    test_LQLEP.with_callback(partial(callback,other=
+#                {'nonlinearity':test_LQLEP.nonlinearity, 'LL':test_LQLEP.LL}))
+#    test_LQLEP.callback( unknowns , force=True )
