@@ -654,7 +654,7 @@ def reoptimize_LQLEP_c( rgc_type, filename='', maxiter=maxiter, indices=None,
     train_LQLEP.with_callback(partial(callback,other={'Test LNP':test_LNP(rgc_type)[1]},
                                                objectives=[test_LQLEP]))
 #    train_LQLEP.with_callback(callback)
-    train_LQLEP.description = 'reUc2_'+rgc_type
+    train_LQLEP.description = 're2STD_Uc2_'+rgc_type
     trained = optimize_objective( train_LQLEP, unknowns, gtol=1e-10 , maxiter=maxiter)
     print 'RGC type:', rgc_type
     test_global_objective( train_LQLEP, trained )

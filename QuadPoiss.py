@@ -66,17 +66,17 @@ def LQLEP_wBarrier( LQLEP    = Th.dscalar(), ldet = Th.dscalar(), v1 = Th.dvecto
     nonlinearity = V2 * Th.sqrt( Th.sum( Th.dot(U,C)*U, axis=[1])) #Th.sum(U**2,axis=[1]) )
     if other.has_key('ub'):
         LQLEP_wPrior = LQLEP + 0.5 * N_spike * ( 1./(ldet+250.)**2. \
-                     - 0.000001 * Th.sum(Th.log(1.-9*sq_nonlinearity))) \
+                     - 0.000001 * Th.sum(Th.log(1.-4*sq_nonlinearity))) \
                      + 1. * Th.sum( (u[2:]+u[:-2]-2*u[1:-1])**2. ) \
                      + 1. * Th.sum( (other['ub'][2:]+other['ub'][:-2]-2*other['ub'][1:-1])**2. )
     else:
         LQLEP_wPrior = LQLEP + 0.5 * N_spike * ( 1./(ldet+250.)**2. \
-                     - 0.000001 * Th.sum(Th.log(1.-9*sq_nonlinearity))) \
-                     + 1. * Th.sum( (u[2:]+u[:-2]-2*u[1:-1])**2. )
+                     - 0.000001 * Th.sum(Th.log(1.-4*sq_nonlinearity))) #\
+#                     + 1. * Th.sum( (u[2:]+u[:-2]-2*u[1:-1])**2. )
     #                 + 0.0001*Th.sum( V2**2 )
     eigsImM,barrier = eig( ImM )
     barrier   = 1-(Th.sum(Th.log(eigsImM))>-250) * \
-                  (Th.min(eigsImM)>0) * (Th.max(9*sq_nonlinearity)<1)
+                  (Th.min(eigsImM)>0) * (Th.max(4*sq_nonlinearity)<1)
     other.update(locals())
     return named( **other )
 
