@@ -646,7 +646,7 @@ def reoptimize_LQLEP_c( rgc_type, filename='', maxiter=maxiter, indices=None,
     print 'reoptimizing',filename
     old = kb.load(filename)
 #    unknowns = {'sv1':sv1, 'V2':init_V2 , 'u':old['u'], 'uc':old['u'], 'c':init_V2}
-    unknowns = {'sv1':old['sv1'], 'V2':init_V2 , 'u':old['u'], 'uc':old['uc'], 'c':old['c']}
+    unknowns = {'sv1':old['sv1'], 'V2':old['V2'] , 'u':old['u'], 'uc':old['uc'], 'c':old['c']}
     del old
     train_LQLEP = global_objective( unknowns, {}, vardict, run=train_stats(rgc_type), indices=indices)
     test_LQLEP  = global_objective( unknowns, {}, vardict, run= test_stats(rgc_type), indices=indices)
@@ -654,7 +654,7 @@ def reoptimize_LQLEP_c( rgc_type, filename='', maxiter=maxiter, indices=None,
     train_LQLEP.with_callback(partial(callback,other={'Test LNP':test_LNP(rgc_type)[1]},
                                                objectives=[test_LQLEP]))
 #    train_LQLEP.with_callback(callback)
-    train_LQLEP.description = 'Uc2_'+rgc_type
+    train_LQLEP.description = 'reUc2_'+rgc_type
     trained = optimize_objective( train_LQLEP, unknowns, gtol=1e-10 , maxiter=maxiter)
     print 'RGC type:', rgc_type
     test_global_objective( train_LQLEP, trained )
@@ -677,7 +677,7 @@ def reoptimize_LQLEP_cd( rgc_type, filename='', maxiter=maxiter, indices=None,
     train_LQLEP.with_callback(partial(callback,other=
             {'nonlinearity':test_LQLEP.nonlinearity}, objectives=[test_LQLEP]))
 #    train_LQLEP.with_callback(callback)
-    train_LQLEP.description = 'reUc1_'+filename
+    train_LQLEP.description = 're_'+filename
     trained = optimize_objective( train_LQLEP, unknowns, gtol=1e-10 , maxiter=maxiter)
     print 'RGC type:', rgc_type
     test_global_objective( train_LQLEP, trained )
@@ -718,8 +718,7 @@ for rgctype in types:
     print rgctype
     print
     print
-    infile = 'reUc1_LQLEP_smoothpositiveU1_manynodes_Test LNP_Test LQLEP_V2_sv1_u_'+ \
-             rgctype+'_lam0_10000iters'
+    infile = 'Uc2_'+rgctype
 
     indices = extract( train_stats(rgctype), ['sparse_index', 'subunit_index'] )
     indices['N_subunits'] = len(possible_subunits)
