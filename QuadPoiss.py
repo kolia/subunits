@@ -91,7 +91,8 @@ def LQLEP_wBarrier( LQLEP    = Th.dscalar(), ldet = Th.dscalar(), v1 = Th.dvecto
     else:
         LQLEP_wPrior = LQLEP + 0.5 * N_spike * ( 1./(ldet+250.)**2. \
                      - 0.000001 * Th.sum(Th.log(1.-4*sq_nonlinearity))) \
-                     + 1. * Th.sum( (u[2:]+u[:-2]-2*u[1:-1])**2. )
+                     + 1. * Th.sum( (u[2:]+u[:-2]-2*u[1:-1])**2. ) \
+                     + 0.000000001 * Th.sum( v1**2. )
     #                 + 0.0001*Th.sum( V2**2 )
     eigsImM,barrier = eig( ImM )
     barrier   = 1-(Th.sum(Th.log(eigsImM))>-250) * \
@@ -106,7 +107,7 @@ def LQLEP_positiveV1( LQLEP_wPrior = Th.dscalar(), barrier = Th.dscalar(),
     as a function of theta and M, 
     with a barrier on the log-det term and a prior.
     '''
-    LQLEP_positiveV1   = LQLEP_wPrior - 0.0001 * Th.sum(Th.log(v1))
+    LQLEP_positiveV1   = LQLEP_wPrior + 0.00000001 * Th.sum(1/v1**2.)
     barrier_positiveV1 = 1-((1 - barrier) * (Th.min(v1.flatten())>=0))
     other.update(locals())
     return named( **other )
@@ -167,7 +168,7 @@ def UVi(i , V1   = Th.dmatrix() , STAs = Th.dmatrix(), STCs = Th.dtensor3(),
                      'STC' :    STCs[i,:,:],
                      'N_spike': N_spikes[i]/(Th.sum(N_spikes))} )
 
-def linear_reparameterization( T  = Th.dtensor3() , u  = Th.dvector() , 
+def linear_parameterization( T  = Th.dtensor3() , u  = Th.dvector() , 
                                      **other ):
 #                                b = Th.dvector() ,  ub = Th.dvector(), **other ): 
 #    U = ( Th.sum( T*ub  , axis=2 ).T * b  ).T + Th.sum( T*u , axis=2 )
