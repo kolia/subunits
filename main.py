@@ -422,23 +422,23 @@ def plot_params( result , filename ):
         pylab.figure(2, figsize=(12,10))
         zeros = numpy.nonzero( nonlinearity == 0 )[0]
 
-        a1_V2   = kb.values_to_color( nonlinearity , 'r' )
-        a_V2 = [[x,1.-x,0.,a] for x,_,_,a in a1_V2]
-        for i in zeros: a_V2[i][3] = 0.1
-        kb.plot_circles( sizes=1.5, offsets=cones, linewidth=0.001,
-                         facecolors=a_V2, edgecolors=(0.,0.,0.,0.3))
-        try:
-            pylab.savefig('/Users/kolia/Desktop/nonlinearity_%s.pdf'%filename, format='pdf')
-        except: pass
+#        a1_V2   = kb.values_to_color( nonlinearity , 'r' )
+#        a_V2 = [[x,1.-x,0.,a] for x,_,_,a in a1_V2]
+#        for i in zeros: a_V2[i][3] = 0.1
+#        kb.plot_circles( sizes=1.5, offsets=cones, linewidth=0.001,
+#                         facecolors=a_V2, edgecolors=(0.,0.,0.,0.3))
+#        try:
+#            pylab.savefig('/Users/kolia/Desktop/nonlinearity_%s.pdf'%filename, format='pdf')
+#        except: pass
 
-        a1_V2   = kb.values_to_uniform_color( numpy.abs(nonlinearity) , 'r' )
-        a_V2 = [[x,0.,0.,x*x] for x,_,_,a in a1_V2]
-        for i in zeros:  a_V2[i] = [0.,0.,0.,0.1]
-        kb.plot_circles( sizes=1.5, offsets=cones, linewidth=0.001,
-                         facecolors=a_V2, edgecolors=(0.,0.,0.,0.3))
-        try:
-            pylab.savefig('/Users/kolia/Desktop/nonlinearity_abs_unif_%s.pdf'%filename, format='pdf')
-        except: pass
+#        a1_V2   = kb.values_to_uniform_color( numpy.abs(nonlinearity) , 'r' )
+#        a_V2 = [[x,0.,0.,x*x] for x,_,_,a in a1_V2]
+#        for i in zeros:  a_V2[i] = [0.,0.,0.,0.1]
+#        kb.plot_circles( sizes=1.5, offsets=cones, linewidth=0.001,
+#                         facecolors=a_V2, edgecolors=(0.,0.,0.,0.3))
+#        try:
+#            pylab.savefig('/Users/kolia/Desktop/nonlinearity_abs_unif_%s.pdf'%filename, format='pdf')
+#        except: pass
 
         a1_V2   = kb.values_to_uniform_color( nonlinearity , 'r' )
         a_V2 = [[x,1.-x,0.,a] for x,_,_,a in a1_V2]
@@ -449,15 +449,15 @@ def plot_params( result , filename ):
             pylab.savefig('/Users/kolia/Desktop/nonlinearity_unif_%s.pdf'%filename, format='pdf')
         except: pass
 
-    if result.has_key('c'):
-        a1_V2   = kb.values_to_color( result['c'] , 'r' )
-        a_V2 = [[x,1.-x,0.,a] for x,_,_,a in a1_V2]
-        for i in zeros: a_V2[i][3] = 0.1
-        kb.plot_circles( sizes=1.5, offsets=cones, linewidth=0.001,
-                         facecolors=a_V2, edgecolors=(0.,0.,0.,0.3))
-        try:
-            pylab.savefig('/Users/kolia/Desktop/c_%s.pdf'%filename, format='pdf')
-        except: pass
+#    if result.has_key('c'):
+#        a1_V2   = kb.values_to_color( result['c'] , 'r' )
+#        a_V2 = [[x,1.-x,0.,a] for x,_,_,a in a1_V2]
+#        for i in zeros: a_V2[i][3] = 0.1
+#        kb.plot_circles( sizes=1.5, offsets=cones, linewidth=0.001,
+#                         facecolors=a_V2, edgecolors=(0.,0.,0.,0.3))
+#        try:
+#            pylab.savefig('/Users/kolia/Desktop/c_%s.pdf'%filename, format='pdf')
+#        except: pass
 
         a1_V2   = kb.values_to_uniform_color( result['c'] , 'r' )
         a_V2 = [[x,1.-x,0.,a] for x,_,_,a in a1_V2]
@@ -496,7 +496,7 @@ def plot_params( result , filename ):
 
 
 iterations = [0]
-def callback( objective , params , force=False , other={} , objectives=[] , plot_every=500):
+def callback( objective , params , force=False , other={} , objectives=[] , plot_every=42):
     result = objective.unflat(params)
 #    ipdb.set_trace()
     result.update(other)
@@ -513,7 +513,7 @@ def callback( objective , params , force=False , other={} , objectives=[] , plot
         filename = objective.description
 #        filename = objective.description+'_'+'_'.join(sorted(result.keys()))+'_'+ \
 #                  rgc_type+'_lam'+str(int(100*lam))+'_'+str(int(maxiter))+'iters'
-        save(result,filename)
+        save(result,filename+('iter%d'%iterations[0]))
         plot_params( result, filename )
     iterations[0] = iterations[0] + 1
 
@@ -565,6 +565,8 @@ def optimize_LQLEP( rgc_type, filename=None, maxiter=maxiter, indices=None, desc
         default(unknowns,defaults)
     else:
         unknowns = defaults
+#    if rgc_type[:3] == 'off':
+#        unknowns['u'] = -0.01*numpy.abs(unknowns['u'])
     if vardict.has_key('barrier_positiveV1'):
         unknowns['sv1'] = numpy.abs(unknowns['sv1'])
     else:
@@ -659,7 +661,7 @@ def simulated_STAC( filename=None, rgctype='off parasol' ):
     return stats
 
 types = ['off parasol', 'on midget', 'on parasol', 'off midget']
-types.reverse()
+#types.reverse()
 
 for rgctype in types:
     print
@@ -694,16 +696,16 @@ for rgctype in types:
 
     indices = extract( linear_stats(rgctype,(5,0)), ['sparse_index', 'subunit_index'] )
     indices['N_subunits'] = len(cones)
-    retrain = optimize_LQLEP(rgctype, filename=infile, maxiter=maxiter, indices=indices,
-             description='posV1_cd',
+    retrain = optimize_LQLEP(rgctype, filename=infile, indices=indices,
+             description='posV1_c', maxiter=42*10+2, 
              vardict = LQLEP_positiveV1( **LQLEP_wBarrier( **LQLEP(
-                                         **thetaM( **u2cd_parameterization())))))
+                                         **thetaM( **u2c_parameterization())))))
 
-for rgctype in types:
-    print
-    print 'Calculating simulated_STAC for', rgctype
-    filename = 're2STD_Uc2_'
-    save( simulated_STAC( filename, rgctype), filename+rgctype+'_STAC' )
+#for rgctype in types:
+#    print
+#    print 'Calculating simulated_STAC for', rgctype
+#    filename = 're2STD_Uc2_'
+#    save( simulated_STAC( filename, rgctype), filename+rgctype+'_STAC' )
 
 
 #for rgctype in types:
