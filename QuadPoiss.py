@@ -27,6 +27,25 @@ def LQLEP_input(**other):
     other.update(locals())
     return named( **other )
 
+def subunit_LQ( stimulus = Th.dmatrix(),  U = Th.dvector(), 
+                      V2 = Th.dvector(), **other ):
+    subunit_in  = Th.dot( U, stimulus )
+    subunit_out = subunit_in + 0.5 * ((subunit_in**2.).T * V2).T
+    other.update(locals())
+    return named( **other )    
+
+def RGC_LE( subunit_out = Th.dmatrix(), v1 = Th.dvector(), 
+                  spikes = Th.dvector(), **other ):
+    unnormalized = Th.exp( Th.dot( subunit_out.T, v1 ).T )
+    rgc_out = unnormalized * Th.sum(spikes) / Th.sum(unnormalized)
+    other.update(locals())
+    return named( **other )    
+    
+def Poisson_LL( rgc_out = Th.dvector(), spikes = Th.dvector(),  **other ):
+    loglikelihood = Th.sum( spikes * Th.log( rgc_out ) - rgc_out )
+    other.update(locals())
+    return named( **other )
+
 def LNP(   theta = Th.dvector(),  STA = Th.dvector(), 
          N_spike = Th.dscalar(),  C   = Th.dmatrix(),  **other):
     '''

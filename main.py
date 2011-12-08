@@ -24,9 +24,10 @@ reload(retina)
 import QuadPoiss
 reload(QuadPoiss)
 from   QuadPoiss import LQLEP_positiveV1, LQLEP_wBarrier, LQLEP, LNP, \
-                        thetaM, linear_reparameterization, \
+                        thetaM, linear_parameterization, \
                         LQLEP_positive_u, u2V2_parameterization, \
-                        u2c_parameterization, u2cd_parameterization
+                        u2c_parameterization, u2cd_parameterization, \
+                        Poisson_LL, RGC_LE, subunit_LQ
 
 # Memoizing results using joblib;  makes life easier
 from joblib import Memory
@@ -51,20 +52,14 @@ from scipy.linalg   import schur
 import sys
 sys.setrecursionlimit(10000)
 
-def stats_for_ARD( feature = lambda x : x ):
+@memory.cache
+def STA_stats( spikes = data['spikes'] ):
     stats = retina.accumulate_statistics( 
-        data_generator = 
             retina.read_stimulus( data['spikes'],
                                  stimulus_pattern='cone_input_%d.mat' ,
-                                 skip_pattern=(5,0) ) ,
-        feature = feature)
-    stats['dSTA']  = numpy.concatenate(
-        [STA[:,numpy.newaxis]-stats['mean'][:,numpy.newaxis] 
-         for STA in stats['STA']], axis=1)
-    print 'calculated dSTA'
+                                 skip_pattern=(5,0) ) )
+    print 'calculated STAs'
     sys.stdout.flush()
-    stats['D'], stats['Z'] = schur(stats['cov'])
-    del stats['cov']
     return stats
 
 def n_largest( values , keep=10 ):
@@ -73,36 +68,66 @@ def n_largest( values , keep=10 ):
     cutoff = sorted_values[-keep]
     return numpy.nonzero( numpy.abs(values) >= cutoff )[0]
 
-def fit_U_stats( rgc_type='off midget', stats={}, skip_pattern=None ):
-    keep = {'off midget' :  30, 'on midget' :  30, 
-            'off parasol': 120, 'on parasol': 120}
-    keep = keep[rgc_type]
-    which_rgc = [i for i,ind in enumerate(data['rgc_ids'])
-                   if  ind   in data['rgc_types'][rgc_type]] #and i in which]
+keep = {'off midget' :  30, 'on midget' :  30, 
+        'off parasol': 120, 'on parasol': 120}
+
+
+def which_cells( rgc_type='off midget' ):
+    return [i for i,ind in enumerate(data['rgc_ids'])
+            if  ind   in data['rgc_types'][rgc_type]] #and i in which]
 #                   and data['rgc_locations'][i][1]>170 ]
-    print 'Fitting stats for',len(which_rgc),'RGCs'
-    spikes       = data['spikes'][which_rgc,:]
-    stats['cov'] = numpy.dot( stats['Z'],numpy.dot(stats['D'],stats['Z'].T) )
-    diagcov      = numpy.diag( stats['cov'] )
-    stats[ 'sparse_index'] = [n_largest( stats['STA'][i]/diagcov, keep=keep ) 
-                              for i in which_rgc]
-    stats['subunit_index'] = [n_largest( stats['STA'][i]/diagcov, keep=keep ) 
-                              for i in which_rgc]
+
+def which_spikes( rgc_type='off midget' ):
+    return data['spikes'][which_cells(rgc_type),:]
+
+def make_sparse_indices( rgc_type='off midget' , stats={} ):
+    keepers = keep[rgc_type]
+    which_rgc = which_cells( rgc_type )
+    print 'Making sparse indices for',len(which_rgc),'RGCs. ',
+    print 'stats.keys():',stats.keys()
+    if stats.has_key('N_spikes'):
+        stats['N_spikes'] = [stats['N_spikes'][i] for i in which_rgc]
+    if stats.has_key('STA'):
+        stats['STA'] = [stats['STA'][i] for i in which_rgc]
+    if stats.has_key('cov'):
+        std = numpy.sqrt( numpy.diag( stats['cov'] ) )
+    if stats.has_key('STA') and stats.has_key('mean') and stats.has_key('cov'):
+        stats[ 'sparse_index'] = [n_largest( numpy.abs(sta-stats['mean'])/std, keep=keepers )
+                                  for sta in stats['STA']]
+        stats['subunit_index'] = [n_largest( numpy.abs(sta-stats['mean'])/std, keep=keepers )
+                                  for sta in stats['STA']]
+        del stats['STA']
     stats['rgc_type']  = rgc_type
     stats['rgc_index'] = which_rgc
+    stats['spikes']    = which_spikes( rgc_type )
+    return stats
+
+def make_sparse_stats( rgc_type='off midget', stats={}, skip_pattern=None ):
+    print 'Fitting sparse stats for',len(stats['rgc_index']),'RGCs'
     stats.update( retina.accumulate_statistics( 
-        data_generator = retina.read_stimulus( spikes , 
-#                                               normalizer=normalizer,
+        data_generator = retina.read_stimulus( stats['spikes'] , 
                                                skip_pattern=skip_pattern) ,
         feature        = lambda x : x                   ,
         pipelines      = retina.fit_U                    ,
         sparse_index   = stats['sparse_index']          ))
     return stats
 
+#@memory.cache
+#def smooth_STA_stats( rgc_type = 'off parasol' ):
+#    spikes = which_spikes( rgc_type )
+#    return dSTA_stats( spikes, lambda x: 
+#          numpy.dot( retina.gaussian2D_weights( cones, cones, sigma=3. ), x) )
+
 @memory.cache
 def linear_stats( rgc_type, skip_pattern=(5,0)):
-    stats = stats_for_ARD( lambda x: numpy.dot( retina.gaussian2D_weights( cones, cones, sigma=3. ), x) )
-    return fit_U_stats( rgc_type=rgc_type, stats=stats, skip_pattern=skip_pattern )
+    stats = STA_stats()
+    stats = make_sparse_indices( rgc_type=rgc_type, stats=stats )
+    return make_sparse_stats( rgc_type=rgc_type, stats=stats, skip_pattern=skip_pattern )
+
+#@memory.cache
+#def linear_stats( rgc_type, skip_pattern=(5,0)):
+#    stats = stats_for_ARD( lambda x: numpy.dot( retina.gaussian2D_weights( cones, cones, sigma=3. ), x) )
+#    return fit_U_stats( rgc_type=rgc_type, stats=stats, skip_pattern=skip_pattern )
 
 def radial_piecewise_linear( nodes=[] , values=[] , default=0.):
     '''Returns a function which does linear interpolation between a sequence 
@@ -117,21 +142,19 @@ def radial_piecewise_linear( nodes=[] , values=[] , default=0.):
             index_i = x >= n
             if i>0: # len(nodes)-1:
                 ind = ~index_i & index
-                print numpy.sum(ind), ' distances between', nodes[i-1], ' and ', n 
+#                print numpy.sum(ind), ' distances between', nodes[i-1], ' and ', n 
                 result[ ind ] = \
                       (values[i-1]*(n-x[ind])+values[i]*(x[ind]-nodes[i-1])) / (n-nodes[i-1])
             index = index_i
         return result
     return f
 
-from kolia_base import save
-
-def extract(d, keys):
-    return dict((k, d[k]) for k in keys if k in d)
+from kolia_base import save, extract
 
 
 @memory.cache
 def ARD( stats , lam=0.00 ):
+    stats['D'], stats['Z'] = schur(stats['cov'])
     print 'Starting ARD of size ', stats['Z'].shape,' with lambda=',lam
     sys.stdout.flush()
     D,Z = stats['D']/2 , stats['Z']
@@ -139,8 +162,11 @@ def ARD( stats , lam=0.00 ):
     sys.stdout.flush()
     DD  = numpy.diag(D)
     keep= DD>1e-10
-    P   =  (Z[:,keep] * numpy.sqrt(DD[keep])).T
-    y   =  numpy.dot ( (Z[:,keep] * 1/numpy.sqrt(DD[keep])).T , stats['dSTA'] ) / 2
+    P    =  (Z[:,keep] * numpy.sqrt(DD[keep])).T
+    dSTA = numpy.concatenate(
+        [STA[:,numpy.newaxis]-stats['mean'][:,numpy.newaxis] 
+         for STA in stats['STA']], axis=1)
+    y    =  numpy.dot ( (Z[:,keep] * 1/numpy.sqrt(DD[keep])).T , dSTA ) / 2
     iW = 1e-1
     for i in range(1):
         print 'Irlsing'
@@ -154,14 +180,16 @@ import time
 
 
 def single_objective( param_templates , vardict , outputs ):
-    arg     = set(['u','V2','STA','STC','v1','N_spike','T','Cm1','C'])
+    arg     = set(['u','V2','STA','STC','v1','N_spike','T','Cm1','C','c','uc'])
     print 'Simplifying single objective...'
     sys.stdout.flush()
     t0 = time.time()
     params = extract(vardict,param_templates.keys())
     args   = extract(vardict,arg-set(param_templates.keys()))
+    differentiate = []
+    if outputs.has_key('f'): differentiate += ['f']
     obj = kolia_theano.Objective( params, param_templates, args, outputs,
-                                  differentiate=['f'], mode='FAST_RUN' )
+                                  differentiate=differentiate, mode='FAST_RUN' )
     t1 = time.time()
     print 'done simplifying single objective for', param_templates.keys(),
     print 'in ', t1-t0, ' sec.'
@@ -183,6 +211,9 @@ def split_params( params , i , indices ):
         elif name == 'N_spikes':
             del rt['N_spikes']
             rt['N_spike'] = float(param[i]/sum(params['N_spikes']))
+        elif name == 'all_spikes':
+            del rt['all_spikes']
+            rt['spikes'] = param[i]
         if name == 'V1':
             del rt['V1']
             rt['v1'] = param[i]
@@ -199,6 +230,8 @@ def split_params( params , i , indices ):
                 sindex = indices['subunit_index'][i]
                 if name == 'V2':
                     rt['V2'] = param[sindex]
+                elif name == 'stimulus':
+                    rt['stimulus'] = param[sindex,:]
                 elif name == 'nonlinearity':
                     rt['V2'] = param[sindex]
                 elif name == 'c':
@@ -217,6 +250,8 @@ def fuse_params( into , params , i , indices=None ):
         key = params.keys()[0]
         if key == 'nonlinearity':
             into = numpy.zeros(indices['N_subunits'])
+        elif key == 'rates':
+            into = []
         elif key in ['f', 'LL', 'barrier']:
             into = 0
     if indices is not None and indices.has_key('subunit_index'):
@@ -228,6 +263,8 @@ def fuse_params( into , params , i , indices=None ):
                 into['V2'][index] += param
             elif name == 'nonlinearity':
                 into[index] += param
+            elif name == 'rates':
+                into[index] += [param]
             elif name == 'c':
                 into['c'][index] += param
             elif name == 'd':
@@ -271,7 +308,8 @@ def test_global_objective( objective, unknowns ):
         test_param = objective.unflat( unknowns )
         print 'discrepancy when flattening and unflattening:', \
             numpy.sum((unknowns-objective.flat(test_param))**2.)
-    print 'f:', objective.f(test_param),objective.f(unknowns)
+    if hasattr( objective , 'f' ):
+        print 'f:', objective.f(test_param),objective.f(unknowns)
 #    print 'df:', objective.unflat(objective.df(test_param))
     if hasattr( objective , 'barrier' ):
         print 'barrier:', objective.barrier(test_param),objective.barrier(unknowns)
@@ -314,7 +352,6 @@ def global_objective( unknowns, knowns, vardict, run, indices ):
     print
     print 'Preparing objective for unknowns: ', [(n,v.shape) for n,v in unknowns.items()]
     sys.stdout.flush()
-    t0 = time.time()
     variables = ['u','V2','sv1','sparse_STA','sparse_STC','V1','N_spikes','T','cov']
     run.update({'u':init_u, 'V2':init_V2, 'sv1':init_sv1(run['rgc_type']), 
                 'T':retina.place_cells( cones, cones, shapes )})
@@ -330,17 +367,22 @@ def global_objective( unknowns, knowns, vardict, run, indices ):
         print
         print 'sv1 shape', unknowns['sv1'].shape
         print
-    print 'unknowns:',unknowns
-    print 'knowns:',  knowns
+    NRGC = len( run['sparse_STA'] )
+    return make_global_objective(unknowns,knowns,vardict,variables,outputs,indices,NRGC)
+
+def make_global_objective(unknowns,knowns,vardict,variables,outputs,indices,NRGC):
+    t0 = time.time()
+    print 'unknowns:',unknowns.keys()
+    print 'knowns:',  knowns.keys()
     single_obj = single_objective( split_params( unknowns, 0, indices ), vardict, outputs)
     objectives = [single_obj.where({},**split_params(knowns,i,indices))
-                                   for i in range(len(run['rgc_index']))]
+                                   for i in range(NRGC)]
     symbolic_params = extract(vardict,unknowns.keys())
     args   = extract(vardict,set(variables)-set(unknowns.keys()))
     global_obj = kolia_theano.Objective( symbolic_params, unknowns, args, {})
     global_obj = global_obj.where({'indices':indices}, **knowns)
 #    ipdb.set_trace()
-    for fname in ['f','df','barrier','LL','nonlinearity']:
+    for fname in outputs.keys():
         if hasattr(objectives[0],fname):
             setattr(global_obj,fname,partial(_sum_objectives, objectives, global_obj, fname))
             setattr(getattr(global_obj,fname),'__name__',fname)
@@ -348,6 +390,7 @@ def global_objective( unknowns, knowns, vardict, run, indices ):
     global_obj.description = ''
     print '... done preparing objective in', time.time()-t0,'sec.'
     return global_obj
+
 
 maxiter = 10000
 
@@ -474,25 +517,32 @@ def callback( objective , params , force=False , other={} , objectives=[] , plot
         plot_params( result, filename )
     iterations[0] = iterations[0] + 1
 
-    
-def _test_LNP(rgc_type='off parasol'):
-    vardict   = LNP( **thetaM( **linear_reparameterization()))
-    unknowns  = {'sv1':init_sv1(rgc_type)}
+def LNP_model( sv1, params=None ):
     u = numpy.zeros(len(nodes))
     u[0] = 1.
+    model = {'sv1':sv1, 'u':u,'V2':init_V2, 'c':init_V2, 'uc':numpy.zeros_like(nodes)}
+    if params is not None:
+        model.update(params)
+    return model
+
+def _test_LNP( rgc_type='off parasol' ):
+    vardict   = LNP( **thetaM( **linear_reparameterization()))
+    init_LNP  = LNP_model( init_sv1(rgc_type) )
     indices = extract( linear_stats( rgc_type, (5,0) ), ['sparse_index', 'subunit_index'] )
     indices['N_subunits'] = len(cones)
-    train_LNP = global_objective( unknowns, {'u':u,'V2':init_V2}, vardict, 
-                                   run=linear_stats( rgc_type, (5,0) ),
-                                   indices=indices)
+    unknown = extract(init_LNP,['sv1'])
+    train_LNP = global_objective( unknown, extract(init_LNP,['u','V2']), 
+                                  vardict, run=linear_stats( rgc_type, (5,0) ),
+                                  indices=indices)
     train_LNP.with_callback(callback)
     train_LNP.description = 'LNP'
-    params = optimize.optimizer( train_LNP )( init_params=unknowns, 
-                                              maxiter=5000, gtol=1e-7 )
-    return params , \
-           global_objective( unknowns, {'u':u,'V2':init_V2}, vardict, 
-                              run=linear_stats( rgc_type, (-5,0)), 
-                              indices=indices).LL(params)
+    sv1 = optimize.optimizer( train_LNP )( init_params=unknown, maxiter=5000, gtol=1e-7 )
+    model = LNP_model( train_LNP.unflat( sv1 )['sv1'] )
+    model['LL'] = global_objective( unknown, extract(init_LNP,['u','V2']), 
+                             vardict, run=linear_stats( rgc_type, (-5,0)), 
+                             indices=indices).LL(sv1)
+    save(model,'LNP_'+rgc_type)
+    return model
 
 @memory.cache
 def test_LNP(rgc_type='off parasol'):
@@ -500,11 +550,13 @@ def test_LNP(rgc_type='off parasol'):
 
 @memory.cache
 def optimize_LQLEP( rgc_type, filename=None, maxiter=maxiter, indices=None, description='',
-    unknowns=['sv1','V2','u','uc','c'],
+    unknowns=['sv1','V2','u','uc','c','ud','d'],
     vardict = LQLEP_wBarrier( **LQLEP( **thetaM( **u2c_parameterization())))):
 #    unknowns = {'sv1':sv1, 'V2':init_V2 , 'u':old['u'], 'uc':old['u'], 'c':init_V2}
     defaults = extract( { 'sv1':init_sv1( rgc_type ), 'V2':init_V2 , 'u':init_u, 
-                          'uc':numpy.zeros_like(init_u), 'c':init_V2}, unknowns)
+                          'uc':numpy.zeros_like(init_u), 'c':init_V2,
+                          'ud':0.001*numpy.ones_like(init_u), 'd':0.0001+init_V2},
+                        list( set(unknowns).intersection( set(vardict.keys()) ) ) + ['sv1'])
     if filename is not None:
         print 'Re-optimizing',filename
         unknowns = kb.load(filename)
@@ -513,13 +565,18 @@ def optimize_LQLEP( rgc_type, filename=None, maxiter=maxiter, indices=None, desc
         default(unknowns,defaults)
     else:
         unknowns = defaults
+    if vardict.has_key('barrier_positiveV1'):
+        unknowns['sv1'] = numpy.abs(unknowns['sv1'])
+    else:
+        unknowns['sv1'] = unknowns['sv1']*0.01
     train_LQLEP = global_objective( unknowns, {}, vardict, run=linear_stats(rgc_type,( 5,0)), indices=indices)
     test_LQLEP  = global_objective( unknowns, {}, vardict, run=linear_stats(rgc_type,(-5,0)), indices=indices)
-    test_LQLEP.description = 'Test LQLEP'
+    test_LQLEP.description = 'Test_LQLEP'
     train_LQLEP.with_callback(partial(callback,other=
-                 {'Test LNP':test_LNP(rgc_type)[1], 'nonlinearity':test_LQLEP.nonlinearity},
+                 {'Test_LNP':test_LNP(rgc_type)['LL'], 'nonlinearity':test_LQLEP.nonlinearity},
                   objectives=[test_LQLEP]))
     train_LQLEP.description = description+rgc_type
+    unknowns['V2'] = unknowns['V2']*0.001
     trained = optimize_objective( train_LQLEP, unknowns, gtol=1e-10 , maxiter=maxiter)
     print 'RGC type:', rgc_type
     test_global_objective( train_LQLEP, trained )
@@ -527,8 +584,105 @@ def optimize_LQLEP( rgc_type, filename=None, maxiter=maxiter, indices=None, desc
     train_LQLEP.callback( train_LQLEP.unflat( trained ), force=True )
     return trained
 
-types = ['off midget','off parasol', 'on midget', 'on parasol']
+def forward_LQLEP( stimulus, all_spikes, model, indices, vardict=u2c_parameterization()):
+    print
+    print 'Preparing forward LQLEP model.'
+    sys.stdout.flush()
+    vardict = Poisson_LL( **RGC_LE( **subunit_LQ( **vardict)))
+    variables = ['stimulus','all_spikes','u','V2','sv1','T','c','uc']
+    knowns = model
+    knowns.update({'T':retina.place_cells( cones, cones, shapes )})
+    unknowns = {'stimulus':stimulus, 'all_spikes':all_spikes}
+    outputs  = {'LL': vardict['loglikelihood'], 'rates': vardict['rgc_out']}
+    NRGC = len( all_spikes )
+    return make_global_objective(unknowns,knowns,vardict,variables,outputs,indices,NRGC)
+
+
+def load_model( filename=None, rgctype='off parasol' ):
+    filename += rgctype
+    print 'Loading model', filename
+    indices = extract( linear_stats(rgctype,(5,0)), ['sparse_index', 'subunit_index'] )
+    indices['N_subunits'] = len(cones)
+    spikes = which_spikes( rgctype )
+    data_generator = retina.read_stimulus( spikes,
+                                 stimulus_pattern='cone_input_%d.mat' ,
+                                 skip_pattern=(-5,0) )
+    stimdata = data_generator.next()
+    print 'stimdata', stimdata.keys()    
+    model = kb.load(filename)
+    return forward_LQLEP( stimdata['stimulus'], stimdata['spikes'], model, indices)
+
+
+import scipy
+@memory.cache
+def exact_LL( filename=None, rgctype='off parasol' ):
+    print 'Calculating exact LL for', filename+rgctype
+    forward = load_model( filename, rgctype ).LL
+    return sum( map( forward, retina.read_stimulus( spikes,
+                                     stimulus_pattern='cone_input_%d.mat' ,
+                                     skip_pattern=(-5,0) ) ) )
+
+@memory.cache
+def exact_normalized_LLs( filename=None, rgctype='off parasol' ):
+    def normalizer( spikes=None, **other ):
+        lnfact  = numpy.sum( scipy.special.gammaln( 1. + numpy.vstack( spikes ) ) )
+        N_total = numpy.sum( numpy.vstack( spikes ) )
+        return numpy.array([lnfact, N_total])
+    lnfact, N_total = sum( map( normalizer, 
+                           retina.read_stimulus( which_spikes( rgctype ),
+                                                stimulus_pattern='cone_input_%d.mat' ,
+                                                skip_pattern=(-5,0) ) ) )
+    LQLEP_LL = exact_LL( filename, rgctype )
+    LNP_LL   = exact_LL( 'LNP_', rgctype )
+    print 'LL', (LL+lnfact)/N_total,'LNPLL',(LNPLL+lnfact)/N_total
+    return {'LQLEP_LL':float((LQLEP_LL+lnfact)/N_total), 'LNP_LL':float((LNP_LL+lnfact)/N_total),
+            'log_factorial':lnfact/N_total, 'N_total':N_total,
+            'source':''''LQLEP_LL':float((LQLEP_LL+lnfact)/N_total), 
+                        'LNP_LL':float((LNP_LL+lnfact)/N_total),
+                        'log_factorial':lnfact/N_total, 'N_total':N_total'''}
+
+@memory.cache
+def simulated_STAC( filename=None, rgctype='off parasol' ):
+    print 'Calculating STAC for spikes generated with model', filename+rgctype
+    forward = load_model( filename, rgctype )
+    def spike_generator( d ):
+        d.update( {'spikes': [numpy.random.poisson(r) for r in forward.rates(d)] } )
+        return d
+    stats = STA_stats()
+    stats = make_sparse_indices( rgctype, stats )
+    stats.update( retina.accumulate_statistics( 
+        data_generator = retina.simulate_data( spike_generator,
+                         retina.read_stimulus( which_spikes( rgctype) , 
+                                               skip_pattern=(-5,0))) ,
+        pipelines      = retina.fit_U                    ,
+        sparse_index   = stats['sparse_index']          ))
+    return stats
+
+types = ['off parasol', 'on midget', 'on parasol', 'off midget']
 types.reverse()
+
+for rgctype in types:
+    print
+    print 'Calculating linear_stats for', rgctype
+    ls  = linear_stats(rgctype,(5,0))
+    moot = test_LNP( rgctype )
+
+#for rgctype in types:
+#    print
+#    print
+#    print
+#    print rgctype
+#    print
+#    print
+#    infile = 're2STD_Uc2_'+rgctype
+#
+#    indices = extract( linear_stats(rgctype,(5,0)), ['sparse_index', 'subunit_index'] )
+#    indices['N_subunits'] = len(cones)
+#    retrain = optimize_LQLEP(rgctype, filename=infile, maxiter=maxiter, indices=indices,
+#             description='posV1_c',
+#             vardict = LQLEP_positiveV1( **LQLEP_wBarrier( **LQLEP(
+#                                         **thetaM( **u2c_parameterization())))))
+
 for rgctype in types:
     print
     print
@@ -541,5 +695,18 @@ for rgctype in types:
     indices = extract( linear_stats(rgctype,(5,0)), ['sparse_index', 'subunit_index'] )
     indices['N_subunits'] = len(cones)
     retrain = optimize_LQLEP(rgctype, filename=infile, maxiter=maxiter, indices=indices,
-             description='re2STD_usmooth_',
-             vardict = LQLEP_positive_u( **LQLEP_wBarrier( **LQLEP( **thetaM( **u2c_parameterization())))))
+             description='posV1_cd',
+             vardict = LQLEP_positiveV1( **LQLEP_wBarrier( **LQLEP(
+                                         **thetaM( **u2cd_parameterization())))))
+
+for rgctype in types:
+    print
+    print 'Calculating simulated_STAC for', rgctype
+    filename = 're2STD_Uc2_'
+    save( simulated_STAC( filename, rgctype), filename+rgctype+'_STAC' )
+
+
+#for rgctype in types:
+#    infile = 're2STD_usmooth_'
+#    e = exact_LL( filename=infile, rgctype=rgctype )
+#    save( e, infile+'_LL' )

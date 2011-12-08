@@ -204,6 +204,16 @@ def read_stimulus( spikes, stimulus_pattern='cone_input_%d.mat',
         i += 1
         yield data
     
+def simulate_data( spike_generator, stim_generator=None ):
+    while 1:
+        stimdata = stim_generator.next()
+        try:
+            stimdata['spikes'] = spike_generator( stimdata )
+            yield kb.extract( stimdata, ['stimulus','spikes'] )
+        except:
+            raise StopIteration
+    
+    
 def one(x,**other):      return numpy.ones((1,x.shape[1]))
 def identity(x,**other): return x
 def square(x  ,**other): return numpy.dot(x,x.T)
@@ -227,11 +237,18 @@ def normalize(x,N_timebins=None,N_spikes=None,**other):
 def covariance(x,N_timebins=None,mean=None,**other):
     return (x - numpy.outer(mean,mean))/N_timebins
 
+def STC(x,N_spikes=None,STA=None,**other):
+    return (x - numpy.outer(STA,STA))/N_spikes
+
 localization = {'N_timebins' : [one,      temporal_sum,        identity  ],
                 'N_spikes'   : [one,      spike_triggered_sum, identity  ],
                 'mean'       : [identity, temporal_sum,        normalize ],
                 'cov'        : [square,   identity,            covariance],
                 'STA'        : [identity, spike_triggered_sum, normalize ]}
+
+STAC = {'N_spikes'   : [one,      spike_triggered_sum, identity  ],
+        'STA'        : [identity, spike_triggered_sum, normalize ],
+        'STC'        : [square  , spike_triggered_sum, STC       ]}
 
 def sparse_identity( x, sparse_index=None, **other ): 
     return [x[si,:] for si in sparse_index]
@@ -242,6 +259,8 @@ def sparse_STC( x, sparse_index=None, spikes=None, **other ):
 
 # accumulate_statistics must be called with sparse_index kwarg for this
 fit_U = {'N_spikes'   : [one,             spike_triggered_sum, identity ],
+#        'mean'       : [identity,        temporal_sum,        normalize ],
+#        'cov'        : [square,          identity,            covariance],
         'sparse_STA' : [sparse_identity, spike_triggered_sum, normalize],
         'sparse_STC' : [sparse_STC,      identity,            normalize]}
 

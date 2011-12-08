@@ -4,6 +4,10 @@ Created on Fri Sep 30 16:40:03 2011
 
 @author: - kolia
 """
+
+def extract(d, keys):
+    return dict((k, d[k]) for k in keys if k in d)
+
 import matplotlib.collections
 import matplotlib.transforms
 import pylab
