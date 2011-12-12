@@ -207,11 +207,11 @@ def read_stimulus( spikes, stimulus_pattern='cone_input_%d.mat',
 def simulate_data( spike_generator, stim_generator=None ):
     while 1:
         stimdata = stim_generator.next()
-        try:
-            stimdata['spikes'] = spike_generator( stimdata )
-            yield kb.extract( stimdata, ['stimulus','spikes'] )
-        except:
-            raise StopIteration
+#        try:
+        stimdata['spikes'] = spike_generator( stimdata )
+        yield kb.extract( stimdata, ['stimulus','spikes'] )
+#        except:
+#            raise StopIteration
     
     
 def one(x,**other):      return numpy.ones((1,x.shape[1]))
