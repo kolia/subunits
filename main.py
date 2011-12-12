@@ -392,7 +392,7 @@ def make_global_objective(unknowns,knowns,vardict,variables,outputs,indices,NRGC
         if hasattr(objectives[0],fname):
             setattr(global_obj,fname,partial(_sum_objectives, objectives, global_obj, fname))
             setattr(getattr(global_obj,fname),'__name__',fname)
-    test_global_objective( global_obj, unknowns )
+#    test_global_objective( global_obj, unknowns )
     global_obj.description = ''
     print '... done preparing objective in', time.time()-t0,'sec.'
     return global_obj
