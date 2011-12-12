@@ -702,27 +702,32 @@ for rgctype in types:
 #             vardict = LQLEP_positiveV1( **LQLEP_wBarrier( **LQLEP(
 #                                         **thetaM( **u2c_parameterization())))))
 
-for rgctype in types:
-    print
-    print
-    print
-    print rgctype
-    print
-    print
-    infile = 're2STD_Uc2_'+rgctype
-
-    indices = extract( linear_stats(rgctype,(5,0)), ['sparse_index', 'subunit_index'] )
-    indices['N_subunits'] = len(cones)
-    retrain = optimize_LQLEP(rgctype, filename=infile, indices=indices,
-             description='posV1_c', maxiter=42*10+2, 
-             vardict = LQLEP_positiveV1( **LQLEP_wBarrier( **LQLEP(
-                                         **thetaM( **u2c_parameterization())))))
-
 #for rgctype in types:
 #    print
-#    print 'Calculating simulated_STAC for', rgctype
-#    filename = 're2STD_Uc2_'
-#    save( simulated_STAC( filename, rgctype), filename+rgctype+'_STAC' )
+#    print
+#    print
+#    print rgctype
+#    print
+#    print
+#    infile = 're2STD_Uc2_'+rgctype
+#
+#    indices = extract( linear_stats(rgctype,(5,0)), ['sparse_index', 'subunit_index'] )
+#    indices['N_subunits'] = len(cones)
+#    iterations[0] = 0
+#    retrain = optimize_LQLEP(rgctype, filename=infile, indices=indices,
+#             description='posV1_L2v1_smooth10_c_', maxiter=42*5+2, 
+#             vardict = LQLEP_positiveV1( **LQLEP_wBarrier( **LQLEP(
+#                                         **thetaM( **u2c_parameterization())))))
+
+for i in range(41,214,42)+[214]:
+    filename = ('posV1_L2v1_newmooth_c_off parasoliter%d'%i)
+    rgctype = 'off parasol'
+#    plot_thetaM( filename, rgctype )
+    e = exact_normalized_LLs( filename, rgctype )
+    save( e, filename+'_LL' )
+    print
+    print 'Calculating simulated_STAC for', filename
+    s = simulated_STAC( filename, rgctype)
 
 
 #for rgctype in types:
