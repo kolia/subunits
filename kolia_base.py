@@ -73,12 +73,12 @@ def plot_filters(X,same_scale=True):
         ax.yaxis.set_major_locator( LinearLocator(numticks=2) )
         ax.xaxis.set_major_locator( IndexLocator(overcompleteness,0) )
  
-def save(result,name,where='/Users/kolia/Desktop'):
+def save(result,name,where='/Users/kolia/Desktop/results'):
     savefile = open("%s/%s.pyckle" % (where,name),'w')
     cPickle.dump(result,savefile,protocol=2)
     savefile.close()
  
-def load(name,where='/Users/kolia/Desktop'):
+def load(name,where='/Users/kolia/Desktop/results'):
     savefile = open('%s/%s.pyckle' % (where,name),'r')
     result = cPickle.load(savefile)
     savefile.close()
