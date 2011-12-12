@@ -619,6 +619,9 @@ def load_model( filename=None, rgctype='off parasol' ):
     stimdata = data_generator.next()
     print 'stimdata', stimdata.keys()    
     model = kb.load(filename)
+    for n,v in model.items():
+        if isinstance(v,type({})):
+            model.update(v)
     return forward_LQLEP( stimdata['stimulus'], stimdata['spikes'], model, indices)
 
 
@@ -627,23 +630,23 @@ import scipy
 def exact_LL( filename=None, rgctype='off parasol' ):
     print 'Calculating exact LL for', filename
     forward = load_model( filename, rgctype ).LL
-    return sum( map( forward, retina.read_stimulus( spikes,
+    return sum( map( forward, retina.read_stimulus( which_spikes( rgctype ),
                                      stimulus_pattern='cone_input_%d.mat' ,
                                      skip_pattern=(-5,0) ) ) )
 
 @memory.cache
 def exact_normalized_LLs( filename=None, rgctype='off parasol' ):
     def normalizer( spikes=None, **other ):
-        lnfact  = numpy.sum( scipy.special.gammaln( 1. + numpy.vstack( spikes ) ) )
-        N_total = numpy.sum( numpy.vstack( spikes ) )
+        lnfact  = numpy.sum( scipy.special.gammaln( numpy.vstack( spikes['spikes'] + 1 ) ) )
+        N_total = numpy.sum( numpy.vstack( spikes['spikes'] ) )
         return numpy.array([lnfact, N_total])
     lnfact, N_total = sum( map( normalizer, 
                            retina.read_stimulus( which_spikes( rgctype ),
                                                 stimulus_pattern='cone_input_%d.mat' ,
                                                 skip_pattern=(-5,0) ) ) )
     LQLEP_LL = exact_LL( filename, rgctype )
-    LNP_LL   = exact_LL( 'LNP_', rgctype )
-    print 'LL', (LL+lnfact)/N_total,'LNPLL',(LNPLL+lnfact)/N_total
+    LNP_LL   = exact_LL( 'LNP_'+rgctype, rgctype )
+    print 'LL', (LQLEP_LL+lnfact)/N_total,'LNPLL',(LNP_LL+lnfact)/N_total
     return {'LQLEP_LL':float((LQLEP_LL+lnfact)/N_total), 'LNP_LL':float((LNP_LL+lnfact)/N_total),
             'log_factorial':lnfact/N_total, 'N_total':N_total,
             'source':''''LQLEP_LL':float((LQLEP_LL+lnfact)/N_total), 
@@ -655,8 +658,7 @@ def simulated_STAC( filename=None, rgctype='off parasol' ):
     print 'Calculating STAC for spikes generated with model', filename
     forward = load_model( filename, rgctype )
     def spike_generator( d ):
-        d.update( {'spikes': [numpy.random.poisson(r) for r in forward.rates(d)] } )
-        return d
+        return [numpy.random.poisson(r) for r in forward.rates(d)]
     stats = STA_stats()
     stats = make_sparse_indices( rgctype, stats )
     stats.update( retina.accumulate_statistics( 
