@@ -156,7 +156,6 @@ def zeros_like(X):
         iterset = enumerate(X)
         result  = [None for i in len(X)]
     else:
-        raise TypeError('zeros_like expects numpy ndarray, list or dict')
         raise TypeError('zeros_like expects numpy ndarray, float, int, list or dict')
     for key,x in iterset:
         rec  = zeros_like(x)
