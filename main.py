@@ -601,7 +601,8 @@ def forward_LQLEP( stimulus, all_spikes, model, indices, vardict=u2c_parameteriz
     knowns = model
     knowns.update({'T':retina.place_cells( cones, cones, shapes )})
     unknowns = {'stimulus':stimulus, 'all_spikes':all_spikes}
-    outputs  = {'LL': vardict['loglikelihood'], 'rates': vardict['rgc_out']}
+    outputs  = {'LL': vardict['loglikelihood'], 'rates': vardict['rgc_out']} 
+#                'theta': vardict['theta']}
     NRGC = len( all_spikes )
     return make_global_objective(unknowns,knowns,vardict,variables,outputs,indices,NRGC)
 
