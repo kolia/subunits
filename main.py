@@ -669,7 +669,15 @@ def simulated_STAC( filename=None, rgctype='off parasol' ):
         sparse_index   = stats['sparse_index']          ))
     return stats
 
-types = ['off parasol', 'on midget', 'on parasol', 'off midget']
+def plot_cone_values( values ):
+    a1_V2   = kb.values_to_color( values , 'r' )
+    a_V2 = [[x,1.-x,0.,a] for x,_,_,a in a1_V2]
+    for i in zeros: a_V2[i][3] = 0.1
+    kb.plot_circles( sizes=1.5, offsets=cones, linewidth=0.001,
+                     facecolors=a_V2, edgecolors=(0.,0.,0.,0.3))
+
+
+types = ['off parasol', 'on parasol', 'on midget', 'off midget']
 #types.reverse()
 
 for rgctype in types:
