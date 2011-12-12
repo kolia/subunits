@@ -516,10 +516,10 @@ def callback( objective , params , force=False , other={} , objectives=[] , plot
     except:
         pass
     if force or numpy.remainder( iterations[0] , plot_every ) == plot_every-1:
-        filename = objective.description
+        filename = objective.description+('iter%d'%iterations[0])
 #        filename = objective.description+'_'+'_'.join(sorted(result.keys()))+'_'+ \
 #                  rgc_type+'_lam'+str(int(100*lam))+'_'+str(int(maxiter))+'iters'
-        save(result,filename+('iter%d'%iterations[0]))
+        save(result,filename)
         plot_params( result, filename )
     iterations[0] = iterations[0] + 1
 
@@ -607,7 +607,7 @@ def forward_LQLEP( stimulus, all_spikes, model, indices, vardict=u2c_parameteriz
 
 
 def load_model( filename=None, rgctype='off parasol' ):
-    filename += rgctype
+#    filename += rgctype
     print 'Loading model', filename
     indices = extract( linear_stats(rgctype,(5,0)), ['sparse_index', 'subunit_index'] )
     indices['N_subunits'] = len(cones)
@@ -624,7 +624,7 @@ def load_model( filename=None, rgctype='off parasol' ):
 import scipy
 @memory.cache
 def exact_LL( filename=None, rgctype='off parasol' ):
-    print 'Calculating exact LL for', filename+rgctype
+    print 'Calculating exact LL for', filename
     forward = load_model( filename, rgctype ).LL
     return sum( map( forward, retina.read_stimulus( spikes,
                                      stimulus_pattern='cone_input_%d.mat' ,
@@ -651,7 +651,7 @@ def exact_normalized_LLs( filename=None, rgctype='off parasol' ):
 
 @memory.cache
 def simulated_STAC( filename=None, rgctype='off parasol' ):
-    print 'Calculating STAC for spikes generated with model', filename+rgctype
+    print 'Calculating STAC for spikes generated with model', filename
     forward = load_model( filename, rgctype )
     def spike_generator( d ):
         d.update( {'spikes': [numpy.random.poisson(r) for r in forward.rates(d)] } )
