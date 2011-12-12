@@ -45,8 +45,8 @@ def get_rgc_type( i , data=data ):
         if eyedee in inds: return rgctype
     return None
 
-from kolia_base import save
-save(data,'data_localization')
+#from kolia_base import save
+#save(data,'data_localization')
 
 from scipy.linalg   import schur
 import sys
