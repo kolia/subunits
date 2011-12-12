@@ -252,6 +252,8 @@ def fuse_params( into , params , i , indices=None ):
             into = numpy.zeros(indices['N_subunits'])
         elif key == 'rates':
             into = []
+        elif key == 'theta':
+            into = []
         elif key in ['f', 'LL', 'barrier']:
             into = 0
     if indices is not None and indices.has_key('subunit_index'):
@@ -264,7 +266,11 @@ def fuse_params( into , params , i , indices=None ):
             elif name == 'nonlinearity':
                 into[index] += param
             elif name == 'rates':
-                into[index] += [param]
+                into += [param]
+            elif name == 'theta':
+                p = numpy.zeros(indices['N_subunits'])
+                p[index] = param
+                into += [p]
             elif name == 'c':
                 into['c'][index] += param
             elif name == 'd':
